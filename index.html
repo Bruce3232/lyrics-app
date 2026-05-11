@@ -4057,19 +4057,11 @@ document.getElementById('lyrics-stage').addEventListener('touchmove', (e) => {
   }
 }, { passive: true });
 
-// Auto-hide controls 2 seconds after the last user interaction so the lyrics stay
-// in focus regardless of play/pause state. Tap on the lyrics brings them back.
-let perfControlsTimer = null;
+// UI visibility is controlled purely by tap. No auto-hide.
 function resetControlsTimer() {
+  // Kept as a no-arg shim so existing call sites still "show the UI".
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
-  clearTimeout(perfControlsTimer);
-  perfControlsTimer = setTimeout(() => {
-    if (state.view === 'performance') {
-      document.getElementById('perf-overlay').classList.add('hidden');
-      document.getElementById('perf-controls').classList.add('hidden');
-    }
-  }, 2000);
 }
 
 // =====================================================
@@ -4294,20 +4286,6 @@ function toggleFullscreen() {
   }
 }
 
-document.getElementById('performance-view').addEventListener('mousemove', () => {
-  if (state.view === 'performance') resetControlsTimer();
-});
-
-// Any interaction with the controls bar (slider drag, button press, touch)
-// must keep the UI alive — otherwise the auto-hide fires mid-gesture on iPad.
-['pointerdown', 'pointermove', 'touchstart', 'touchmove', 'input', 'change'].forEach(ev => {
-  document.getElementById('perf-controls').addEventListener(ev, () => {
-    if (state.view === 'performance') resetControlsTimer();
-  }, { passive: true });
-  document.getElementById('perf-overlay').addEventListener(ev, () => {
-    if (state.view === 'performance') resetControlsTimer();
-  }, { passive: true });
-});
 
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
@@ -4315,11 +4293,11 @@ document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   // stops the song — only the play/stop button does that.
   const isHidden = document.getElementById('perf-overlay').classList.contains('hidden');
   if (isHidden) {
-    // Show UI and re-arm the 2s inactivity auto-hide
-    resetControlsTimer();
+    // Tap shows UI
+    document.getElementById('perf-overlay').classList.remove('hidden');
+    document.getElementById('perf-controls').classList.remove('hidden');
   } else {
-    // Hide UI immediately
-    clearTimeout(perfControlsTimer);
+    // Tap again hides UI
     document.getElementById('perf-overlay').classList.add('hidden');
     document.getElementById('perf-controls').classList.add('hidden');
   }
