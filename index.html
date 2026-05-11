@@ -1118,19 +1118,26 @@
   }
 
   /* ============ PERFORMANCE VIEW ============ */
+  /* Overlay + controls are absolutely positioned so that hiding them
+     does NOT reflow the lyrics-stage (which would visibly "pull" the
+     lyric text). The stage always fills the full viewport; overlay
+     and controls just fade in/out on top. */
   #performance-view {
     background: var(--bg-0);
+    position: relative;
   }
   #performance-view .body {
     flex: 1;
     overflow: hidden;
     position: relative;
-    display: flex;
-    flex-direction: column;
+    display: block;
   }
 
   .perf-overlay {
-    flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     z-index: 10;
     padding: 18px 28px;
     display: flex;
@@ -1140,15 +1147,11 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
-    transition: opacity 0.35s var(--ease), max-height 0.35s var(--ease), padding 0.35s var(--ease), border-color 0.35s var(--ease);
-    max-height: 200px;
-    overflow: hidden;
+    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease), border-color 0.35s var(--ease);
   }
   .perf-overlay.hidden {
     opacity: 0;
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
+    transform: translateY(-100%);
     border-bottom-color: transparent;
     pointer-events: none;
   }
@@ -1167,19 +1170,11 @@
   .perf-artist { font-size: 13px; color: var(--text-1); }
 
   .lyrics-stage {
-    flex: 1;
+    position: absolute;
+    inset: 0;
     overflow: hidden;
-    position: relative;
     mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
-    transition: mask-image 0.35s var(--ease), -webkit-mask-image 0.35s var(--ease);
-  }
-  /* When the auto-hide kicks in, drop the fade so the bottom chord/lyric
-     line isn't clipped — the user wants full edge-to-edge text.
-     Padding stays at 50vh so the text doesn't jump position. */
-  #performance-view.ui-hidden .lyrics-stage {
-    mask-image: none;
-    -webkit-mask-image: none;
   }
 
   .lyrics-track {
@@ -1343,18 +1338,20 @@
     white-space: nowrap;
   }
 
-  /* Performance controls bar */
+  /* Performance controls bar — absolutely positioned so showing/hiding
+     it does not push or pull the lyrics-stage. */
   .perf-controls {
-    flex-shrink: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     padding: 14px 20px;
     background: rgba(8,8,12,0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
     z-index: 10;
-    transition: opacity 0.35s var(--ease), max-height 0.35s var(--ease), padding 0.35s var(--ease), border-color 0.35s var(--ease);
-    max-height: 300px;
-    overflow: hidden;
+    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease), border-color 0.35s var(--ease);
     display: flex;
     align-items: center;
     gap: 16px;
@@ -1362,9 +1359,7 @@
   }
   .perf-controls.hidden {
     opacity: 0;
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
+    transform: translateY(100%);
     border-top-color: transparent;
     pointer-events: none;
   }
@@ -4054,13 +4049,11 @@ let perfControlsTimer = null;
 function resetControlsTimer() {
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
-  document.getElementById('performance-view').classList.remove('ui-hidden');
   clearTimeout(perfControlsTimer);
   perfControlsTimer = setTimeout(() => {
     if (state.view === 'performance') {
       document.getElementById('perf-overlay').classList.add('hidden');
       document.getElementById('perf-controls').classList.add('hidden');
-      document.getElementById('performance-view').classList.add('ui-hidden');
     }
   }, 2000);
 }
