@@ -1175,14 +1175,11 @@
     transition: mask-image 0.35s var(--ease), -webkit-mask-image 0.35s var(--ease);
   }
   /* When the auto-hide kicks in, drop the fade so the bottom chord/lyric
-     line isn't clipped — the user wants full edge-to-edge text. */
+     line isn't clipped — the user wants full edge-to-edge text.
+     Padding stays at 50vh so the text doesn't jump position. */
   #performance-view.ui-hidden .lyrics-stage {
     mask-image: none;
     -webkit-mask-image: none;
-  }
-  #performance-view.ui-hidden .lyrics-track {
-    padding-top: 4vh;
-    padding-bottom: 8vh;
   }
 
   .lyrics-track {
