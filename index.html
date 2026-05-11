@@ -940,22 +940,26 @@
     width: 13px;
     height: 13px;
   }
-  /* On non-active tabs, the delete button has subtle styling */
+  /* Delete buttons on non-active tabs: clearly red so they're obvious */
   .version-tab:not(.active) .version-action {
-    background: rgba(255,140,26,0.12);
-    color: var(--text-2);
+    background: rgba(255, 71, 87, 0.18);
+    color: #ff7e8a;
+    border: 1px solid rgba(255, 71, 87, 0.3);
   }
   .version-tab:not(.active) .version-action:hover {
-    background: rgba(255,71,87,0.2);
-    color: var(--danger);
+    background: var(--danger);
+    color: #fff;
+    border-color: var(--danger);
   }
   body.light-mode .version-tab:not(.active) .version-action {
-    background: rgba(20,20,30,0.08);
-    color: var(--text-2);
+    background: rgba(255, 71, 87, 0.12);
+    color: #c0392b;
+    border: 1px solid rgba(255, 71, 87, 0.25);
   }
   body.light-mode .version-tab:not(.active) .version-action:hover {
-    background: rgba(255,71,87,0.15);
-    color: var(--danger);
+    background: var(--danger);
+    color: #fff;
+    border-color: var(--danger);
   }
   /* Bigger touch targets */
   @media (hover: none) and (pointer: coarse) {
