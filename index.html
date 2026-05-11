@@ -3778,15 +3778,15 @@ document.getElementById('lyrics-stage').addEventListener('touchmove', (e) => {
   }
 }, { passive: true });
 
-// Auto-hide controls 2 seconds after play starts so the lyrics stay in focus.
-// Tap on the lyrics area brings the controls back.
+// Auto-hide controls 2 seconds after the last user interaction so the lyrics stay
+// in focus regardless of play/pause state. Tap on the lyrics brings them back.
 let perfControlsTimer = null;
 function resetControlsTimer() {
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
   clearTimeout(perfControlsTimer);
   perfControlsTimer = setTimeout(() => {
-    if (perfPlaying) {
+    if (state.view === 'performance') {
       document.getElementById('perf-overlay').classList.add('hidden');
       document.getElementById('perf-controls').classList.add('hidden');
     }
