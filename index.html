@@ -1172,6 +1172,17 @@
     position: relative;
     mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+    transition: mask-image 0.35s var(--ease), -webkit-mask-image 0.35s var(--ease);
+  }
+  /* When the auto-hide kicks in, drop the fade so the bottom chord/lyric
+     line isn't clipped — the user wants full edge-to-edge text. */
+  #performance-view.ui-hidden .lyrics-stage {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  #performance-view.ui-hidden .lyrics-track {
+    padding-top: 4vh;
+    padding-bottom: 8vh;
   }
 
   .lyrics-track {
@@ -3802,11 +3813,13 @@ let perfControlsTimer = null;
 function resetControlsTimer() {
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
+  document.getElementById('performance-view').classList.remove('ui-hidden');
   clearTimeout(perfControlsTimer);
   perfControlsTimer = setTimeout(() => {
     if (state.view === 'performance') {
       document.getElementById('perf-overlay').classList.add('hidden');
       document.getElementById('perf-controls').classList.add('hidden');
+      document.getElementById('performance-view').classList.add('ui-hidden');
     }
   }, 2000);
 }
