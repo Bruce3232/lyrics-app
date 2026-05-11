@@ -3778,11 +3778,19 @@ document.getElementById('lyrics-stage').addEventListener('touchmove', (e) => {
   }
 }, { passive: true });
 
-// Auto-hide disabled - in the new flex layout the controls are part of the page flow
-// and always visible. This avoids "invisible buttons" issues on iPad after pinch-zoom.
+// Auto-hide controls 2 seconds after play starts so the lyrics stay in focus.
+// Tap on the lyrics area brings the controls back.
+let perfControlsTimer = null;
 function resetControlsTimer() {
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
+  clearTimeout(perfControlsTimer);
+  perfControlsTimer = setTimeout(() => {
+    if (perfPlaying) {
+      document.getElementById('perf-overlay').classList.add('hidden');
+      document.getElementById('perf-controls').classList.add('hidden');
+    }
+  }, 2000);
 }
 
 // =====================================================
@@ -4012,7 +4020,13 @@ document.getElementById('performance-view').addEventListener('mousemove', () => 
 });
 
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
-  if (state.view === 'performance') {
+  if (state.view !== 'performance') return;
+  // If controls are hidden, the first tap just brings them back (no play toggle).
+  // If visible, tap toggles play.
+  const isHidden = document.getElementById('perf-overlay').classList.contains('hidden');
+  if (isHidden) {
+    resetControlsTimer();
+  } else {
     togglePerfScroll();
   }
 });
