@@ -918,27 +918,59 @@
     box-shadow: 0 2px 8px var(--accent-glow);
   }
   .version-tab .version-action {
-    background: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.2);
     border: none;
     color: inherit;
     cursor: pointer;
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    margin-left: 2px;
+    margin-left: 4px;
     flex-shrink: 0;
     font-family: inherit;
   }
   .version-tab .version-action:hover {
-    background: rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.4);
   }
   .version-tab .version-action svg {
-    width: 11px;
-    height: 11px;
+    width: 13px;
+    height: 13px;
+  }
+  /* On non-active tabs, the delete button has subtle styling */
+  .version-tab:not(.active) .version-action {
+    background: rgba(255,140,26,0.12);
+    color: var(--text-2);
+  }
+  .version-tab:not(.active) .version-action:hover {
+    background: rgba(255,71,87,0.2);
+    color: var(--danger);
+  }
+  body.light-mode .version-tab:not(.active) .version-action {
+    background: rgba(20,20,30,0.08);
+    color: var(--text-2);
+  }
+  body.light-mode .version-tab:not(.active) .version-action:hover {
+    background: rgba(255,71,87,0.15);
+    color: var(--danger);
+  }
+  /* Bigger touch targets */
+  @media (hover: none) and (pointer: coarse) {
+    .version-tab .version-action {
+      width: 28px;
+      height: 28px;
+    }
+    .version-tab .version-action svg {
+      width: 15px;
+      height: 15px;
+    }
+    .version-tab {
+      padding: 9px 14px;
+      font-size: 14px;
+    }
   }
   .version-tab.version-add {
     color: var(--accent-soft);
@@ -1067,18 +1099,21 @@
   }
 
   .perf-overlay {
-    position: absolute;
-    top: 0; left: 0; right: 0;
+    flex-shrink: 0;
     z-index: 10;
     padding: 18px 28px;
     display: flex;
     align-items: center;
     gap: 16px;
-    background: linear-gradient(180deg, rgba(8,8,12,0.85) 0%, transparent 100%);
+    background: rgba(8,8,12,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
     transition: opacity 0.4s var(--ease);
   }
   body.light-mode .perf-overlay {
-    background: linear-gradient(180deg, rgba(245,245,247,0.95) 0%, rgba(245,245,247,0.7) 60%, transparent 100%);
+    background: rgba(245,245,247,0.95);
+    border-bottom-color: rgba(20,20,30,0.08);
   }
   .perf-overlay.hidden { opacity: 0; pointer-events: none; }
   .perf-title-block { flex: 1; min-width: 0; }
@@ -1095,8 +1130,8 @@
     flex: 1;
     overflow: hidden;
     position: relative;
-    mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
-    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
   }
 
   .lyrics-track {
@@ -1209,12 +1244,12 @@
 
   /* Performance controls bar */
   .perf-controls {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 20px 28px 24px;
-    background: linear-gradient(0deg, rgba(8,8,12,0.95) 0%, rgba(8,8,12,0.7) 70%, transparent 100%);
+    flex-shrink: 0;
+    padding: 14px 20px;
+    background: rgba(8,8,12,0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
     z-index: 10;
     transition: opacity 0.4s var(--ease);
     display: flex;
@@ -1223,7 +1258,8 @@
     flex-wrap: wrap;
   }
   body.light-mode .perf-controls {
-    background: linear-gradient(0deg, rgba(245,245,247,0.98) 0%, rgba(245,245,247,0.85) 60%, transparent 100%);
+    background: rgba(245,245,247,0.98);
+    border-top-color: rgba(20,20,30,0.08);
   }
   .perf-controls.hidden { opacity: 0; pointer-events: none; }
 
@@ -1727,7 +1763,7 @@
       <div class="speed-card">
         <span class="speed-card-label">Scroll-Geschwindigkeit</span>
         <div class="speed-slider-wrap">
-          <input type="range" class="range-slider" id="ed-speed" min="5" max="120" step="1" value="30">
+          <input type="range" class="range-slider" id="ed-speed" min="5" max="40" step="1" value="20">
           <span class="speed-value" id="ed-speed-value">30 px/s</span>
         </div>
       </div>
@@ -1815,7 +1851,7 @@
 
       <div class="perf-control-group">
         <span class="label">Speed</span>
-        <input type="range" class="range-slider perf-speed-slider" id="perf-speed" min="5" max="120" step="1" value="30">
+        <input type="range" class="range-slider perf-speed-slider" id="perf-speed" min="5" max="40" step="1" value="20">
         <span class="value" id="perf-speed-value">30</span>
       </div>
 
@@ -2933,17 +2969,17 @@ function renderVersionTabs() {
 
   const html = song.versions.map(v => {
     const isActive = v.id === song.activeVersionId;
-    const actions = isActive ? `
-      <button class="version-action" data-action="rename" title="Umbenennen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      </button>
-      ${song.versions.length > 1 ? `
-        <button class="version-action" data-action="delete" title="Löschen">
+    const renameBtn = isActive
+      ? `<button class="version-action" data-action="rename" title="Umbenennen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>`
+      : '';
+    const deleteBtn = song.versions.length > 1
+      ? `<button class="version-action" data-action="delete" title="Version löschen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      ` : ''}
-    ` : '';
-    return `<button class="version-tab ${isActive ? 'active' : ''}" data-id="${v.id}">${escapeHtml(v.name)}${actions}</button>`;
+        </button>`
+      : '';
+    return `<button class="version-tab ${isActive ? 'active' : ''}" data-id="${v.id}">${escapeHtml(v.name)}${renameBtn}${deleteBtn}</button>`;
   }).join('');
 
   container.innerHTML = html + `
@@ -3605,17 +3641,11 @@ document.getElementById('lyrics-stage').addEventListener('touchmove', (e) => {
   }
 }, { passive: true });
 
-let perfControlsTimer = null;
+// Auto-hide disabled - in the new flex layout the controls are part of the page flow
+// and always visible. This avoids "invisible buttons" issues on iPad after pinch-zoom.
 function resetControlsTimer() {
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
-  clearTimeout(perfControlsTimer);
-  perfControlsTimer = setTimeout(() => {
-    if (perfPlaying) {
-      document.getElementById('perf-overlay').classList.add('hidden');
-      document.getElementById('perf-controls').classList.add('hidden');
-    }
-  }, 3500);
 }
 
 // =====================================================
@@ -3884,13 +3914,13 @@ document.addEventListener('keydown', (e) => {
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       const slider = document.getElementById('perf-speed');
-      slider.value = Math.min(120, parseInt(slider.value, 10) + 2);
+      slider.value = Math.min(40, parseInt(slider.value, 10) + 1);
       slider.dispatchEvent(new Event('input'));
       resetControlsTimer();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       const slider = document.getElementById('perf-speed');
-      slider.value = Math.max(5, parseInt(slider.value, 10) - 2);
+      slider.value = Math.max(5, parseInt(slider.value, 10) - 1);
       slider.dispatchEvent(new Event('input'));
       resetControlsTimer();
     } else if (e.key === 'ArrowRight') {
@@ -3978,11 +4008,41 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
     const data = JSON.parse(text);
     if (!data.songs || !Array.isArray(data.songs)) throw new Error('Ungültiges Format');
 
+    // Count current data to warn user
+    const existingSongs = await dbAll();
+    const existingSetlists = await setlistAll();
+
+    const importSongCount = data.songs.length;
+    const importSetlistCount = (data.setlists && Array.isArray(data.setlists)) ? data.setlists.length : 0;
+
+    // Confirm destructive replace
+    let warning = '';
+    if (existingSongs.length > 0 || existingSetlists.length > 0) {
+      warning = `\n\n⚠️ Aktuelle Bibliothek wird KOMPLETT GELÖSCHT:\n• ${existingSongs.length} Song${existingSongs.length === 1 ? '' : 's'}\n• ${existingSetlists.length} Setlist${existingSetlists.length === 1 ? '' : 's'}`;
+    }
+    const ok = await confirmDialog(
+      'Import: Bibliothek ersetzen?',
+      `${importSongCount} Song${importSongCount === 1 ? '' : 's'}` +
+      (importSetlistCount ? ` + ${importSetlistCount} Setlist${importSetlistCount === 1 ? '' : 's'}` : '') +
+      ' werden importiert.' + warning
+    );
+    if (!ok) {
+      e.target.value = '';
+      return;
+    }
+
+    // Wipe everything
+    for (const s of existingSongs) {
+      try { await dbDelete(s.id); } catch (err) {}
+    }
+    for (const sl of existingSetlists) {
+      try { await setlistDelete(sl.id); } catch (err) {}
+    }
+
     let songCount = 0;
     let setlistCount = 0;
-    const idMap = new Map(); // oldSongId → newSongId (only set if remapped due to collision)
 
-    // Pass 1: Import songs, building ID map
+    // Pass 1: Import songs (IDs are now guaranteed unique since DB was wiped)
     for (const s of data.songs) {
       // Strip legacy audio fields if present
       delete s.audioBlob;
@@ -3991,38 +4051,25 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
       delete s.audioType;
       delete s.timings;
       delete s.bpm;
-      const oldId = s.id;
-      const existing = await dbGet(s.id);
-      if (existing) s.id = uid();
-      idMap.set(oldId, s.id);
       await dbPut(s);
       songCount++;
     }
 
-    // Pass 2: Import setlists with remapped song IDs (drop missing references)
+    // Pass 2: Import setlists - song IDs from backup remain valid since we wiped + restored
     if (data.setlists && Array.isArray(data.setlists)) {
-      const validIds = new Set([...idMap.values()]);
-      // Also include songs already in DB that weren't part of the import
-      const existing = await dbAll();
-      for (const s of existing) validIds.add(s.id);
-
+      const validSongIds = new Set(data.songs.map(s => s.id));
       for (const sl of data.setlists) {
-        const existingSetlist = await setlistGet(sl.id);
-        if (existingSetlist) {
-          sl.id = 'setlist_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-        }
-        // Remap song IDs through the import map; drop any that don't have a target
-        sl.songIds = (sl.songIds || [])
-          .map(id => idMap.get(id) || id)
-          .filter(id => validIds.has(id));
+        sl.songIds = (sl.songIds || []).filter(id => validSongIds.has(id));
         await setlistPut(sl);
         setlistCount++;
       }
     }
 
+    // Reset library state
+    state.currentSetlistId = null;
     const parts = [`${songCount} Song${songCount === 1 ? '' : 's'}`];
     if (setlistCount > 0) parts.push(`${setlistCount} Setlist${setlistCount === 1 ? '' : 's'}`);
-    showToast(parts.join(' + ') + ' importiert', 'success');
+    showToast(parts.join(' + ') + ' importiert (Bibliothek ersetzt)', 'success');
     renderLibrary();
   } catch (err) {
     showToast('Import fehlgeschlagen: ' + err.message, 'error');
