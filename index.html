@@ -2412,6 +2412,10 @@ function applyTheme(theme) {
     el.style.display = theme === 'light' ? '' : 'none';
   });
   try { localStorage.setItem('lyrics-theme', theme); } catch(e) {}
+  // Re-apply personalized accent so the light/dark contrast adjustment kicks in.
+  if (typeof applyPersonalize === 'function') {
+    applyPersonalize(loadPersonalize());
+  }
 }
 
 function initTheme() {
@@ -2471,29 +2475,39 @@ function shadeColor(hex, percent) {
 }
 
 function applyPersonalize(p) {
-  const root = document.documentElement;
+  // Apply on <body> (not <html>) so we override the
+  // body.light-mode { --accent: ... } rule via inline-style specificity.
+  // This lets the user's chosen accent show up in BOTH dark and light mode.
+  const target = document.body;
   if (p.accent) {
     const { r, g, b } = hexToRgb(p.accent);
-    root.style.setProperty('--accent', p.accent);
-    root.style.setProperty('--accent-soft', shadeColor(p.accent, 18));
-    root.style.setProperty('--accent-deep', shadeColor(p.accent, -22));
-    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
-    root.style.setProperty('--bg-radial-1', `rgba(${r}, ${g}, ${b}, 0.08)`);
+    const isLight = document.body.classList.contains('light-mode');
+    // Slightly darken the user's pick in light mode for legible contrast.
+    const baseAccent = isLight ? shadeColor(p.accent, -12) : p.accent;
+    target.style.setProperty('--accent', baseAccent);
+    target.style.setProperty('--accent-soft', shadeColor(baseAccent, 18));
+    target.style.setProperty('--accent-deep', shadeColor(baseAccent, -22));
+    target.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, ${isLight ? 0.2 : 0.35})`);
+    target.style.setProperty('--bg-radial-1', `rgba(${r}, ${g}, ${b}, ${isLight ? 0.04 : 0.08})`);
+    target.style.setProperty('--section-color', baseAccent);
   } else {
-    root.style.removeProperty('--accent');
-    root.style.removeProperty('--accent-soft');
-    root.style.removeProperty('--accent-deep');
-    root.style.removeProperty('--accent-glow');
-    root.style.removeProperty('--bg-radial-1');
+    target.style.removeProperty('--accent');
+    target.style.removeProperty('--accent-soft');
+    target.style.removeProperty('--accent-deep');
+    target.style.removeProperty('--accent-glow');
+    target.style.removeProperty('--bg-radial-1');
+    target.style.removeProperty('--section-color');
   }
-  if (p.bg) {
-    root.style.setProperty('--bg-0', p.bg.bg0);
-    root.style.setProperty('--bg-1', p.bg.bg1);
-    root.style.setProperty('--bg-2', p.bg.bg2);
+  // BG tones are dark-only. Skip in light mode so the page stays light.
+  const isLightBg = document.body.classList.contains('light-mode');
+  if (p.bg && !isLightBg) {
+    target.style.setProperty('--bg-0', p.bg.bg0);
+    target.style.setProperty('--bg-1', p.bg.bg1);
+    target.style.setProperty('--bg-2', p.bg.bg2);
   } else {
-    root.style.removeProperty('--bg-0');
-    root.style.removeProperty('--bg-1');
-    root.style.removeProperty('--bg-2');
+    target.style.removeProperty('--bg-0');
+    target.style.removeProperty('--bg-1');
+    target.style.removeProperty('--bg-2');
   }
 }
 
