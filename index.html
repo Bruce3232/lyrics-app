@@ -1625,7 +1625,59 @@
   }
   .modal h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
   .modal p { color: var(--text-1); margin-bottom: 20px; }
-  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
+  .modal-large { max-width: 520px; }
+
+  /* Personalize modal */
+  .pers-section { margin-bottom: 20px; }
+  .pers-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pers-swatches {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pers-swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s var(--ease), border-color 0.15s var(--ease);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .pers-swatch:hover { transform: scale(1.08); }
+  .pers-swatch.active {
+    border-color: var(--text-0);
+    transform: scale(1.08);
+  }
+  .pers-swatch.active::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.9);
+    pointer-events: none;
+  }
+  .pers-color-input {
+    width: 56px;
+    height: 44px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    cursor: pointer;
+    padding: 2px;
+  }
+  .pers-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+  .pers-color-input::-webkit-color-swatch { border: none; border-radius: 6px; }
 
   /* Toast */
   .toast {
@@ -1745,9 +1797,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Auswählen
       </button>
-      <button class="btn btn-ghost" id="setlist-btn" title="Demo-Songs laden (10 Songs)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-        Demo
+      <button class="btn btn-ghost" id="personalize-btn" title="Farbe & Einstellungen anpassen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.504 5.555-5.555C21.992 6.012 17.516 2 12 2z"/></svg>
+        Personalisieren
       </button>
       <button class="btn btn-ghost" id="import-btn" title="Songs aus JSON importieren">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -2025,6 +2077,39 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="setlist-manage-close">Fertig</button>
+    </div>
+  </div>
+</div>
+
+<!-- Personalize Modal -->
+<div class="modal-backdrop" id="personalize-modal">
+  <div class="modal modal-large">
+    <h3>Personalisieren</h3>
+    <p style="color:var(--text-1); margin-bottom:20px;">Gestalte die App nach deinem Geschmack.</p>
+
+    <div class="pers-section">
+      <div class="pers-label">Akzentfarbe</div>
+      <div class="pers-swatches" id="pers-swatches"></div>
+    </div>
+
+    <div class="pers-section">
+      <div class="pers-label">Eigene Farbe</div>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <input type="color" id="pers-custom-color" class="pers-color-input" value="#ff8c1a">
+        <span style="color:var(--text-1); font-size:13px;">Beliebige Farbe wählen</span>
+      </div>
+    </div>
+
+    <div class="pers-section">
+      <div class="pers-label">Hintergrund-Stil (Dark Mode)</div>
+      <div class="pers-swatches" id="pers-bg-swatches"></div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:24px;">
+      <button class="btn" id="pers-reset">Zurücksetzen</button>
+      <div style="flex:1;"></div>
+      <button class="btn" id="pers-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="pers-save">Speichern</button>
     </div>
   </div>
 </div>
@@ -2354,6 +2439,165 @@ document.addEventListener('click', (e) => {
 });
 
 initTheme();
+
+// =====================================================
+//                   Personalize (Accent / Background)
+// =====================================================
+const PERS_KEY = 'lyrics-personalize';
+const ACCENT_PRESETS = [
+  { name: 'Orange', hex: '#ff8c1a' },
+  { name: 'Rot',    hex: '#ff4757' },
+  { name: 'Pink',   hex: '#ff5ea8' },
+  { name: 'Lila',   hex: '#9d6cff' },
+  { name: 'Blau',   hex: '#3aa3ff' },
+  { name: 'Türkis', hex: '#1ed3c4' },
+  { name: 'Grün',   hex: '#2ecc71' },
+  { name: 'Gold',   hex: '#f5b400' },
+];
+const BG_PRESETS = [
+  { name: 'Dunkel',  bg0: '#08080c', bg1: '#12121a', bg2: '#1a1a25' },
+  { name: 'Mitternacht', bg0: '#070a18', bg1: '#0e1428', bg2: '#16203c' },
+  { name: 'Espresso',    bg0: '#100a06', bg1: '#1a120c', bg2: '#241b13' },
+  { name: 'Anthrazit',   bg0: '#15151a', bg1: '#1f1f26', bg2: '#2a2a33' },
+  { name: 'Tiefsee',     bg0: '#04181a', bg1: '#082428', bg2: '#0d3338' },
+];
+
+// Convert "#rrggbb" to {r,g,b}
+function hexToRgb(hex) {
+  const m = hex.replace('#', '').match(/.{2}/g);
+  return { r: parseInt(m[0], 16), g: parseInt(m[1], 16), b: parseInt(m[2], 16) };
+}
+function rgbToHex(r, g, b) {
+  const c = v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+function shadeColor(hex, percent) {
+  const { r, g, b } = hexToRgb(hex);
+  const f = percent / 100;
+  if (percent >= 0) return rgbToHex(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f);
+  return rgbToHex(r * (1 + f), g * (1 + f), b * (1 + f));
+}
+
+function applyPersonalize(p) {
+  const root = document.documentElement;
+  if (p.accent) {
+    const { r, g, b } = hexToRgb(p.accent);
+    root.style.setProperty('--accent', p.accent);
+    root.style.setProperty('--accent-soft', shadeColor(p.accent, 18));
+    root.style.setProperty('--accent-deep', shadeColor(p.accent, -22));
+    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
+    root.style.setProperty('--bg-radial-1', `rgba(${r}, ${g}, ${b}, 0.08)`);
+  } else {
+    root.style.removeProperty('--accent');
+    root.style.removeProperty('--accent-soft');
+    root.style.removeProperty('--accent-deep');
+    root.style.removeProperty('--accent-glow');
+    root.style.removeProperty('--bg-radial-1');
+  }
+  if (p.bg) {
+    root.style.setProperty('--bg-0', p.bg.bg0);
+    root.style.setProperty('--bg-1', p.bg.bg1);
+    root.style.setProperty('--bg-2', p.bg.bg2);
+  } else {
+    root.style.removeProperty('--bg-0');
+    root.style.removeProperty('--bg-1');
+    root.style.removeProperty('--bg-2');
+  }
+}
+
+function loadPersonalize() {
+  try {
+    const raw = localStorage.getItem(PERS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+function savePersonalize(p) {
+  try { localStorage.setItem(PERS_KEY, JSON.stringify(p)); } catch(e) {}
+}
+
+function initPersonalize() {
+  applyPersonalize(loadPersonalize());
+}
+initPersonalize();
+
+// Modal wiring
+let persDraft = {};
+
+function openPersonalize() {
+  persDraft = { ...loadPersonalize() };
+  renderPersSwatches();
+  renderBgSwatches();
+  document.getElementById('pers-custom-color').value = persDraft.accent || '#ff8c1a';
+  document.getElementById('personalize-modal').classList.add('show');
+}
+function closePersonalize() {
+  document.getElementById('personalize-modal').classList.remove('show');
+  // Re-apply saved (discard preview if user cancelled)
+  applyPersonalize(loadPersonalize());
+}
+
+function renderPersSwatches() {
+  const wrap = document.getElementById('pers-swatches');
+  wrap.innerHTML = '';
+  ACCENT_PRESETS.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'pers-swatch';
+    el.style.background = `linear-gradient(135deg, ${p.hex}, ${shadeColor(p.hex, -22)})`;
+    el.title = p.name;
+    if (persDraft.accent && persDraft.accent.toLowerCase() === p.hex.toLowerCase()) {
+      el.classList.add('active');
+    }
+    el.addEventListener('click', () => {
+      persDraft.accent = p.hex;
+      document.getElementById('pers-custom-color').value = p.hex;
+      applyPersonalize(persDraft);
+      renderPersSwatches();
+    });
+    wrap.appendChild(el);
+  });
+}
+
+function renderBgSwatches() {
+  const wrap = document.getElementById('pers-bg-swatches');
+  wrap.innerHTML = '';
+  BG_PRESETS.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'pers-swatch';
+    el.style.background = `linear-gradient(135deg, ${p.bg0}, ${p.bg2})`;
+    el.title = p.name;
+    if (persDraft.bg && persDraft.bg.bg0 === p.bg0) el.classList.add('active');
+    el.addEventListener('click', () => {
+      persDraft.bg = { bg0: p.bg0, bg1: p.bg1, bg2: p.bg2 };
+      applyPersonalize(persDraft);
+      renderBgSwatches();
+    });
+    wrap.appendChild(el);
+  });
+}
+
+document.getElementById('personalize-btn').addEventListener('click', openPersonalize);
+document.getElementById('pers-cancel').addEventListener('click', closePersonalize);
+document.getElementById('personalize-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'personalize-modal') closePersonalize();
+});
+document.getElementById('pers-custom-color').addEventListener('input', (e) => {
+  persDraft.accent = e.target.value;
+  applyPersonalize(persDraft);
+  renderPersSwatches();
+});
+document.getElementById('pers-save').addEventListener('click', () => {
+  savePersonalize(persDraft);
+  applyPersonalize(persDraft);
+  document.getElementById('personalize-modal').classList.remove('show');
+  showToast('Gespeichert', 'success');
+});
+document.getElementById('pers-reset').addEventListener('click', () => {
+  persDraft = {};
+  applyPersonalize(persDraft);
+  renderPersSwatches();
+  renderBgSwatches();
+  document.getElementById('pers-custom-color').value = '#ff8c1a';
+});
 
 // =====================================================
 //                   Routing
@@ -4710,19 +4954,6 @@ async function loadDemoSetlist() {
   }
   await renderLibrary();
 }
-
-document.getElementById('setlist-btn').addEventListener('click', async () => {
-  const existing = await dbAll();
-  if (existing.length === 0) {
-    await loadDemoSetlist();
-    return;
-  }
-  const ok = await confirmDialog(
-    'Live-Setlist laden?',
-    `Die 10 vorbereiteten Songs werden hinzugefügt. Bereits vorhandene Songs (gleicher Titel) werden übersprungen.`
-  );
-  if (ok) await loadDemoSetlist();
-});
 
 document.getElementById('load-setlist-btn').addEventListener('click', loadDemoSetlist);
 
