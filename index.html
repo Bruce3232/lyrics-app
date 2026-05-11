@@ -1251,6 +1251,59 @@
   /* Inherit font size from track */
   #lyrics-track .chord-overlay { font-size: inherit; }
 
+  /* Word-segment layout - wraps naturally on narrow screens (iPad portrait) */
+  .lyric-flow {
+    font-family: var(--font-mono);
+    line-height: 1.5;
+    margin-bottom: 0.55em;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .chord-segment {
+    display: inline-block;
+    vertical-align: top;
+    white-space: nowrap;
+    margin-bottom: 4px;
+  }
+  .chord-segment .seg-chord {
+    display: block;
+    background: var(--chord-chip-bg);
+    color: var(--chord-chip-color);
+    border: 1px solid var(--chord-chip-border);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-weight: 600;
+    font-size: 0.78em;
+    line-height: 1.3;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    margin-bottom: 4px;
+    width: fit-content;
+    min-width: 1.2em;
+    text-align: center;
+  }
+  body.light-mode .chord-segment .seg-chord {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .chord-segment .seg-chord.seg-chord-spacer {
+    visibility: hidden;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .chord-segment .chord-anno {
+    color: var(--accent-soft);
+    margin-left: 3px;
+    font-size: 0.92em;
+    font-weight: 700;
+  }
+  .chord-segment .seg-text {
+    display: block;
+    color: var(--lyric-color);
+    text-shadow: var(--lyric-shadow);
+    white-space: nowrap;
+  }
+
   /* Performance controls bar */
   .perf-controls {
     flex-shrink: 0;
@@ -3452,54 +3505,105 @@ function renderLyrics(lines) {
   });
 }
 
+// Word-based item builder so each chord rides above its word and lines wrap
+// naturally on narrow screens (e.g. iPad portrait). Spaces between words are
+// regular inline text, so the browser breaks the line at natural points.
+function buildWordItems(text, chordEntries) {
+  const words = [];
+  const re = /\S+/g;
+  let wm;
+  while ((wm = re.exec(text)) !== null) {
+    words.push({ start: wm.index, end: wm.index + wm[0].length, text: wm[0] });
+  }
+
+  const wordChord = {};
+  const trailing = [];
+  for (const cp of chordEntries) {
+    let assigned = false;
+    for (let wi = 0; wi < words.length; wi++) {
+      if (cp.position < words[wi].end) {
+        if (!wordChord[wi]) wordChord[wi] = cp;
+        assigned = true;
+        break;
+      }
+    }
+    if (!assigned) trailing.push(cp);
+  }
+
+  const items = [];
+  let lastEnd = 0;
+  for (let wi = 0; wi < words.length; wi++) {
+    const w = words[wi];
+    if (lastEnd < w.start) {
+      items.push({ type: 'space', text: text.slice(lastEnd, w.start) });
+    }
+    const cp = wordChord[wi];
+    items.push({
+      type: 'segment',
+      chord: cp ? cp.chord : null,
+      annos: cp ? cp.annos : [],
+      text: w.text,
+    });
+    lastEnd = w.end;
+  }
+  if (lastEnd < text.length) {
+    items.push({ type: 'space', text: text.slice(lastEnd) });
+  }
+  for (const cp of trailing) {
+    items.push({ type: 'segment', chord: cp.chord, annos: cp.annos, text: ' ' });
+  }
+  return items;
+}
+
+function renderSegments(items) {
+  return items.map(item => {
+    if (item.type === 'space') {
+      return escapeHtml(item.text);
+    }
+    let chordHtml;
+    if (item.chord) {
+      const annos = (item.annos || []).map(a => `<span class="chord-anno">${escapeHtml(a)}</span>`).join('');
+      chordHtml = `<span class="seg-chord">${escapeHtml(item.chord)}${annos}</span>`;
+    } else {
+      chordHtml = `<span class="seg-chord seg-chord-spacer">&nbsp;</span>`;
+    }
+    return `<span class="chord-segment">${chordHtml}<span class="seg-text">${escapeHtml(item.text)}</span></span>`;
+  }).join('');
+}
+
 function renderInlineChordLine(line) {
   const { plainText, chords } = parseInlineLine(line);
   if (chords.length === 0) {
     return `<div class="lyric-line">${escapeHtml(plainText)}</div>`;
   }
-  const chips = chords.map(c =>
-    `<span class="chord-chip-positioned" data-column="${c.position}" style="left: ${c.position}ch"><span class="chord-text">${escapeHtml(c.chord)}</span></span>`
-  ).join('');
-  return `<div class="lyric-pair">` +
-           `<div class="chord-overlay">${chips}</div>` +
-           `<div class="lyric-text">${escapeHtml(plainText)}</div>` +
-         `</div>`;
+  const chordEntries = chords.map(c => ({ chord: c.chord, position: c.position, annos: [] }));
+  const items = buildWordItems(plainText, chordEntries);
+  return `<div class="lyric-flow">${renderSegments(items)}</div>`;
 }
 
 function renderChordLyricsPair(chordLine, lyricsLine) {
-  // Tokenize chord line - find each non-whitespace run with its column position
-  const chords = [];
+  const tokens = [];
   const re = /\S+/g;
   let m;
   while ((m = re.exec(chordLine)) !== null) {
-    chords.push({ token: m[0], column: m.index });
+    tokens.push({ token: m[0], column: m.index });
   }
-
-  if (chords.length === 0) {
+  if (tokens.length === 0) {
     return `<div class="lyric-line">${escapeHtml(lyricsLine)}</div>`;
   }
 
-  // Group annotations with preceding chord
   const groups = [];
-  for (const c of chords) {
-    if (CHORD_ANNO.test(c.token) && groups.length > 0) {
-      groups[groups.length - 1].annos.push(c.token);
+  for (const t of tokens) {
+    if (CHORD_ANNO.test(t.token) && groups.length > 0) {
+      groups[groups.length - 1].annos.push(t.token);
     } else {
-      groups.push({ chord: c.token, column: c.column, annos: [] });
+      groups.push({ chord: t.token, column: t.column, annos: [] });
     }
   }
 
-  // Render each chord as absolutely positioned chip at its exact column
-  // (uses the same overlay system as inline [Chord] format - pixel-perfect alignment)
-  const chips = groups.map(g => {
-    const annosHtml = g.annos.map(a => `<span class="chord-anno">${escapeHtml(a)}</span>`).join('');
-    return `<span class="chord-chip-positioned" data-column="${g.column}" style="left: ${g.column}ch"><span class="chord-text">${escapeHtml(g.chord)}</span>${annosHtml}</span>`;
-  }).join('');
-
-  return `<div class="lyric-pair">` +
-           `<div class="chord-overlay">${chips}</div>` +
-           `<div class="lyric-text">${escapeHtml(lyricsLine)}</div>` +
-         `</div>`;
+  const chordEntries = groups.map(g => ({ chord: g.chord, position: g.column, annos: g.annos }));
+  const items = buildWordItems(lyricsLine, chordEntries);
+  return `<div class="lyric-flow">${renderSegments(items)}</div>`;
 }
 
 function measureMaxScroll() {
