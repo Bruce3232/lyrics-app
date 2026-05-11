@@ -4298,6 +4298,17 @@ document.getElementById('performance-view').addEventListener('mousemove', () => 
   if (state.view === 'performance') resetControlsTimer();
 });
 
+// Any interaction with the controls bar (slider drag, button press, touch)
+// must keep the UI alive — otherwise the auto-hide fires mid-gesture on iPad.
+['pointerdown', 'pointermove', 'touchstart', 'touchmove', 'input', 'change'].forEach(ev => {
+  document.getElementById('perf-controls').addEventListener(ev, () => {
+    if (state.view === 'performance') resetControlsTimer();
+  }, { passive: true });
+  document.getElementById('perf-overlay').addEventListener(ev, () => {
+    if (state.view === 'performance') resetControlsTimer();
+  }, { passive: true });
+});
+
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
   // If controls are hidden, the first tap just brings them back (no play toggle).
