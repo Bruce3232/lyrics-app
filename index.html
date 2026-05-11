@@ -99,9 +99,14 @@
   }
   /* Subtle tap feedback on touch elements */
   button, .btn, .icon-btn, .song-row, .song-row-action, .alpha-btn, .lrc-import-btn,
-  .perf-play-btn, .perf-font-btn, .modal-tab, .modal-file-drop, .audio-drop {
+  .perf-play-btn, .perf-font-btn, .modal-tab, .modal-file-drop, .audio-drop,
+  .version-tab, .version-action, .setlist-pill, .quick-version-pill,
+  .quick-song-item, .setlist-picker-item, .setlist-manage-item,
+  input[type="range"] {
     -webkit-tap-highlight-color: rgba(255, 140, 26, 0.18);
     cursor: pointer;
+    /* Prevent iOS double-tap-to-zoom on interactive controls */
+    touch-action: manipulation;
   }
   button:active, .btn:active, .icon-btn:active, .song-row:active,
   .song-row-action:active, .alpha-btn:active, .lrc-import-btn:active {
@@ -3952,6 +3957,32 @@ window.addEventListener('resize', () => {
     applyScroll();
   }
 });
+
+// iPad pinch-zoom handling: force layout reflow when visual viewport changes
+// so controls don't get stuck off-screen after zoom-out.
+if ('visualViewport' in window) {
+  let zoomReflowTimer;
+  const handleViewportChange = () => {
+    clearTimeout(zoomReflowTimer);
+    zoomReflowTimer = setTimeout(() => {
+      // Force browser to recompute layout
+      const app = document.getElementById('app');
+      if (app) {
+        app.style.display = 'none';
+        void app.offsetHeight;
+        app.style.display = '';
+      }
+      if (state.view === 'performance') {
+        adjustChordOverlaps();
+        measureMaxScroll();
+        perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
+        applyScroll();
+      }
+    }, 200);
+  };
+  window.visualViewport.addEventListener('resize', handleViewportChange);
+  window.visualViewport.addEventListener('scroll', handleViewportChange);
+}
 
 // =====================================================
 //                   Import / Export
