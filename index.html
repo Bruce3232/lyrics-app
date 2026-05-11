@@ -1140,13 +1140,22 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
-    transition: opacity 0.4s var(--ease);
+    transition: opacity 0.35s var(--ease), max-height 0.35s var(--ease), padding 0.35s var(--ease), border-color 0.35s var(--ease);
+    max-height: 200px;
+    overflow: hidden;
+  }
+  .perf-overlay.hidden {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom-color: transparent;
+    pointer-events: none;
   }
   body.light-mode .perf-overlay {
     background: rgba(245,245,247,0.95);
     border-bottom-color: rgba(20,20,30,0.08);
   }
-  .perf-overlay.hidden { opacity: 0; pointer-events: none; }
   .perf-title-block { flex: 1; min-width: 0; }
   .perf-title {
     font-size: 18px;
@@ -1335,17 +1344,26 @@
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
     z-index: 10;
-    transition: opacity 0.4s var(--ease);
+    transition: opacity 0.35s var(--ease), max-height 0.35s var(--ease), padding 0.35s var(--ease), border-color 0.35s var(--ease);
+    max-height: 300px;
+    overflow: hidden;
     display: flex;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
   }
+  .perf-controls.hidden {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-color: transparent;
+    pointer-events: none;
+  }
   body.light-mode .perf-controls {
     background: rgba(245,245,247,0.98);
     border-top-color: rgba(20,20,30,0.08);
   }
-  .perf-controls.hidden { opacity: 0; pointer-events: none; }
 
   .perf-play-btn {
     width: 56px; height: 56px;
