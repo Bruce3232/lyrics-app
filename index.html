@@ -4311,13 +4311,17 @@ document.getElementById('performance-view').addEventListener('mousemove', () => 
 
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
-  // If controls are hidden, the first tap just brings them back (no play toggle).
-  // If visible, tap toggles play.
+  // Tap toggles the UI visibility. Tapping the lyrics never starts or
+  // stops the song — only the play/stop button does that.
   const isHidden = document.getElementById('perf-overlay').classList.contains('hidden');
   if (isHidden) {
+    // Show UI and re-arm the 2s inactivity auto-hide
     resetControlsTimer();
   } else {
-    togglePerfScroll();
+    // Hide UI immediately
+    clearTimeout(perfControlsTimer);
+    document.getElementById('perf-overlay').classList.add('hidden');
+    document.getElementById('perf-controls').classList.add('hidden');
   }
 });
 
