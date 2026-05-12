@@ -347,27 +347,28 @@
     color: #fff;
   }
   body.light-mode .sort-toggle-btn.active { color: #fff; }
-  /* Up/down reorder buttons — only shown when sort mode is 'custom' */
+  /* Up/down reorder buttons — only shown when sort mode is 'custom'.
+     Sit next to the song number, never replace it. */
   .song-row-reorder {
     display: none;
     flex-direction: column;
     gap: 2px;
-    margin-right: 6px;
+    margin-right: 4px;
   }
   .song-list.reorder .song-row-reorder { display: flex; }
-  .song-list.reorder .song-row-num { display: none; }
   .reorder-btn {
-    width: 28px;
-    height: 22px;
+    width: 24px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--surface);
     border: 1px solid var(--border-strong);
-    border-radius: 6px;
+    border-radius: 5px;
     color: var(--text-1);
     cursor: pointer;
     transition: all 0.15s var(--ease);
+    padding: 0;
   }
   .reorder-btn:hover {
     background: var(--accent);
@@ -375,7 +376,7 @@
     border-color: var(--accent);
   }
   .reorder-btn:disabled {
-    opacity: 0.35;
+    opacity: 0.3;
     cursor: not-allowed;
   }
   .reorder-btn:disabled:hover {
@@ -383,10 +384,10 @@
     color: var(--text-1);
     border-color: var(--border-strong);
   }
-  .reorder-btn svg { width: 14px; height: 14px; }
+  .reorder-btn svg { width: 11px; height: 11px; }
   @media (hover: none) and (pointer: coarse) {
-    .reorder-btn { width: 36px; height: 30px; }
-    .reorder-btn svg { width: 16px; height: 16px; }
+    .reorder-btn { width: 32px; height: 24px; }
+    .reorder-btn svg { width: 14px; height: 14px; }
   }
   .search-input-wrap {
     flex: 1;
