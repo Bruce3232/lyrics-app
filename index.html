@@ -4366,7 +4366,13 @@ function renderQuickSongsList() {
       setlistName = setlist.name;
     }
   } else {
-    list.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }));
+    // Use the user's custom order from the library (position field).
+    // Songs without a saved position fall back to createdAt.
+    list.sort((a, b) => {
+      const pa = (typeof a.position === 'number') ? a.position : (a.createdAt || 0);
+      const pb = (typeof b.position === 'number') ? b.position : (b.createdAt || 0);
+      return pa - pb;
+    });
   }
 
   const currentId = state.currentSong?.id;
