@@ -1173,6 +1173,10 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
+    /* Tell iOS we're handling the gesture ourselves — kills the
+       rubber-band bounce on touchmove. */
+    touch-action: none;
+    overscroll-behavior: none;
     mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
   }
@@ -4053,16 +4057,19 @@ document.getElementById('lyrics-stage').addEventListener('touchstart', (e) => {
   if (e.touches.length === 1) {
     touchStartY = e.touches[0].clientY;
     touchStartScroll = perfScrollPos;
+    measureMaxScroll();
   }
 }, { passive: true });
+// preventDefault on touchmove stops Safari's native rubber-band on iPad,
+// so the lyrics actually stay where the user dragged them.
 document.getElementById('lyrics-stage').addEventListener('touchmove', (e) => {
   if (e.touches.length === 1) {
+    e.preventDefault();
     const dy = touchStartY - e.touches[0].clientY;
-    measureMaxScroll();
     perfScrollPos = Math.max(0, Math.min(perfMaxScroll, touchStartScroll + dy));
     applyScroll();
   }
-}, { passive: true });
+}, { passive: false });
 
 // UI visibility is controlled purely by tap. No auto-hide.
 function resetControlsTimer() {
