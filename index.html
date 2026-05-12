@@ -1176,6 +1176,13 @@
     mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
   }
+  /* When the UI is fully hidden, drop the bottom/top fade so the lyric
+     text fills the whole screen without a phantom faded strip near the
+     edges (which looked like the controls were still partially there). */
+  #performance-view.ui-hidden .lyrics-stage {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
 
   .lyrics-track {
     width: 100%;
@@ -4062,6 +4069,7 @@ function resetControlsTimer() {
   // Kept as a no-arg shim so existing call sites still "show the UI".
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
+  document.getElementById('performance-view').classList.remove('ui-hidden');
 }
 
 // =====================================================
@@ -4291,15 +4299,18 @@ document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
   // Tap toggles the UI visibility. Tapping the lyrics never starts or
   // stops the song — only the play/stop button does that.
+  const view = document.getElementById('performance-view');
   const isHidden = document.getElementById('perf-overlay').classList.contains('hidden');
   if (isHidden) {
     // Tap shows UI
     document.getElementById('perf-overlay').classList.remove('hidden');
     document.getElementById('perf-controls').classList.remove('hidden');
+    view.classList.remove('ui-hidden');
   } else {
     // Tap again hides UI
     document.getElementById('perf-overlay').classList.add('hidden');
     document.getElementById('perf-controls').classList.add('hidden');
+    view.classList.add('ui-hidden');
   }
 });
 
