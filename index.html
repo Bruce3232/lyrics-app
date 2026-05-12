@@ -319,34 +319,6 @@
     margin-bottom: 18px;
     flex-wrap: wrap;
   }
-  .sort-toggle {
-    display: inline-flex;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  .sort-toggle-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 14px;
-    background: transparent;
-    border: none;
-    color: var(--text-1);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s var(--ease), color 0.15s var(--ease);
-  }
-  .sort-toggle-btn svg { width: 14px; height: 14px; }
-  .sort-toggle-btn:hover { color: var(--text-0); }
-  .sort-toggle-btn.active {
-    background: var(--accent);
-    color: #fff;
-  }
-  body.light-mode .sort-toggle-btn.active { color: #fff; }
   /* Drag-to-reorder ("Liste bearbeiten" mode) */
   .song-row-handle {
     display: none;
@@ -1934,16 +1906,6 @@
         <select class="filter-select" id="artist-filter">
           <option value="">Alle Künstler</option>
         </select>
-        <div class="sort-toggle" id="sort-toggle" title="Sortierung wechseln">
-          <button class="sort-toggle-btn" data-sort="title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M6 12h12M9 18h6"/></svg>
-            ABC
-          </button>
-          <button class="sort-toggle-btn" data-sort="custom">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3" cy="6" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="18" r="1"/></svg>
-            Eigene
-          </button>
-        </div>
         <button class="btn btn-ghost" id="list-edit-btn" title="Songs per Drag and Drop sortieren">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
           Liste bearbeiten
@@ -2727,13 +2689,8 @@ const filterState = {
   search: '',
   artist: '',
   letter: '',
-  sort: (function() {
-    try { return localStorage.getItem('lyrics-sort') || 'custom'; } catch(e) { return 'custom'; }
-  })(), // 'custom' = eigene Reihenfolge (Default), 'title' = alphabetisch
+  sort: 'custom', // always custom — alphabet bar filters by first letter, not by sort
 };
-function saveSortMode() {
-  try { localStorage.setItem('lyrics-sort', filterState.sort); } catch(e) {}
-}
 
 const selection = {
   active: false,
@@ -2789,16 +2746,12 @@ function getFilteredSongs() {
     }
   }
   if (!preserveOrder) {
-    if (filterState.sort === 'custom') {
-      // Use the user-defined position field; missing values sort by createdAt
-      result.sort((a, b) => {
-        const pa = (typeof a.position === 'number') ? a.position : (a.createdAt || 0);
-        const pb = (typeof b.position === 'number') ? b.position : (b.createdAt || 0);
-        return pa - pb;
-      });
-    } else {
-      result.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }));
-    }
+    // Always sort by the user-defined position; missing values fall back to createdAt
+    result.sort((a, b) => {
+      const pa = (typeof a.position === 'number') ? a.position : (a.createdAt || 0);
+      const pb = (typeof b.position === 'number') ? b.position : (b.createdAt || 0);
+      return pa - pb;
+    });
   }
   return result;
 }
@@ -2952,17 +2905,6 @@ async function applyReorder(fromIdx, toIdx) {
   renderSongList();
 }
 
-// Sort-toggle wiring
-document.getElementById('sort-toggle').addEventListener('click', (e) => {
-  const btn = e.target.closest('.sort-toggle-btn');
-  if (!btn) return;
-  filterState.sort = btn.dataset.sort;
-  saveSortMode();
-  // Leaving custom sort also leaves list-edit mode
-  if (filterState.sort !== 'custom') listEditMode = false;
-  renderSongList();
-});
-
 document.getElementById('list-edit-btn').addEventListener('click', () => {
   listEditMode = !listEditMode;
   renderSongList();
@@ -2975,14 +2917,10 @@ function renderSongList() {
   const filtered = getFilteredSongs();
 
   list.classList.toggle('selecting', selection.active);
-  // List-edit mode is only meaningful in custom sort, full list (no setlist), no multi-select
-  const canEditList = filterState.sort === 'custom' && !selection.active && !state.currentSetlistId;
+  // List-edit mode is only meaningful in the full library view (no setlist, no multi-select)
+  const canEditList = !selection.active && !state.currentSetlistId;
   if (!canEditList) listEditMode = false;
   list.classList.toggle('editing', listEditMode);
-  // Reflect sort toggle UI state
-  document.querySelectorAll('.sort-toggle-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.sort === filterState.sort);
-  });
   // Update "Liste bearbeiten" button
   const listEditBtn = document.getElementById('list-edit-btn');
   if (listEditBtn) {
