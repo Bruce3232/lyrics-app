@@ -1194,6 +1194,13 @@
     mask-image: none;
     -webkit-mask-image: none;
   }
+  /* Also kill the big 50vh padding at the bottom of the track while UI
+     is hidden — otherwise a huge empty white strip sits below the last
+     lyric line. The top stays at 50vh so the song still opens with the
+     first line near the middle of the screen. */
+  #performance-view.ui-hidden .lyrics-track {
+    padding-bottom: 20px;
+  }
 
   .lyrics-track {
     width: 100%;
@@ -4316,16 +4323,22 @@ document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   const view = document.getElementById('performance-view');
   const isHidden = document.getElementById('perf-overlay').classList.contains('hidden');
   if (isHidden) {
-    // Tap shows UI
     document.getElementById('perf-overlay').classList.remove('hidden');
     document.getElementById('perf-controls').classList.remove('hidden');
     view.classList.remove('ui-hidden');
   } else {
-    // Tap again hides UI
     document.getElementById('perf-overlay').classList.add('hidden');
     document.getElementById('perf-controls').classList.add('hidden');
     view.classList.add('ui-hidden');
   }
+  // The track's padding-bottom changes with ui-hidden, so the max scroll
+  // bound shifts. Re-measure and clamp so the text doesn't end up past
+  // the new bottom of scrollable content.
+  requestAnimationFrame(() => {
+    measureMaxScroll();
+    perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
+    applyScroll();
+  });
 });
 
 // Keyboard shortcuts
