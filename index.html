@@ -347,47 +347,37 @@
     color: #fff;
   }
   body.light-mode .sort-toggle-btn.active { color: #fff; }
-  /* Up/down reorder buttons — only shown when sort mode is 'custom'.
-     Sit next to the song number, never replace it. */
-  .song-row-reorder {
+  /* Drag-to-reorder ("Liste bearbeiten" mode) */
+  .song-row-handle {
     display: none;
-    flex-direction: column;
-    gap: 2px;
-    margin-right: 4px;
-  }
-  .song-list.reorder .song-row-reorder { display: flex; }
-  .reorder-btn {
-    width: 24px;
-    height: 18px;
-    display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: 5px;
-    color: var(--text-1);
-    cursor: pointer;
-    transition: all 0.15s var(--ease);
-    padding: 0;
+    width: 36px;
+    height: 36px;
+    color: var(--text-2);
+    cursor: grab;
+    margin-right: 4px;
+    flex-shrink: 0;
+    touch-action: none;
   }
-  .reorder-btn:hover {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
+  .song-row-handle:active { cursor: grabbing; }
+  .song-row-handle svg { width: 18px; height: 18px; }
+  .song-list.editing .song-row-handle { display: flex; }
+  .song-list.editing .song-row { cursor: grab; }
+  .song-list.editing .song-row:active { cursor: grabbing; }
+  .song-list.editing .song-row-actions { display: none; }
+  .song-list.editing .song-row-meta { display: none; }
+  .song-row.dragging {
+    opacity: 0.92;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+    z-index: 5;
+    position: relative;
   }
-  .reorder-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+  body.light-mode .song-row.dragging {
+    box-shadow: 0 12px 32px rgba(0,0,0,0.15);
   }
-  .reorder-btn:disabled:hover {
-    background: var(--surface);
-    color: var(--text-1);
-    border-color: var(--border-strong);
-  }
-  .reorder-btn svg { width: 11px; height: 11px; }
-  @media (hover: none) and (pointer: coarse) {
-    .reorder-btn { width: 32px; height: 24px; }
-    .reorder-btn svg { width: 14px; height: 14px; }
+  .song-row.drag-shift {
+    transition: transform 0.18s var(--ease);
   }
   .search-input-wrap {
     flex: 1;
@@ -1954,6 +1944,10 @@
             Eigene
           </button>
         </div>
+        <button class="btn btn-ghost" id="list-edit-btn" title="Songs per Drag and Drop sortieren">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
+          Liste bearbeiten
+        </button>
       </div>
 
       <div class="alpha-bar" id="alpha-bar">
@@ -2861,32 +2855,100 @@ function renderArtistFilter() {
     artists.map(a => `<option value="${escapeHtml(a)}"${a === current ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
 }
 
-// Swap a song's position with its neighbour in the currently-filtered list,
-// then persist the new positions to IndexedDB.
-async function moveSong(id, direction) {
-  const filtered = getFilteredSongs();
-  const idx = filtered.findIndex(s => s.id === id);
-  if (idx < 0) return;
-  const swapIdx = idx + direction;
-  if (swapIdx < 0 || swapIdx >= filtered.length) return;
+// "Liste bearbeiten" — drag-to-reorder mode
+let listEditMode = false;
+let dragState = null;
 
-  const a = filtered[idx];
-  const b = filtered[swapIdx];
-  // Normalise: make sure every song in the filtered list has a position number
-  filtered.forEach((s, i) => {
-    if (typeof s.position !== 'number') s.position = (a.createdAt || 0) + i;
+function startRowDrag(e, rowEl) {
+  if (!listEditMode) return;
+  e.preventDefault();
+  const list = document.getElementById('song-list');
+  const rows = [...list.children];
+  const startIdx = rows.indexOf(rowEl);
+  if (startIdx < 0) return;
+
+  // Cache each row's center so we can decide when the dragged row has
+  // crossed a neighbour without re-measuring on every move.
+  const rowCenters = rows.map(r => {
+    const rect = r.getBoundingClientRect();
+    return rect.top + rect.height / 2;
   });
-  const tmp = a.position;
-  a.position = b.position;
-  b.position = tmp;
-  // Persist both
-  await dbPut(a);
-  await dbPut(b);
-  // Update in-memory state and re-render
-  const aIdx = state.songs.findIndex(s => s.id === a.id);
-  const bIdx = state.songs.findIndex(s => s.id === b.id);
-  if (aIdx >= 0) state.songs[aIdx] = a;
-  if (bIdx >= 0) state.songs[bIdx] = b;
+
+  dragState = {
+    rowEl,
+    pointerId: e.pointerId,
+    startClientY: e.clientY,
+    startIdx,
+    currentIdx: startIdx,
+    rows,
+    rowCenters,
+    rowHeight: rowEl.getBoundingClientRect().height,
+  };
+  rowEl.classList.add('dragging');
+  try { rowEl.setPointerCapture(e.pointerId); } catch(err) {}
+
+  document.addEventListener('pointermove', onRowDragMove, { passive: false });
+  document.addEventListener('pointerup', onRowDragEnd);
+  document.addEventListener('pointercancel', onRowDragEnd);
+}
+
+function onRowDragMove(e) {
+  if (!dragState || e.pointerId !== dragState.pointerId) return;
+  e.preventDefault();
+  const dy = e.clientY - dragState.startClientY;
+  dragState.rowEl.style.transform = `translateY(${dy}px)`;
+
+  // Figure out where the dragged row's center is now
+  const draggedCenter = dragState.rowCenters[dragState.startIdx] + dy;
+
+  // New index = how many other rows have a center above the dragged center
+  let newIdx = 0;
+  for (let i = 0; i < dragState.rows.length; i++) {
+    if (i === dragState.startIdx) continue;
+    if (dragState.rowCenters[i] < draggedCenter) newIdx++;
+  }
+  dragState.currentIdx = newIdx;
+
+  // Shift the OTHER rows so the user sees where the dragged row will land
+  for (let i = 0; i < dragState.rows.length; i++) {
+    if (i === dragState.startIdx) continue;
+    const r = dragState.rows[i];
+    r.classList.add('drag-shift');
+    let shift = 0;
+    if (i < dragState.startIdx && i >= newIdx) shift = dragState.rowHeight + 12; // gap approx
+    else if (i > dragState.startIdx && i <= newIdx) shift = -(dragState.rowHeight + 12);
+    r.style.transform = shift ? `translateY(${shift}px)` : '';
+  }
+}
+
+function onRowDragEnd(e) {
+  if (!dragState || (e.pointerId !== undefined && e.pointerId !== dragState.pointerId)) return;
+  document.removeEventListener('pointermove', onRowDragMove);
+  document.removeEventListener('pointerup', onRowDragEnd);
+  document.removeEventListener('pointercancel', onRowDragEnd);
+
+  const { rowEl, startIdx, currentIdx, rows } = dragState;
+  rowEl.classList.remove('dragging');
+  rowEl.style.transform = '';
+  rowEl.style.zIndex = '';
+  rows.forEach(r => { r.classList.remove('drag-shift'); r.style.transform = ''; });
+  dragState = null;
+
+  if (currentIdx === startIdx) return;
+  applyReorder(startIdx, currentIdx);
+}
+
+async function applyReorder(fromIdx, toIdx) {
+  const filtered = getFilteredSongs();
+  if (fromIdx < 0 || fromIdx >= filtered.length) return;
+  const [moved] = filtered.splice(fromIdx, 1);
+  filtered.splice(toIdx, 0, moved);
+  // Assign new sequential position values
+  const base = Date.now();
+  filtered.forEach((s, i) => { s.position = base + i; });
+  // Persist all touched songs and refresh state
+  for (const s of filtered) await dbPut(s);
+  state.songs = state.songs.map(s => filtered.find(x => x.id === s.id) || s);
   renderSongList();
 }
 
@@ -2896,6 +2958,13 @@ document.getElementById('sort-toggle').addEventListener('click', (e) => {
   if (!btn) return;
   filterState.sort = btn.dataset.sort;
   saveSortMode();
+  // Leaving custom sort also leaves list-edit mode
+  if (filterState.sort !== 'custom') listEditMode = false;
+  renderSongList();
+});
+
+document.getElementById('list-edit-btn').addEventListener('click', () => {
+  listEditMode = !listEditMode;
   renderSongList();
 });
 
@@ -2906,13 +2975,22 @@ function renderSongList() {
   const filtered = getFilteredSongs();
 
   list.classList.toggle('selecting', selection.active);
-  // Reorder buttons only make sense in custom sort mode and outside selection mode
-  const reorderEnabled = filterState.sort === 'custom' && !selection.active && !state.currentSetlistId;
-  list.classList.toggle('reorder', reorderEnabled);
+  // List-edit mode is only meaningful in custom sort, full list (no setlist), no multi-select
+  const canEditList = filterState.sort === 'custom' && !selection.active && !state.currentSetlistId;
+  if (!canEditList) listEditMode = false;
+  list.classList.toggle('editing', listEditMode);
   // Reflect sort toggle UI state
   document.querySelectorAll('.sort-toggle-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.sort === filterState.sort);
   });
+  // Update "Liste bearbeiten" button
+  const listEditBtn = document.getElementById('list-edit-btn');
+  if (listEditBtn) {
+    listEditBtn.style.display = canEditList ? '' : 'none';
+    listEditBtn.textContent = listEditMode ? 'Fertig' : 'Liste bearbeiten';
+    listEditBtn.classList.toggle('btn-primary', listEditMode);
+    listEditBtn.classList.toggle('btn-ghost', !listEditMode);
+  }
 
   countEl.textContent = filtered.length === state.songs.length
     ? `${state.songs.length} Song${state.songs.length === 1 ? '' : 's'}`
@@ -2945,14 +3023,9 @@ function renderSongList() {
     const leadCell = selection.active
       ? `<div class="song-row-checkbox">${checkmarkSvg}</div>`
       : `<div class="song-row-num">${i + 1}</div>`;
-    const reorderCell = reorderEnabled ? `
-      <div class="song-row-reorder">
-        <button class="reorder-btn" data-action="move-up" ${i === 0 ? 'disabled' : ''} title="Nach oben">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-        </button>
-        <button class="reorder-btn" data-action="move-down" ${i === filtered.length - 1 ? 'disabled' : ''} title="Nach unten">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
+    const reorderCell = listEditMode ? `
+      <div class="song-row-handle" data-action="drag-handle" title="Ziehen zum Verschieben">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
       </div>` : '';
     return `
       <div class="song-row ${isSelected ? 'selected' : ''}" data-id="${s.id}">
@@ -2980,13 +3053,15 @@ function renderSongList() {
     const id = row.dataset.id;
     row.addEventListener('click', (e) => {
       if (selection.active) {
-        // Toggle selection
         if (selection.ids.has(id)) selection.ids.delete(id);
         else selection.ids.add(id);
         updateSelectionUI();
         return;
       }
+      // In list-edit mode the row is a drag handle — taps don't open the song
+      if (listEditMode) return;
       if (e.target.closest('.song-row-action')) return;
+      if (e.target.closest('.song-row-handle')) return;
       const song = state.songs.find(s => s.id === id);
       if (song) openPerformance(song);
     });
@@ -2996,11 +3071,9 @@ function renderSongList() {
         const song = state.songs.find(s => s.id === id);
         if (song) openEditor(song);
       });
-      // Reorder buttons (only present in custom sort mode)
-      const upBtn = row.querySelector('[data-action="move-up"]');
-      const dnBtn = row.querySelector('[data-action="move-down"]');
-      if (upBtn) upBtn.addEventListener('click', (e) => { e.stopPropagation(); moveSong(id, -1); });
-      if (dnBtn) dnBtn.addEventListener('click', (e) => { e.stopPropagation(); moveSong(id, +1); });
+      // Drag-to-reorder via the handle (only present in listEditMode)
+      const handle = row.querySelector('[data-action="drag-handle"]');
+      if (handle) handle.addEventListener('pointerdown', (e) => startRowDrag(e, row));
       row.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
         e.stopPropagation();
         const song = state.songs.find(s => s.id === id);
