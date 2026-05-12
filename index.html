@@ -1945,7 +1945,7 @@
         <select class="filter-select" id="artist-filter">
           <option value="">Alle Künstler</option>
         </select>
-        <button class="btn btn-ghost" id="list-edit-btn" title="Songs per Drag and Drop sortieren">
+        <button class="btn" id="list-edit-btn" title="Songs per Drag and Drop sortieren">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
           Liste bearbeiten
         </button>
@@ -2974,9 +2974,13 @@ function renderSongList() {
   const listEditBtn = document.getElementById('list-edit-btn');
   if (listEditBtn) {
     listEditBtn.style.display = canEditList ? '' : 'none';
-    listEditBtn.textContent = listEditMode ? 'Fertig' : 'Liste bearbeiten';
+    // Preserve the icon, swap only the label text
+    const labelText = listEditMode ? 'Fertig' : 'Liste bearbeiten';
+    const svg = listEditBtn.querySelector('svg');
+    listEditBtn.innerHTML = '';
+    if (svg) listEditBtn.appendChild(svg);
+    listEditBtn.appendChild(document.createTextNode(' ' + labelText));
     listEditBtn.classList.toggle('btn-primary', listEditMode);
-    listEditBtn.classList.toggle('btn-ghost', !listEditMode);
   }
 
   countEl.textContent = filtered.length === state.songs.length
