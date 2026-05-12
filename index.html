@@ -136,6 +136,13 @@
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+    transition: padding 0.35s var(--ease);
+  }
+  /* When the user hid the UI in performance view, drop all safe-area
+     padding so the lyrics fill the screen edge-to-edge with no top,
+     bottom, or side borders — pure text only. */
+  body:has(#performance-view.ui-hidden) #app {
+    padding: 0;
   }
 
   /* Allow editing in inputs/textareas */
