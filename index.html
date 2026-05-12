@@ -1442,6 +1442,12 @@
     color: #fff;
   }
   .perf-icon-btn svg { width: 18px; height: 18px; }
+  .perf-transport {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
   @media (max-width: 720px) {
     .perf-controls { gap: 10px; padding: 12px 14px; }
     .perf-controls-side { gap: 8px; }
@@ -2105,9 +2111,17 @@
         </div>
       </div>
 
-      <button class="perf-play-btn" id="perf-play-btn" title="Play/Pause (Space)">
-        <svg id="perf-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-      </button>
+      <div class="perf-transport">
+        <button class="perf-icon-btn" id="perf-prev-song" title="Vorheriger Song">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2" height="16"/></svg>
+        </button>
+        <button class="perf-play-btn" id="perf-play-btn" title="Play/Pause (Space)">
+          <svg id="perf-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        </button>
+        <button class="perf-icon-btn" id="perf-next-song" title="Nächster Song">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="17" y="4" width="2" height="16"/></svg>
+        </button>
+      </div>
 
       <div class="perf-controls-side perf-controls-right">
         <div class="perf-control-group">
@@ -4495,6 +4509,37 @@ async function flushPendingSaves() {
 document.getElementById('perf-fullscreen-2').addEventListener('click', toggleFullscreen);
 document.getElementById('perf-play-btn').addEventListener('click', togglePerfScroll);
 document.getElementById('perf-restart').addEventListener('click', restartPerf);
+
+// Build the same ordered list that the quick-songs panel uses, so prev/next
+// follow the same context (setlist if active, otherwise full custom order).
+function getPerfSongOrder() {
+  let list = [...state.songs];
+  if (state.currentSetlistId) {
+    const setlist = state.setlists.find(s => s.id === state.currentSetlistId);
+    if (setlist) {
+      const songMap = new Map(state.songs.map(s => [s.id, s]));
+      list = (setlist.songIds || []).map(id => songMap.get(id)).filter(Boolean);
+      return list;
+    }
+  }
+  list.sort((a, b) => {
+    const pa = (typeof a.position === 'number') ? a.position : (a.createdAt || 0);
+    const pb = (typeof b.position === 'number') ? b.position : (b.createdAt || 0);
+    return pa - pb;
+  });
+  return list;
+}
+function jumpSong(direction) {
+  if (!state.currentSong) return;
+  const order = getPerfSongOrder();
+  const idx = order.findIndex(s => s.id === state.currentSong.id);
+  if (idx < 0) return;
+  const nextIdx = idx + direction;
+  if (nextIdx < 0 || nextIdx >= order.length) return;
+  openPerformance(order[nextIdx]);
+}
+document.getElementById('perf-prev-song').addEventListener('click', () => jumpSong(-1));
+document.getElementById('perf-next-song').addEventListener('click', () => jumpSong(+1));
 document.getElementById('perf-font-down').addEventListener('click', () => changeFontSize(-2));
 document.getElementById('perf-font-up').addEventListener('click', () => changeFontSize(2));
 
