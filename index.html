@@ -4030,13 +4030,13 @@ function saveCurrentSpeed() {
   }, 500);
 }
 
-// Manual scroll override (mouse wheel)
+// Manual scroll override (mouse wheel). Scrolling never reveals the UI;
+// the user controls visibility via tap only.
 document.getElementById('lyrics-stage').addEventListener('wheel', (e) => {
   e.preventDefault();
   measureMaxScroll();
   perfScrollPos = Math.max(0, Math.min(perfMaxScroll, perfScrollPos + e.deltaY));
   applyScroll();
-  resetControlsTimer();
 }, { passive: false });
 
 // Touch drag (mobile)
@@ -4372,20 +4372,15 @@ window.addEventListener('resize', () => {
   }
 });
 
-// iPad pinch-zoom handling: force layout reflow when visual viewport changes
-// so controls don't get stuck off-screen after zoom-out.
+// Recompute scroll bounds when the visual viewport RESIZES (pinch-zoom).
+// We deliberately ignore visualViewport 'scroll' events — those fire when
+// Safari's URL bar slides in/out, and the old display:none reflow trick
+// caused the hidden perf-overlay to visibly flash back in on iPad scroll.
 if ('visualViewport' in window) {
   let zoomReflowTimer;
-  const handleViewportChange = () => {
+  window.visualViewport.addEventListener('resize', () => {
     clearTimeout(zoomReflowTimer);
     zoomReflowTimer = setTimeout(() => {
-      // Force browser to recompute layout
-      const app = document.getElementById('app');
-      if (app) {
-        app.style.display = 'none';
-        void app.offsetHeight;
-        app.style.display = '';
-      }
       if (state.view === 'performance') {
         adjustChordOverlaps();
         measureMaxScroll();
@@ -4393,9 +4388,7 @@ if ('visualViewport' in window) {
         applyScroll();
       }
     }, 200);
-  };
-  window.visualViewport.addEventListener('resize', handleViewportChange);
-  window.visualViewport.addEventListener('scroll', handleViewportChange);
+  });
 }
 
 // =====================================================
