@@ -319,6 +319,75 @@
     margin-bottom: 18px;
     flex-wrap: wrap;
   }
+  .sort-toggle {
+    display: inline-flex;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .sort-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: transparent;
+    border: none;
+    color: var(--text-1);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s var(--ease), color 0.15s var(--ease);
+  }
+  .sort-toggle-btn svg { width: 14px; height: 14px; }
+  .sort-toggle-btn:hover { color: var(--text-0); }
+  .sort-toggle-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+  body.light-mode .sort-toggle-btn.active { color: #fff; }
+  /* Up/down reorder buttons — only shown when sort mode is 'custom' */
+  .song-row-reorder {
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    margin-right: 6px;
+  }
+  .song-list.reorder .song-row-reorder { display: flex; }
+  .song-list.reorder .song-row-num { display: none; }
+  .reorder-btn {
+    width: 28px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    color: var(--text-1);
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+  }
+  .reorder-btn:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .reorder-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .reorder-btn:disabled:hover {
+    background: var(--surface);
+    color: var(--text-1);
+    border-color: var(--border-strong);
+  }
+  .reorder-btn svg { width: 14px; height: 14px; }
+  @media (hover: none) and (pointer: coarse) {
+    .reorder-btn { width: 36px; height: 30px; }
+    .reorder-btn svg { width: 16px; height: 16px; }
+  }
   .search-input-wrap {
     flex: 1;
     min-width: 240px;
@@ -1874,6 +1943,16 @@
         <select class="filter-select" id="artist-filter">
           <option value="">Alle Künstler</option>
         </select>
+        <div class="sort-toggle" id="sort-toggle" title="Sortierung wechseln">
+          <button class="sort-toggle-btn" data-sort="title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M6 12h12M9 18h6"/></svg>
+            ABC
+          </button>
+          <button class="sort-toggle-btn" data-sort="custom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3" cy="6" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="18" r="1"/></svg>
+            Eigene
+          </button>
+        </div>
       </div>
 
       <div class="alpha-bar" id="alpha-bar">
@@ -2653,8 +2732,13 @@ const filterState = {
   search: '',
   artist: '',
   letter: '',
-  sort: 'title', // title | recent
+  sort: (function() {
+    try { return localStorage.getItem('lyrics-sort') || 'title'; } catch(e) { return 'title'; }
+  })(), // 'title' = alphabetisch, 'custom' = eigene Reihenfolge
 };
+function saveSortMode() {
+  try { localStorage.setItem('lyrics-sort', filterState.sort); } catch(e) {}
+}
 
 const selection = {
   active: false,
@@ -2710,7 +2794,16 @@ function getFilteredSongs() {
     }
   }
   if (!preserveOrder) {
-    result.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }));
+    if (filterState.sort === 'custom') {
+      // Use the user-defined position field; missing values sort by createdAt
+      result.sort((a, b) => {
+        const pa = (typeof a.position === 'number') ? a.position : (a.createdAt || 0);
+        const pb = (typeof b.position === 'number') ? b.position : (b.createdAt || 0);
+        return pa - pb;
+      });
+    } else {
+      result.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }));
+    }
   }
   return result;
 }
@@ -2767,6 +2860,44 @@ function renderArtistFilter() {
     artists.map(a => `<option value="${escapeHtml(a)}"${a === current ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
 }
 
+// Swap a song's position with its neighbour in the currently-filtered list,
+// then persist the new positions to IndexedDB.
+async function moveSong(id, direction) {
+  const filtered = getFilteredSongs();
+  const idx = filtered.findIndex(s => s.id === id);
+  if (idx < 0) return;
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= filtered.length) return;
+
+  const a = filtered[idx];
+  const b = filtered[swapIdx];
+  // Normalise: make sure every song in the filtered list has a position number
+  filtered.forEach((s, i) => {
+    if (typeof s.position !== 'number') s.position = (a.createdAt || 0) + i;
+  });
+  const tmp = a.position;
+  a.position = b.position;
+  b.position = tmp;
+  // Persist both
+  await dbPut(a);
+  await dbPut(b);
+  // Update in-memory state and re-render
+  const aIdx = state.songs.findIndex(s => s.id === a.id);
+  const bIdx = state.songs.findIndex(s => s.id === b.id);
+  if (aIdx >= 0) state.songs[aIdx] = a;
+  if (bIdx >= 0) state.songs[bIdx] = b;
+  renderSongList();
+}
+
+// Sort-toggle wiring
+document.getElementById('sort-toggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('.sort-toggle-btn');
+  if (!btn) return;
+  filterState.sort = btn.dataset.sort;
+  saveSortMode();
+  renderSongList();
+});
+
 function renderSongList() {
   const list = document.getElementById('song-list');
   const noResults = document.getElementById('no-results');
@@ -2774,6 +2905,13 @@ function renderSongList() {
   const filtered = getFilteredSongs();
 
   list.classList.toggle('selecting', selection.active);
+  // Reorder buttons only make sense in custom sort mode and outside selection mode
+  const reorderEnabled = filterState.sort === 'custom' && !selection.active && !state.currentSetlistId;
+  list.classList.toggle('reorder', reorderEnabled);
+  // Reflect sort toggle UI state
+  document.querySelectorAll('.sort-toggle-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.sort === filterState.sort);
+  });
 
   countEl.textContent = filtered.length === state.songs.length
     ? `${state.songs.length} Song${state.songs.length === 1 ? '' : 's'}`
@@ -2806,9 +2944,19 @@ function renderSongList() {
     const leadCell = selection.active
       ? `<div class="song-row-checkbox">${checkmarkSvg}</div>`
       : `<div class="song-row-num">${i + 1}</div>`;
+    const reorderCell = reorderEnabled ? `
+      <div class="song-row-reorder">
+        <button class="reorder-btn" data-action="move-up" ${i === 0 ? 'disabled' : ''} title="Nach oben">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="reorder-btn" data-action="move-down" ${i === filtered.length - 1 ? 'disabled' : ''} title="Nach unten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>` : '';
     return `
       <div class="song-row ${isSelected ? 'selected' : ''}" data-id="${s.id}">
         ${leadCell}
+        ${reorderCell}
         <div class="song-row-title">${titleHtml}${versionBadge}</div>
         ${artistHtml}
         <div class="song-row-meta" title="${lineCount} Zeilen, ${ver.scrollSpeed || 30} px/s${versionCount > 1 ? ', ' + versionCount + ' Versionen' : ''}">
@@ -2847,6 +2995,11 @@ function renderSongList() {
         const song = state.songs.find(s => s.id === id);
         if (song) openEditor(song);
       });
+      // Reorder buttons (only present in custom sort mode)
+      const upBtn = row.querySelector('[data-action="move-up"]');
+      const dnBtn = row.querySelector('[data-action="move-down"]');
+      if (upBtn) upBtn.addEventListener('click', (e) => { e.stopPropagation(); moveSong(id, -1); });
+      if (dnBtn) dnBtn.addEventListener('click', (e) => { e.stopPropagation(); moveSong(id, +1); });
       row.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
         e.stopPropagation();
         const song = state.songs.find(s => s.id === id);
