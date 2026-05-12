@@ -1412,7 +1412,40 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    flex-wrap: wrap;
+  }
+  .perf-controls-side {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+  }
+  .perf-controls-left { justify-content: flex-end; }
+  .perf-controls-right { justify-content: flex-start; }
+  .perf-icon-btn {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    color: var(--text-0);
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+    flex-shrink: 0;
+  }
+  .perf-icon-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .perf-icon-btn svg { width: 18px; height: 18px; }
+  @media (max-width: 720px) {
+    .perf-controls { gap: 10px; padding: 12px 14px; }
+    .perf-controls-side { gap: 8px; }
+    .perf-control-group .label { display: none; }
   }
   .perf-controls.hidden {
     opacity: 0;
@@ -2059,32 +2092,35 @@
     </div>
 
     <div class="perf-controls" id="perf-controls">
+      <div class="perf-controls-side perf-controls-left">
+        <button class="perf-icon-btn" id="perf-restart" title="Neu starten (R)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+        <div class="perf-control-group">
+          <span class="label">Speed</span>
+          <button class="perf-font-btn" id="perf-speed-down" title="Langsamer (↓)">−</button>
+          <span class="value" id="perf-speed-value">30</span>
+          <button class="perf-font-btn" id="perf-speed-up" title="Schneller (↑)">+</button>
+        </div>
+      </div>
+
       <button class="perf-play-btn" id="perf-play-btn" title="Play/Pause (Space)">
         <svg id="perf-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
       </button>
 
-      <button class="btn" id="perf-restart" title="Neu starten (R)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-      </button>
-
-      <div class="perf-control-group">
-        <span class="label">Speed</span>
-        <input type="range" class="range-slider perf-speed-slider" id="perf-speed" min="5" max="40" step="1" value="20">
-        <span class="value" id="perf-speed-value">30</span>
-      </div>
-
-      <div class="perf-control-group">
-        <span class="label">Schrift</span>
-        <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
-        <span class="value" id="perf-font-value">30</span>
-        <button class="perf-font-btn" id="perf-font-up" title="Grösser (→)">+</button>
-      </div>
-
-      <div class="right-group">
-        <button class="btn btn-ghost" id="perf-fullscreen-2" title="Vollbild (F)">
+      <div class="perf-controls-side perf-controls-right">
+        <div class="perf-control-group">
+          <span class="label">Schrift</span>
+          <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
+          <span class="value" id="perf-font-value">30</span>
+          <button class="perf-font-btn" id="perf-font-up" title="Grösser (→)">+</button>
+        </div>
+        <button class="perf-icon-btn" id="perf-fullscreen-2" title="Vollbild (F)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         </button>
       </div>
+      <!-- Hidden range slider so existing autoscroll logic that reads its value keeps working -->
+      <input type="range" id="perf-speed" min="5" max="40" step="1" value="20" style="display:none">
     </div>
   </div>
 
@@ -4456,6 +4492,15 @@ document.getElementById('perf-play-btn').addEventListener('click', togglePerfScr
 document.getElementById('perf-restart').addEventListener('click', restartPerf);
 document.getElementById('perf-font-down').addEventListener('click', () => changeFontSize(-2));
 document.getElementById('perf-font-up').addEventListener('click', () => changeFontSize(2));
+
+function changeSpeed(delta) {
+  const slider = document.getElementById('perf-speed');
+  const next = Math.max(parseInt(slider.min, 10), Math.min(parseInt(slider.max, 10), parseInt(slider.value, 10) + delta));
+  slider.value = next;
+  slider.dispatchEvent(new Event('input'));
+}
+document.getElementById('perf-speed-down').addEventListener('click', () => changeSpeed(-1));
+document.getElementById('perf-speed-up').addEventListener('click', () => changeSpeed(1));
 
 document.getElementById('perf-speed').addEventListener('input', (e) => {
   document.getElementById('perf-speed-value').textContent = e.target.value;
