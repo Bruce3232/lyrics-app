@@ -2733,8 +2733,8 @@ const filterState = {
   artist: '',
   letter: '',
   sort: (function() {
-    try { return localStorage.getItem('lyrics-sort') || 'title'; } catch(e) { return 'title'; }
-  })(), // 'title' = alphabetisch, 'custom' = eigene Reihenfolge
+    try { return localStorage.getItem('lyrics-sort') || 'custom'; } catch(e) { return 'custom'; }
+  })(), // 'custom' = eigene Reihenfolge (Default), 'title' = alphabetisch
 };
 function saveSortMode() {
   try { localStorage.setItem('lyrics-sort', filterState.sort); } catch(e) {}
