@@ -2099,8 +2099,9 @@
         <div class="perf-control-group">
           <span class="label">Speed</span>
           <button class="perf-font-btn" id="perf-speed-down" title="Langsamer (↓)">−</button>
-          <span class="value" id="perf-speed-value">30</span>
+          <input type="range" class="range-slider perf-speed-slider" id="perf-speed" min="5" max="40" step="1" value="20">
           <button class="perf-font-btn" id="perf-speed-up" title="Schneller (↑)">+</button>
+          <span class="value" id="perf-speed-value">30</span>
         </div>
       </div>
 
@@ -2119,8 +2120,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         </button>
       </div>
-      <!-- Hidden range slider so existing autoscroll logic that reads its value keeps working -->
-      <input type="range" id="perf-speed" min="5" max="40" step="1" value="20" style="display:none">
     </div>
   </div>
 
