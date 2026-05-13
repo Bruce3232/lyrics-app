@@ -886,6 +886,102 @@
     gap: 12px;
   }
 
+  /* Editor split: textarea + live preview side-by-side on wide screens */
+  .editor-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    min-height: 360px;
+  }
+  .editor-split .field-textarea { min-height: 360px; }
+  .editor-preview {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 16px;
+    line-height: 1.5;
+    max-height: 60vh;
+  }
+  .editor-preview-empty {
+    color: var(--text-2);
+    font-style: italic;
+    font-size: 13px;
+    font-family: var(--font-sans);
+  }
+  .editor-preview .lyric-line.section {
+    color: var(--accent-soft);
+    font-weight: 700;
+    font-size: 0.95em;
+    letter-spacing: 0.04em;
+    margin: 12px 0 4px;
+  }
+  @media (max-width: 900px) {
+    .editor-split { grid-template-columns: 1fr; }
+  }
+  /* Chord palette under the editor */
+  .chord-palette {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin-top: 10px;
+  }
+  .chord-palette-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-1);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .chord-palette-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .chord-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    background: var(--chord-chip-bg);
+    color: var(--chord-chip-color);
+    border: 1px solid var(--chord-chip-border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+    min-width: 40px;
+  }
+  .chord-pill:hover, .chord-pill:active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .chord-palette-custom {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .chord-palette-custom input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-0);
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+  .chord-palette-custom input:focus { outline: none; border-color: var(--accent); }
   .field-textarea {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -2033,17 +2129,31 @@
             In Inline-Format konvertieren
           </button>
         </div>
-        <textarea class="field-textarea" id="ed-lyrics" placeholder="[Verse 1]
+        <div class="editor-split">
+          <textarea class="field-textarea" id="ed-lyrics" placeholder="[Verse 1]
 [Gm]I don't drink [C]coffee I take [Dm]tea my [C]dear
 [Gm]I like my [C]toast done on [Dm]one [C]side
 
 [Chorus]
 [Gm]I'm an alien [C]I'm a [Dm]legal alien"></textarea>
+          <div class="editor-preview" id="ed-preview" aria-label="Live-Vorschau">
+            <div class="editor-preview-empty">Vorschau erscheint hier sobald du tippst.</div>
+          </div>
+        </div>
+
+        <!-- Akkord-Palette: tippen fügt [Akkord] an der Cursor-Position ein -->
+        <div class="chord-palette" id="chord-palette">
+          <div class="chord-palette-label">Akkord einfügen:</div>
+          <div class="chord-palette-row" id="chord-palette-row"></div>
+          <div class="chord-palette-custom">
+            <input type="text" id="chord-palette-input" placeholder="Eigener Akkord (z.B. Cmaj7)" maxlength="10">
+            <button class="btn" id="chord-palette-insert">Einfügen</button>
+          </div>
+        </div>
+
         <p class="help-text">
-          <strong style="color:var(--accent-soft);">⭐ Inline-Format (100% genau):</strong> Akkorde direkt vor dem Wort wo sie gespielt werden: <code>[Gm]I don't drink [C]coffee</code><br><br>
-          <strong>Auch unterstützt:</strong> Aligned-Format mit Leerzeichen positioniert (Ultimate Guitar etc.)<br>
-          <strong>Konvertier-Button:</strong> Wandelt kompakten Wikipedia-Format (kein Spacing) zu Inline um - manuell nachjustieren.<br><br>
-          Sektionen: <code>[Verse 1]</code>, <code>[Chorus]</code>, <code>[Bridge]</code> · Akkordsymbole: <code>[Gm]</code>, <code>[Cmaj7]</code>, <code>[F#m]</code>, <code>[A/C#]</code>
+          <strong style="color:var(--accent-soft);">⭐ Inline-Format (100% genau):</strong> Akkorde direkt vor dem Wort wo sie gespielt werden: <code>[Gm]I don't drink [C]coffee</code><br>
+          <strong>Auch unterstützt:</strong> Aligned-Format mit Leerzeichen positioniert (Ultimate Guitar etc.) · Sektionen: <code>[Verse 1]</code>, <code>[Chorus]</code>
         </p>
       </div>
     </div>
@@ -3547,7 +3657,45 @@ function openEditor(song) {
   document.getElementById('editor-title-display').textContent = state.currentSong.title || 'Neuer Song';
 
   renderVersionTabs();
+  renderChordPalette();
+  updateEditorPreview();
   showView('editor');
+}
+
+// Live preview pane: renders the textarea content using the same engine
+// as the performance view, so the user sees chord chips above words.
+function updateEditorPreview() {
+  const preview = document.getElementById('ed-preview');
+  if (!preview) return;
+  const text = document.getElementById('ed-lyrics').value;
+  if (!text.trim()) {
+    preview.innerHTML = '<div class="editor-preview-empty">Vorschau erscheint hier sobald du tippst.</div>';
+    return;
+  }
+  preview.innerHTML = buildLyricsHtml(text.split('\n'));
+}
+
+// Insert text at the textarea's caret, preserving the user's typing flow.
+function insertAtCaret(text) {
+  const ta = document.getElementById('ed-lyrics');
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const value = ta.value;
+  ta.value = value.slice(0, start) + text + value.slice(end);
+  const caret = start + text.length;
+  ta.setSelectionRange(caret, caret);
+  ta.focus();
+  updateEditorPreview();
+}
+
+function renderChordPalette() {
+  const row = document.getElementById('chord-palette-row');
+  if (!row) return;
+  const common = ['C', 'D', 'Dm', 'E', 'Em', 'F', 'G', 'Am', 'A', 'B', 'Bm',
+                  'C7', 'D7', 'G7', 'Cmaj7', 'F#m', 'Bb'];
+  row.innerHTML = common.map(c =>
+    `<button type="button" class="chord-pill" data-chord="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+  ).join('');
 }
 
 function pullEditorIntoCurrentVersion() {
@@ -3625,6 +3773,7 @@ async function switchVersion(versionId) {
   document.getElementById('ed-speed').value = ver.scrollSpeed || 30;
   document.getElementById('ed-speed-value').textContent = (ver.scrollSpeed || 30) + ' px/s';
   renderVersionTabs();
+  updateEditorPreview();
   song.updatedAt = Date.now();
   await dbPut(song);
 }
@@ -3650,6 +3799,7 @@ async function addVersion() {
   document.getElementById('ed-speed').value = newVer.scrollSpeed;
   document.getElementById('ed-speed-value').textContent = newVer.scrollSpeed + ' px/s';
   renderVersionTabs();
+  updateEditorPreview();
   await dbPut(song);
   showToast(`Version "${newVer.name}" erstellt`, 'success');
 }
@@ -3689,6 +3839,7 @@ async function deleteVersion(versionId) {
     document.getElementById('ed-lyrics').value = ver2.lyrics || '';
     document.getElementById('ed-speed').value = ver2.scrollSpeed || 30;
     document.getElementById('ed-speed-value').textContent = (ver2.scrollSpeed || 30) + ' px/s';
+    updateEditorPreview();
   }
   song.updatedAt = Date.now();
   renderVersionTabs();
@@ -3826,6 +3977,30 @@ document.getElementById('convert-btn').addEventListener('click', async () => {
     textarea.value = text;
     showToast(`${count} Zeile${count === 1 ? '' : 'n'} konvertiert`, 'success');
     textarea.focus();
+    updateEditorPreview();
+  }
+});
+
+// Editor live preview + chord palette wiring
+document.getElementById('ed-lyrics').addEventListener('input', updateEditorPreview);
+
+document.getElementById('chord-palette-row').addEventListener('click', (e) => {
+  const pill = e.target.closest('.chord-pill');
+  if (!pill) return;
+  insertAtCaret('[' + pill.dataset.chord + ']');
+});
+
+document.getElementById('chord-palette-insert').addEventListener('click', () => {
+  const input = document.getElementById('chord-palette-input');
+  const val = input.value.trim();
+  if (!val) { input.focus(); return; }
+  insertAtCaret('[' + val + ']');
+  input.value = '';
+});
+document.getElementById('chord-palette-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('chord-palette-insert').click();
   }
 });
 
@@ -4007,8 +4182,7 @@ function adjustOverlay(overlay) {
   overlay.style.height = newHeight + 'px';
 }
 
-function renderLyrics(lines) {
-  const track = document.getElementById('lyrics-track');
+function buildLyricsHtml(lines) {
   const html = [];
   let i = 0;
   while (i < lines.length) {
@@ -4031,7 +4205,6 @@ function renderLyrics(lines) {
       continue;
     }
     if (isChordLine(line)) {
-      // Pair with next line if it's a lyric line
       if (next != null && next.trim() && !isChordLine(next) && !isSectionLine(next)) {
         html.push(renderChordLyricsPair(line, next));
         i += 2;
@@ -4044,7 +4217,12 @@ function renderLyrics(lines) {
     html.push(`<div class="lyric-line">${escapeHtml(line)}</div>`);
     i++;
   }
-  track.innerHTML = html.join('');
+  return html.join('');
+}
+
+function renderLyrics(lines) {
+  const track = document.getElementById('lyrics-track');
+  track.innerHTML = buildLyricsHtml(lines);
   requestAnimationFrame(() => {
     adjustChordOverlaps();
     measureMaxScroll();
