@@ -331,6 +331,9 @@
     margin-right: 4px;
     flex-shrink: 0;
     touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .song-row-handle:active { cursor: grabbing; }
   .song-row-handle svg { width: 18px; height: 18px; }
@@ -344,6 +347,19 @@
     box-shadow: 0 12px 32px rgba(0,0,0,0.3);
     z-index: 5;
     position: relative;
+    will-change: transform;
+  }
+  /* While any row is being dragged, kill all native touch gestures on the
+     page so iPad Safari does not fight us by triggering scroll/pull-to-refresh.
+     window.scrollBy() (used by the auto-scroll RAF) still works because it is
+     programmatic, not a touch gesture. */
+  body.dragging-row,
+  body.dragging-row .song-list,
+  body.dragging-row .song-row,
+  body.dragging-row .song-row-handle {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   body.light-mode .song-row.dragging {
     box-shadow: 0 12px 32px rgba(0,0,0,0.15);
@@ -3109,11 +3125,21 @@ function startRowDrag(e, rowEl) {
     autoScrollRAF: null,
   };
   rowEl.classList.add('dragging');
+  document.body.classList.add('dragging-row');
   try { rowEl.setPointerCapture(e.pointerId); } catch(err) {}
 
   document.addEventListener('pointermove', onRowDragMove, { passive: false });
   document.addEventListener('pointerup', onRowDragEnd);
   document.addEventListener('pointercancel', onRowDragEnd);
+  // Direct touchmove fallback: iPad Safari occasionally lets a touchmove
+  // slip through before the equivalent pointermove, and the only reliable
+  // way to suppress native scrolling is to preventDefault on touchmove
+  // itself with passive: false.
+  document.addEventListener('touchmove', preventDefaultDuringDrag, { passive: false });
+}
+
+function preventDefaultDuringDrag(e) {
+  if (dragState) e.preventDefault();
 }
 
 // Compute transforms + insertion index based on the current pointer position.
@@ -3217,6 +3243,8 @@ function onRowDragEnd(e) {
   document.removeEventListener('pointermove', onRowDragMove);
   document.removeEventListener('pointerup', onRowDragEnd);
   document.removeEventListener('pointercancel', onRowDragEnd);
+  document.removeEventListener('touchmove', preventDefaultDuringDrag);
+  document.body.classList.remove('dragging-row');
 
   if (dragState.autoScrollRAF) {
     cancelAnimationFrame(dragState.autoScrollRAF);
