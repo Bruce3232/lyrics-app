@@ -505,12 +505,18 @@
     opacity: 0;
     transition: opacity 0.2s var(--ease);
   }
-  .song-row:hover {
-    background: var(--surface-strong);
-    border-color: var(--border-strong);
-    transform: translateX(2px);
+  /* Only apply hover styles on devices that actually have a hover pointer
+     (mouse/trackpad). On touch screens iOS keeps :hover sticky on the last
+     tapped row, which painted a phantom accent bar on the row the user
+     touched to start a drag. */
+  @media (hover: hover) {
+    .song-row:hover {
+      background: var(--surface-strong);
+      border-color: var(--border-strong);
+      transform: translateX(2px);
+    }
+    .song-row:hover::before { opacity: 1; }
   }
-  .song-row:hover::before { opacity: 1; }
 
   .song-row-num {
     font-family: var(--font-mono);
@@ -519,7 +525,9 @@
     color: var(--text-2);
     text-align: center;
   }
-  .song-row:hover .song-row-num { color: var(--accent); }
+  @media (hover: hover) {
+    .song-row:hover .song-row-num { color: var(--accent); }
+  }
 
   .song-row-title {
     font-weight: 600;
@@ -559,7 +567,9 @@
     opacity: 0;
     transition: opacity 0.2s var(--ease);
   }
-  .song-row:hover .song-row-actions { opacity: 1; }
+  @media (hover: hover) {
+    .song-row:hover .song-row-actions { opacity: 1; }
+  }
   .song-row-action {
     width: 32px; height: 32px;
     border-radius: 8px;
