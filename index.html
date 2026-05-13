@@ -2008,6 +2008,39 @@
     .lyrics-track { font-size: 36px; }
   }
 
+  /* Phone landscape: viewport is very short (<=500 px tall). The 50vh
+     top padding ate most of the lyric area — reduce it so text actually
+     starts near the top. Controls bar gets compact too. */
+  @media (max-height: 500px) {
+    .lyrics-track { padding-top: 20vh; padding-bottom: 25vh; font-size: 22px; }
+    .perf-controls { padding: 6px 10px; gap: 6px; }
+    .perf-controls-side { gap: 6px; }
+    .perf-control-group { padding: 3px 8px; gap: 4px; }
+    .perf-control-group .label { font-size: 9px; letter-spacing: 0.04em; }
+    .perf-icon-btn { width: 36px; height: 36px; }
+    .perf-icon-btn svg { width: 16px; height: 16px; }
+    .perf-play-btn { width: 48px; height: 48px; }
+    .perf-play-btn svg { width: 20px; height: 20px; }
+    .perf-font-btn { width: 30px; height: 30px; font-size: 15px; }
+    .perf-transport { gap: 4px; }
+    .perf-overlay { padding: 8px 14px; }
+    .perf-title { font-size: 15px; }
+    .perf-artist { font-size: 11px; }
+  }
+
+  /* Phone portrait (very narrow). Library + editor adjust their grid. */
+  @media (max-width: 600px) {
+    #library-view .body { padding: 16px 14px 60px; }
+    .library-title { font-size: 24px; }
+    .topbar { padding: 8px 12px; gap: 6px; flex-wrap: wrap; }
+    .btn { padding: 8px 12px; font-size: 13px; }
+    .btn svg { width: 14px; height: 14px; }
+    .editor-split { min-height: 240px; }
+    .editor-preview { max-height: 40vh; font-size: 14px; }
+    .field-textarea { min-height: 220px; font-size: 14px; }
+    .lyrics-track { font-size: 18px; padding-left: 14px; padding-right: 14px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
