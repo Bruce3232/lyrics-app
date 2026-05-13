@@ -2258,6 +2258,12 @@
       </div>
 
       <div class="perf-controls-side perf-controls-right">
+        <div class="perf-control-group" title="Transponieren: alle Akkorde in Halbtönen verschieben">
+          <span class="label">Tr</span>
+          <button class="perf-font-btn" id="perf-transpose-down" title="Tiefer (−1 Halbton)">−</button>
+          <span class="value" id="perf-transpose-value">0</span>
+          <button class="perf-font-btn" id="perf-transpose-up" title="Höher (+1 Halbton)">+</button>
+        </div>
         <div class="perf-control-group">
           <span class="label">Schrift</span>
           <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
@@ -2484,6 +2490,7 @@ const state = {
   songs: [],
   setlists: [],
   currentSetlistId: null, // null = "Alle Songs"
+  transpose: 0, // semitones the current performance is shifted up/down (-11..+11)
 };
 
 function uid() {
@@ -2623,6 +2630,54 @@ function parseInlineLine(line) {
 }
 
 // Wrap chord tokens in chips, preserving exact whitespace positions
+// =====================================================
+//                   Transpose
+// =====================================================
+const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTES_FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const NOTE_INDEX = {
+  'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,
+  'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11,
+};
+// Prefer sharps by default. Could flip if the user picks flat notation later.
+let transposeUseFlats = false;
+
+function transposeNote(noteName, semitones) {
+  const idx = NOTE_INDEX[noteName];
+  if (idx == null) return noteName;
+  const out = (((idx + semitones) % 12) + 12) % 12;
+  return (transposeUseFlats ? NOTES_FLAT : NOTES_SHARP)[out];
+}
+
+// Transpose one chord token (e.g. "Gm7", "F#m", "A/C#") by N semitones.
+// Annotations and unknown shapes pass through unchanged.
+function transposeChord(chord, semitones) {
+  if (!semitones) return chord;
+  if (CHORD_ANNO.test(chord)) return chord;
+  const m = chord.match(/^([A-G])([#b♯♭]?)(.*?)(\/([A-G])([#b♯♭]?)(.*))?$/);
+  if (!m) return chord;
+  const root = m[1];
+  const acc = (m[2] || '').replace('♯','#').replace('♭','b');
+  const quality = m[3] || '';
+  const bassRoot = m[5] || '';
+  const bassAcc = (m[6] || '').replace('♯','#').replace('♭','b');
+  const bassQual = m[7] || '';
+  const newRoot = transposeNote(root + acc, semitones);
+  let out = newRoot + quality;
+  if (bassRoot) {
+    const newBass = transposeNote(bassRoot + bassAcc, semitones);
+    out += '/' + newBass + bassQual;
+  }
+  return out;
+}
+
+// Apply the current performance transpose to a chord string for display.
+function displayChord(chord) {
+  const n = state.transpose || 0;
+  if (!n) return chord;
+  return transposeChord(chord, n);
+}
+
 function renderChordLineHtml(line) {
   const out = [];
   const re = /\S+/g;
@@ -2636,7 +2691,7 @@ function renderChordLineHtml(line) {
     if (CHORD_ANNO.test(tok)) {
       out.push(`<span class="chord-anno">${escapeHtml(tok)}</span>`);
     } else {
-      out.push(`<span class="chord-chip">${escapeHtml(tok)}</span>`);
+      out.push(`<span class="chord-chip">${escapeHtml(displayChord(tok))}</span>`);
     }
     lastIdx = m.index + m[0].length;
   }
@@ -3680,6 +3735,8 @@ function openEditor(song) {
   document.getElementById('ed-speed-value').textContent = (ver.scrollSpeed || 30) + ' px/s';
   document.getElementById('editor-title-display').textContent = state.currentSong.title || 'Neuer Song';
 
+  // Editor preview always shows the original chords (transpose is performance-only)
+  state.transpose = 0;
   renderVersionTabs();
   renderChordPalette();
   updateEditorPreview();
@@ -4152,6 +4209,8 @@ function openPerformance(song) {
   document.getElementById('perf-speed-value').textContent = speed;
   document.getElementById('perf-font-value').textContent = fontSize;
   document.getElementById('lyrics-track').style.fontSize = fontSize + 'px';
+  state.transpose = (typeof ver.transpose === 'number') ? ver.transpose : 0;
+  updateTransposeDisplay();
 
   const lines = (ver.lyrics || '').split('\n');
   const empty = document.getElementById('perf-empty');
@@ -4383,7 +4442,7 @@ function renderSegments(items) {
     let chordHtml;
     if (item.chord) {
       const annos = (item.annos || []).map(a => `<span class="chord-anno">${escapeHtml(a)}</span>`).join('');
-      chordHtml = `<span class="seg-chord">${escapeHtml(item.chord)}${annos}</span>`;
+      chordHtml = `<span class="seg-chord">${escapeHtml(displayChord(item.chord))}${annos}</span>`;
     } else {
       chordHtml = `<span class="seg-chord seg-chord-spacer">&nbsp;</span>`;
     }
@@ -4829,6 +4888,48 @@ function changeSpeed(delta) {
 }
 document.getElementById('perf-speed-down').addEventListener('click', () => changeSpeed(-1));
 document.getElementById('perf-speed-up').addEventListener('click', () => changeSpeed(1));
+
+function updateTransposeDisplay() {
+  const n = state.transpose || 0;
+  const label = n === 0 ? '0' : (n > 0 ? '+' + n : String(n));
+  document.getElementById('perf-transpose-value').textContent = label;
+}
+function changeTranspose(delta) {
+  let next = (state.transpose || 0) + delta;
+  if (next > 11) next = 11;
+  if (next < -11) next = -11;
+  if (next === state.transpose) return;
+  state.transpose = next;
+  updateTransposeDisplay();
+  // Re-render the lyric track so chord chips reflect the new transposition
+  const ver = currentVersion();
+  if (ver) {
+    ver.transpose = next;
+    saveCurrentTranspose();
+    const lines = (ver.lyrics || '').split('\n');
+    renderLyrics(lines);
+  }
+}
+let transposeSaveDebounce = null;
+function saveCurrentTranspose() {
+  clearTimeout(transposeSaveDebounce);
+  transposeSaveDebounce = setTimeout(async () => {
+    if (state.currentSong && state.currentSong.id) {
+      const stored = await dbGet(state.currentSong.id);
+      if (stored) {
+        const migrated = migrateSong(stored);
+        const v = migrated.versions.find(x => x.id === state.currentSong.activeVersionId);
+        if (v) {
+          v.transpose = state.transpose;
+          migrated.activeVersionId = state.currentSong.activeVersionId;
+          await dbPut(migrated);
+        }
+      }
+    }
+  }, 500);
+}
+document.getElementById('perf-transpose-down').addEventListener('click', () => changeTranspose(-1));
+document.getElementById('perf-transpose-up').addEventListener('click', () => changeTranspose(1));
 
 document.getElementById('perf-speed').addEventListener('input', (e) => {
   document.getElementById('perf-speed-value').textContent = e.target.value;
