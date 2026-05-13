@@ -3183,14 +3183,81 @@ function onRowDragEnd(e) {
   }
 
   const { rowEl, startIdx, currentIdx, rows } = dragState;
-  rowEl.classList.remove('dragging');
-  rowEl.style.transform = '';
-  rowEl.style.zIndex = '';
-  rows.forEach(r => { r.classList.remove('drag-shift'); r.style.transform = ''; });
   dragState = null;
 
-  if (currentIdx === startIdx) return;
-  applyReorder(startIdx, currentIdx);
+  if (currentIdx === startIdx) {
+    // No reorder needed — just snap the drag transforms back smoothly.
+    rowEl.classList.remove('dragging');
+    rowEl.style.transform = '';
+    rowEl.style.zIndex = '';
+    rows.forEach(r => { r.classList.remove('drag-shift'); r.style.transform = ''; });
+    return;
+  }
+
+  // FLIP-style smooth reorder: keep the visual position the user sees,
+  // mutate the DOM order, then animate the rows into their final spots.
+  const list = rowEl.parentNode;
+
+  // FIRST: capture each row's current viewport rect (with drag transforms still active)
+  const firstRects = rows.map(r => r.getBoundingClientRect());
+
+  // Clear the drag-time transforms WITHOUT animating, so geometry resets cleanly
+  rows.forEach(r => {
+    r.classList.remove('drag-shift');
+    r.style.transition = 'none';
+    r.style.transform = '';
+  });
+  rowEl.classList.remove('dragging');
+  rowEl.style.zIndex = '';
+
+  // LAST: reorder DOM nodes and refresh the visible numbers in-place
+  const reordered = [...rows];
+  reordered.splice(startIdx, 1);
+  reordered.splice(currentIdx, 0, rowEl);
+  reordered.forEach(r => list.appendChild(r));
+  reordered.forEach((r, i) => {
+    const num = r.querySelector('.song-row-num');
+    if (num) num.textContent = i + 1;
+  });
+
+  // INVERT: place each row visually back where it was a moment ago
+  rows.forEach((r, i) => {
+    const finalRect = r.getBoundingClientRect();
+    const dy = firstRects[i].top - finalRect.top;
+    if (Math.abs(dy) > 0.5) r.style.transform = `translateY(${dy}px)`;
+  });
+
+  // PLAY: force reflow, then transition transforms back to identity
+  void list.offsetHeight;
+  rows.forEach(r => {
+    r.style.transition = 'transform 0.25s var(--ease)';
+    r.style.transform = '';
+  });
+  setTimeout(() => {
+    rows.forEach(r => { r.style.transition = ''; });
+  }, 280);
+
+  // Persist the new order in the background — no re-render needed.
+  applyReorderDataOnly(startIdx, currentIdx);
+}
+
+async function applyReorderDataOnly(fromIdx, toIdx) {
+  const filtered = getFilteredSongs();
+  if (fromIdx < 0 || fromIdx >= filtered.length) return;
+  const [moved] = filtered.splice(fromIdx, 1);
+  filtered.splice(toIdx, 0, moved);
+  if (state.currentSetlistId) {
+    const setlist = state.setlists.find(s => s.id === state.currentSetlistId);
+    if (!setlist) return;
+    setlist.songIds = filtered.map(s => s.id);
+    setlist.updatedAt = Date.now();
+    await setlistPut(setlist);
+  } else {
+    const base = Date.now();
+    filtered.forEach((s, i) => { s.position = base + i; });
+    for (const s of filtered) await dbPut(s);
+    state.songs = state.songs.map(s => filtered.find(x => x.id === s.id) || s);
+  }
 }
 
 async function applyReorder(fromIdx, toIdx) {
