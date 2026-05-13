@@ -3070,22 +3070,26 @@ function startRowDrag(e, rowEl) {
   const startIdx = rows.indexOf(rowEl);
   if (startIdx < 0) return;
 
-  // Cache each row's center so we can decide when the dragged row has
-  // crossed a neighbour without re-measuring on every move.
+  // Cache row centers in ABSOLUTE page coords (clientY + scrollY) so the
+  // layout positions stay valid even when the page auto-scrolls during drag.
+  const scrollAtStart = window.scrollY || document.documentElement.scrollTop;
   const rowCenters = rows.map(r => {
     const rect = r.getBoundingClientRect();
-    return rect.top + rect.height / 2;
+    return rect.top + rect.height / 2 + scrollAtStart;
   });
 
   dragState = {
     rowEl,
     pointerId: e.pointerId,
-    startClientY: e.clientY,
+    startAbsoluteY: e.clientY + scrollAtStart,
+    lastClientY: e.clientY,
     startIdx,
     currentIdx: startIdx,
     rows,
     rowCenters,
     rowHeight: rowEl.getBoundingClientRect().height,
+    autoScrollSpeed: 0,
+    autoScrollRAF: null,
   };
   rowEl.classList.add('dragging');
   try { rowEl.setPointerCapture(e.pointerId); } catch(err) {}
@@ -3095,16 +3099,16 @@ function startRowDrag(e, rowEl) {
   document.addEventListener('pointercancel', onRowDragEnd);
 }
 
-function onRowDragMove(e) {
-  if (!dragState || e.pointerId !== dragState.pointerId) return;
-  e.preventDefault();
-  const dy = e.clientY - dragState.startClientY;
+// Compute transforms + insertion index based on the current pointer position.
+// Pulled out of pointermove so auto-scroll can re-run it without a new event.
+function applyDragUpdate() {
+  if (!dragState) return;
+  const scrollNow = window.scrollY || document.documentElement.scrollTop;
+  const absoluteY = dragState.lastClientY + scrollNow;
+  const dy = absoluteY - dragState.startAbsoluteY;
   dragState.rowEl.style.transform = `translateY(${dy}px)`;
 
-  // Figure out where the dragged row's center is now
   const draggedCenter = dragState.rowCenters[dragState.startIdx] + dy;
-
-  // New index = how many other rows have a center above the dragged center
   let newIdx = 0;
   for (let i = 0; i < dragState.rows.length; i++) {
     if (i === dragState.startIdx) continue;
@@ -3112,16 +3116,59 @@ function onRowDragMove(e) {
   }
   dragState.currentIdx = newIdx;
 
-  // Shift the OTHER rows so the user sees where the dragged row will land
   for (let i = 0; i < dragState.rows.length; i++) {
     if (i === dragState.startIdx) continue;
     const r = dragState.rows[i];
     r.classList.add('drag-shift');
     let shift = 0;
-    if (i < dragState.startIdx && i >= newIdx) shift = dragState.rowHeight + 12; // gap approx
+    if (i < dragState.startIdx && i >= newIdx) shift = dragState.rowHeight + 12;
     else if (i > dragState.startIdx && i <= newIdx) shift = -(dragState.rowHeight + 12);
     r.style.transform = shift ? `translateY(${shift}px)` : '';
   }
+}
+
+function maybeStartAutoScroll() {
+  if (!dragState) return;
+  const speed = dragState.autoScrollSpeed;
+  if (speed === 0) {
+    if (dragState.autoScrollRAF) {
+      cancelAnimationFrame(dragState.autoScrollRAF);
+      dragState.autoScrollRAF = null;
+    }
+    return;
+  }
+  if (dragState.autoScrollRAF) return;
+  const tick = () => {
+    if (!dragState || dragState.autoScrollSpeed === 0) {
+      if (dragState) dragState.autoScrollRAF = null;
+      return;
+    }
+    window.scrollBy(0, dragState.autoScrollSpeed);
+    applyDragUpdate();
+    dragState.autoScrollRAF = requestAnimationFrame(tick);
+  };
+  dragState.autoScrollRAF = requestAnimationFrame(tick);
+}
+
+function onRowDragMove(e) {
+  if (!dragState || e.pointerId !== dragState.pointerId) return;
+  e.preventDefault();
+  dragState.lastClientY = e.clientY;
+  applyDragUpdate();
+
+  // Auto-scroll when the finger gets near the top/bottom edge of the viewport.
+  // Speed ramps with distance into the margin so corners scroll faster.
+  const margin = 90;
+  const maxSpeed = 22;
+  const vh = window.innerHeight;
+  let speed = 0;
+  if (e.clientY < margin) {
+    speed = -Math.ceil(maxSpeed * (1 - e.clientY / margin));
+  } else if (e.clientY > vh - margin) {
+    speed = Math.ceil(maxSpeed * ((e.clientY - (vh - margin)) / margin));
+  }
+  dragState.autoScrollSpeed = speed;
+  maybeStartAutoScroll();
 }
 
 function onRowDragEnd(e) {
@@ -3129,6 +3176,11 @@ function onRowDragEnd(e) {
   document.removeEventListener('pointermove', onRowDragMove);
   document.removeEventListener('pointerup', onRowDragEnd);
   document.removeEventListener('pointercancel', onRowDragEnd);
+
+  if (dragState.autoScrollRAF) {
+    cancelAnimationFrame(dragState.autoScrollRAF);
+    dragState.autoScrollRAF = null;
+  }
 
   const { rowEl, startIdx, currentIdx, rows } = dragState;
   rowEl.classList.remove('dragging');
