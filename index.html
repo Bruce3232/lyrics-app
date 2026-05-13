@@ -930,13 +930,23 @@
     padding: 12px 14px;
     margin-top: 10px;
   }
+  .chord-palette-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
   .chord-palette-label {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-1);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin-bottom: 8px;
+  }
+  .chord-example-btn {
+    padding: 6px 10px;
+    font-size: 12px;
   }
   .chord-palette-row {
     display: flex;
@@ -2143,7 +2153,13 @@
 
         <!-- Akkord-Palette: tippen fügt [Akkord] an der Cursor-Position ein -->
         <div class="chord-palette" id="chord-palette">
-          <div class="chord-palette-label">Akkord einfügen:</div>
+          <div class="chord-palette-header">
+            <div class="chord-palette-label">Akkord einfügen:</div>
+            <button type="button" class="btn btn-ghost chord-example-btn" id="chord-example-btn" title="Beispiel-Format in die Lyrics einfügen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Beispiel laden
+            </button>
+          </div>
           <div class="chord-palette-row" id="chord-palette-row"></div>
           <div class="chord-palette-custom">
             <input type="text" id="chord-palette-input" placeholder="Eigener Akkord (z.B. Cmaj7)" maxlength="10">
@@ -4002,6 +4018,28 @@ document.getElementById('chord-palette-input').addEventListener('keydown', (e) =
     e.preventDefault();
     document.getElementById('chord-palette-insert').click();
   }
+});
+
+document.getElementById('chord-example-btn').addEventListener('click', async () => {
+  const ta = document.getElementById('ed-lyrics');
+  if (ta.value.trim()) {
+    const ok = await confirmDialog('Beispiel laden?', 'Der aktuelle Lyrics-Text wird ersetzt.');
+    if (!ok) return;
+  }
+  ta.value = `[Verse 1]
+G            B
+But I'm a creep, I'm a weirdo
+C                       Cm
+What the hell am I doing here?
+G               B
+I don't belong here
+
+[Chorus]
+[G]I want a [B]perfect [C]body, I want a [Cm]perfect soul
+[G]I want you to [B]notice when I'm [C]not around [Cm]`;
+  ta.focus();
+  updateEditorPreview();
+  showToast('Beispiel geladen — vergleiche Editor und Vorschau', 'success');
 });
 
 // =====================================================
