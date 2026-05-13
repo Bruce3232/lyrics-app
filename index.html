@@ -1339,6 +1339,11 @@
     border-bottom-color: rgba(20,20,30,0.08);
   }
   .perf-title-block { flex: 1; min-width: 0; }
+  /* Tr group in the top overlay sits between the title and the icon buttons */
+  .perf-overlay .perf-transpose-group {
+    flex-shrink: 0;
+    margin: 0 8px;
+  }
   .perf-title {
     font-size: 18px;
     font-weight: 700;
@@ -2272,6 +2277,12 @@
         <div class="perf-title" id="perf-title">—</div>
         <div class="perf-artist" id="perf-artist">—</div>
       </div>
+      <div class="perf-control-group perf-transpose-group" title="Transponieren: alle Akkorde in Halbtönen verschieben">
+        <span class="label">Tr</span>
+        <button class="perf-font-btn" id="perf-transpose-down" title="Tiefer (−1 Halbton)">−</button>
+        <span class="value" id="perf-transpose-value">0</span>
+        <button class="perf-font-btn" id="perf-transpose-up" title="Höher (+1 Halbton)">+</button>
+      </div>
       <button class="icon-btn" id="perf-edit" title="Bearbeiten">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
@@ -2337,12 +2348,6 @@
       </div>
 
       <div class="perf-controls-side perf-controls-right">
-        <div class="perf-control-group" title="Transponieren: alle Akkorde in Halbtönen verschieben">
-          <span class="label">Tr</span>
-          <button class="perf-font-btn" id="perf-transpose-down" title="Tiefer (−1 Halbton)">−</button>
-          <span class="value" id="perf-transpose-value">0</span>
-          <button class="perf-font-btn" id="perf-transpose-up" title="Höher (+1 Halbton)">+</button>
-        </div>
         <div class="perf-control-group">
           <span class="label">Schrift</span>
           <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
