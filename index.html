@@ -1595,12 +1595,13 @@
   }
   /* iPad portrait + similar widths: tighten the bar so nothing
      gets clipped at the edge. Drop the speed slider (the +/-
-     buttons still adjust speed), hide labels, shrink padding. */
+     buttons still adjust speed), keep small labels so the user
+     can tell which number is which. */
   @media (max-width: 1100px) {
     .perf-controls { gap: 8px; padding: 10px 12px; }
     .perf-controls-side { gap: 8px; }
     .perf-control-group { gap: 6px; padding: 4px 10px; }
-    .perf-control-group .label { display: none; }
+    .perf-control-group .label { font-size: 10px; letter-spacing: 0.05em; }
     .perf-speed-slider { display: none; }
     .perf-transport { gap: 6px; }
     .perf-icon-btn { width: 40px; height: 40px; }
