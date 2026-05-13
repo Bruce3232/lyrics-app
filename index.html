@@ -351,6 +351,13 @@
   .song-row.drag-shift {
     transition: transform 0.18s var(--ease);
   }
+  /* Briefly highlight the just-dropped row so the user sees where it landed */
+  .song-row.just-dropped {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow), 0 8px 24px var(--accent-glow);
+    transition: background 1.4s var(--ease), border-color 1.4s var(--ease), box-shadow 1.4s var(--ease);
+  }
   .search-input-wrap {
     flex: 1;
     min-width: 240px;
@@ -3114,6 +3121,7 @@ function applyDragUpdate() {
     if (i === dragState.startIdx) continue;
     if (dragState.rowCenters[i] < draggedCenter) newIdx++;
   }
+  const prevIdx = dragState.currentIdx;
   dragState.currentIdx = newIdx;
 
   for (let i = 0; i < dragState.rows.length; i++) {
@@ -3124,6 +3132,29 @@ function applyDragUpdate() {
     if (i < dragState.startIdx && i >= newIdx) shift = dragState.rowHeight + 12;
     else if (i > dragState.startIdx && i <= newIdx) shift = -(dragState.rowHeight + 12);
     r.style.transform = shift ? `translateY(${shift}px)` : '';
+  }
+
+  // Live-update song numbers so the dragged row reads "if I drop now, I become N"
+  if (newIdx !== prevIdx) {
+    updateDragNumbers(dragState.startIdx, newIdx);
+  }
+}
+
+// Given the original index of a row and the current insertion point of the
+// dragged row, return where it would sit in the final list.
+function projectedIndex(origIdx, startIdx, newIdx) {
+  if (origIdx === startIdx) return newIdx;
+  if (newIdx > startIdx && origIdx > startIdx && origIdx <= newIdx) return origIdx - 1;
+  if (newIdx < startIdx && origIdx >= newIdx && origIdx < startIdx) return origIdx + 1;
+  return origIdx;
+}
+
+function updateDragNumbers(startIdx, newIdx) {
+  if (!dragState) return;
+  for (let i = 0; i < dragState.rows.length; i++) {
+    const num = dragState.rows[i].querySelector('.song-row-num');
+    if (!num) continue;
+    num.textContent = projectedIndex(i, startIdx, newIdx) + 1;
   }
 }
 
@@ -3236,6 +3267,10 @@ function onRowDragEnd(e) {
   setTimeout(() => {
     rows.forEach(r => { r.style.transition = ''; });
   }, 280);
+
+  // Briefly highlight the dropped row so it's clear where it landed
+  rowEl.classList.add('just-dropped');
+  setTimeout(() => rowEl.classList.remove('just-dropped'), 1400);
 
   // Persist the new order in the background — no re-render needed.
   applyReorderDataOnly(startIdx, currentIdx);
