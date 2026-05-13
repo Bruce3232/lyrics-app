@@ -939,10 +939,11 @@
   }
   .chord-palette-label {
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-1);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    line-height: 1.4;
+    flex: 1;
+    min-width: 0;
   }
   .chord-example-btn {
     padding: 6px 10px;
@@ -2154,7 +2155,7 @@
         <!-- Akkord-Palette: tippen fügt [Akkord] an der Cursor-Position ein -->
         <div class="chord-palette" id="chord-palette">
           <div class="chord-palette-header">
-            <div class="chord-palette-label">Akkord einfügen:</div>
+            <div class="chord-palette-label">Cursor in den Lyrics-Text setzen, dann Akkord klicken — er erscheint genau darüber</div>
             <button type="button" class="btn btn-ghost chord-example-btn" id="chord-example-btn" title="Beispiel-Format in die Lyrics einfügen">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               Beispiel laden
@@ -2168,8 +2169,9 @@
         </div>
 
         <p class="help-text">
-          <strong style="color:var(--accent-soft);">⭐ Inline-Format (100% genau):</strong> Akkorde direkt vor dem Wort wo sie gespielt werden: <code>[Gm]I don't drink [C]coffee</code><br>
-          <strong>Auch unterstützt:</strong> Aligned-Format mit Leerzeichen positioniert (Ultimate Guitar etc.) · Sektionen: <code>[Verse 1]</code>, <code>[Chorus]</code>
+          <strong style="color:var(--accent-soft);">So funktioniert's:</strong> Schreibe die Lyrics ganz normal als Text. Setze den Cursor in ein Wort und klicke einen Akkord aus der Palette — er erscheint automatisch in einer Akkord-Zeile direkt darüber.<br>
+          <strong>Sektionen:</strong> <code>[Verse 1]</code>, <code>[Chorus]</code>, <code>[Bridge]</code><br>
+          <strong>Auch unterstützt:</strong> Inline-Format <code>[G]Wort</code> falls du es lieber so schreibst.
         </p>
       </div>
     </div>
@@ -3691,15 +3693,75 @@ function updateEditorPreview() {
   preview.innerHTML = buildLyricsHtml(text.split('\n'));
 }
 
-// Insert text at the textarea's caret, preserving the user's typing flow.
-function insertAtCaret(text) {
+// Insert a chord ABOVE the current lyric line at the column matching the cursor.
+// If the line above is already a chord/empty line, the chord is merged into it
+// at the right column. Otherwise a new chord line is created above.
+function insertChordAlignedAtCursor(chord) {
   const ta = document.getElementById('ed-lyrics');
-  const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  const value = ta.value;
-  ta.value = value.slice(0, start) + text + value.slice(end);
-  const caret = start + text.length;
-  ta.setSelectionRange(caret, caret);
+  const text = ta.value;
+  const cursorPos = ta.selectionStart;
+
+  // Split into lines and find which line the cursor is on
+  const upTo = text.slice(0, cursorPos);
+  const cursorLineIdx = (upTo.match(/\n/g) || []).length;
+  const lineStart = upTo.lastIndexOf('\n') + 1;
+  const column = cursorPos - lineStart;
+  const lines = text.split('\n');
+  const currentLine = lines[cursorLineIdx] || '';
+  const prevLine = cursorLineIdx > 0 ? lines[cursorLineIdx - 1] : null;
+
+  // Helper: does this line act as a chord/empty line we can merge into?
+  function isMergableChordLine(line) {
+    if (line === null) return false;
+    if (line.trim() === '') return true;
+    return isChordLine(line);
+  }
+
+  // Helper: place a chord at `col` inside a (possibly shorter) line, padding spaces
+  function placeAtColumn(line, col, txt) {
+    // Pad to reach the column
+    let padded = line.length < col ? line + ' '.repeat(col - line.length) : line;
+    const before = padded.slice(0, col).replace(/[ ]+$/, ''); // trim trailing spaces from "before"
+    let after = padded.slice(col);
+    // Ensure space between chord and any following text
+    if (after.length > 0 && !after.startsWith(' ')) after = ' ' + after;
+    const pad = ' '.repeat(Math.max(0, col - before.length));
+    return before + pad + txt + after;
+  }
+
+  // Case 1: cursor IS on a chord/empty line → put chord at cursor column in that line
+  if (isMergableChordLine(currentLine) && currentLine.trim() !== '') {
+    lines[cursorLineIdx] = placeAtColumn(currentLine, column, chord);
+    ta.value = lines.join('\n');
+    const newCol = column + chord.length;
+    const newPos = lineStart + Math.min(newCol, lines[cursorLineIdx].length);
+    ta.setSelectionRange(newPos, newPos);
+    ta.focus();
+    updateEditorPreview();
+    return;
+  }
+
+  // Case 2: previous line is a chord/empty line → merge chord into prev line at column
+  if (isMergableChordLine(prevLine)) {
+    const oldLen = prevLine.length;
+    lines[cursorLineIdx - 1] = placeAtColumn(prevLine, column, chord);
+    const delta = lines[cursorLineIdx - 1].length - oldLen;
+    ta.value = lines.join('\n');
+    // Cursor stays on the same lyric line column → its absolute position shifts by delta
+    const newPos = cursorPos + delta;
+    ta.setSelectionRange(newPos, newPos);
+    ta.focus();
+    updateEditorPreview();
+    return;
+  }
+
+  // Case 3: no chord line yet → insert a fresh one above the cursor line
+  const newChordLine = ' '.repeat(column) + chord;
+  lines.splice(cursorLineIdx, 0, newChordLine);
+  ta.value = lines.join('\n');
+  // Cursor shifts forward by the inserted line + its trailing newline
+  const newPos = cursorPos + newChordLine.length + 1;
+  ta.setSelectionRange(newPos, newPos);
   ta.focus();
   updateEditorPreview();
 }
@@ -4003,14 +4065,14 @@ document.getElementById('ed-lyrics').addEventListener('input', updateEditorPrevi
 document.getElementById('chord-palette-row').addEventListener('click', (e) => {
   const pill = e.target.closest('.chord-pill');
   if (!pill) return;
-  insertAtCaret('[' + pill.dataset.chord + ']');
+  insertChordAlignedAtCursor(pill.dataset.chord);
 });
 
 document.getElementById('chord-palette-insert').addEventListener('click', () => {
   const input = document.getElementById('chord-palette-input');
   const val = input.value.trim();
   if (!val) { input.focus(); return; }
-  insertAtCaret('[' + val + ']');
+  insertChordAlignedAtCursor(val);
   input.value = '';
 });
 document.getElementById('chord-palette-input').addEventListener('keydown', (e) => {
@@ -4026,6 +4088,7 @@ document.getElementById('chord-example-btn').addEventListener('click', async () 
     const ok = await confirmDialog('Beispiel laden?', 'Der aktuelle Lyrics-Text wird ersetzt.');
     if (!ok) return;
   }
+  // Pure aligned format — chord names above the lyric line, positioned with spaces
   ta.value = `[Verse 1]
 G            B
 But I'm a creep, I'm a weirdo
@@ -4035,11 +4098,13 @@ G               B
 I don't belong here
 
 [Chorus]
-[G]I want a [B]perfect [C]body, I want a [Cm]perfect soul
-[G]I want you to [B]notice when I'm [C]not around [Cm]`;
+G              B           C                    Cm
+I want a perfect body, I want a perfect soul
+G              B                   C           Cm
+I want you to notice when I'm not around`;
   ta.focus();
   updateEditorPreview();
-  showToast('Beispiel geladen — vergleiche Editor und Vorschau', 'success');
+  showToast('Beispiel geladen', 'success');
 });
 
 // =====================================================
