@@ -3134,12 +3134,21 @@ async function applyReorder(fromIdx, toIdx) {
   if (fromIdx < 0 || fromIdx >= filtered.length) return;
   const [moved] = filtered.splice(fromIdx, 1);
   filtered.splice(toIdx, 0, moved);
-  // Assign new sequential position values
-  const base = Date.now();
-  filtered.forEach((s, i) => { s.position = base + i; });
-  // Persist all touched songs and refresh state
-  for (const s of filtered) await dbPut(s);
-  state.songs = state.songs.map(s => filtered.find(x => x.id === s.id) || s);
+
+  // Reordering inside a setlist persists to the setlist's songIds array.
+  // Reordering "Alle Songs" persists to each song's position field.
+  if (state.currentSetlistId) {
+    const setlist = state.setlists.find(s => s.id === state.currentSetlistId);
+    if (!setlist) return;
+    setlist.songIds = filtered.map(s => s.id);
+    setlist.updatedAt = Date.now();
+    await setlistPut(setlist);
+  } else {
+    const base = Date.now();
+    filtered.forEach((s, i) => { s.position = base + i; });
+    for (const s of filtered) await dbPut(s);
+    state.songs = state.songs.map(s => filtered.find(x => x.id === s.id) || s);
+  }
   renderSongList();
 }
 
@@ -3155,8 +3164,10 @@ function renderSongList() {
   const filtered = getFilteredSongs();
 
   list.classList.toggle('selecting', selection.active);
-  // List-edit mode is only meaningful in the full library view (no setlist, no multi-select)
-  const canEditList = !selection.active && !state.currentSetlistId;
+  // List-edit mode is available everywhere except inside multi-select.
+  // In "Alle Songs" it reorders the global position; inside a setlist
+  // it reorders the setlist's songIds array.
+  const canEditList = !selection.active;
   if (!canEditList) listEditMode = false;
   list.classList.toggle('editing', listEditMode);
   // Update "Liste bearbeiten" button
