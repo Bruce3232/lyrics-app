@@ -4651,7 +4651,13 @@ function renderLyrics(lines) {
 // Word-based item builder so each chord rides above its word and lines wrap
 // naturally on narrow screens (e.g. iPad portrait). Spaces between words are
 // regular inline text, so the browser breaks the line at natural points.
-function buildWordItems(text, chordEntries) {
+function buildWordItems(text, chordEntries, options) {
+  const opts = options || {};
+  // gapAtWordStart: in the aligned chord-over-text format, a chord whose
+  // column equals a word's first character is intended to sit BETWEEN that
+  // word and the previous one (since the user aligned visually in a
+  // monospace editor). Inline [F]word format keeps the chord on the word.
+  const gapAtWordStart = !!opts.gapAtWordStart;
   const words = [];
   const re = /\S+/g;
   let wm;
@@ -4659,17 +4665,19 @@ function buildWordItems(text, chordEntries) {
     words.push({ start: wm.index, end: wm.index + wm[0].length, text: wm[0] });
   }
 
-  // Place each chord into either a word (when its column is inside that
-  // word's character range) or into the gap BEFORE a word (when its column
-  // is in whitespace). Gap chords are rendered as standalone chips between
-  // the surrounding words so the chord stays visually between them instead
-  // of jumping onto the next word.
   const wordChords = {};
   const gapChords = {};
   for (const cp of chordEntries) {
     let placed = false;
     for (let wi = 0; wi < words.length; wi++) {
       const w = words[wi];
+      const atWordStart = cp.position === w.start;
+      const hasGapBefore = wi > 0 && w.start > words[wi - 1].end;
+      if (atWordStart && gapAtWordStart && hasGapBefore) {
+        (gapChords[wi] = gapChords[wi] || []).push(cp);
+        placed = true;
+        break;
+      }
       if (cp.position >= w.start && cp.position < w.end) {
         (wordChords[wi] = wordChords[wi] || []).push(cp);
         placed = true;
@@ -4779,7 +4787,7 @@ function renderChordLyricsPair(chordLine, lyricsLine) {
   }
 
   const chordEntries = groups.map(g => ({ chord: g.chord, position: g.column, annos: g.annos }));
-  const items = buildWordItems(lyricsLine, chordEntries);
+  const items = buildWordItems(lyricsLine, chordEntries, { gapAtWordStart: true });
   return `<div class="lyric-flow">${renderSegments(items)}</div>`;
 }
 
