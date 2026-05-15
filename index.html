@@ -1501,6 +1501,16 @@
     white-space: nowrap;
     margin-bottom: 4px;
   }
+  .chord-segment .seg-chord-row {
+    display: flex;
+    flex-direction: row;
+    gap: 3px;
+    align-items: flex-end;
+    margin-bottom: 4px;
+  }
+  .chord-segment .seg-chord-row-multi .seg-chord {
+    margin-bottom: 0;
+  }
   .chord-segment .seg-chord {
     display: block;
     background: var(--chord-chip-bg);
@@ -4649,13 +4659,13 @@ function buildWordItems(text, chordEntries) {
     words.push({ start: wm.index, end: wm.index + wm[0].length, text: wm[0] });
   }
 
-  const wordChord = {};
+  const wordChords = {};
   const trailing = [];
   for (const cp of chordEntries) {
     let assigned = false;
     for (let wi = 0; wi < words.length; wi++) {
       if (cp.position < words[wi].end) {
-        if (!wordChord[wi]) wordChord[wi] = cp;
+        (wordChords[wi] = wordChords[wi] || []).push(cp);
         assigned = true;
         break;
       }
@@ -4670,11 +4680,10 @@ function buildWordItems(text, chordEntries) {
     if (lastEnd < w.start) {
       items.push({ type: 'space', text: text.slice(lastEnd, w.start) });
     }
-    const cp = wordChord[wi];
+    const cps = wordChords[wi] || [];
     items.push({
       type: 'segment',
-      chord: cp ? cp.chord : null,
-      annos: cp ? cp.annos : [],
+      chords: cps.map(cp => ({ chord: cp.chord, annos: cp.annos || [] })),
       text: w.text,
     });
     lastEnd = w.end;
@@ -4683,7 +4692,11 @@ function buildWordItems(text, chordEntries) {
     items.push({ type: 'space', text: text.slice(lastEnd) });
   }
   for (const cp of trailing) {
-    items.push({ type: 'segment', chord: cp.chord, annos: cp.annos, text: ' ' });
+    items.push({
+      type: 'segment',
+      chords: [{ chord: cp.chord, annos: cp.annos || [] }],
+      text: ' ',
+    });
   }
   return items;
 }
@@ -4693,12 +4706,16 @@ function renderSegments(items) {
     if (item.type === 'space') {
       return escapeHtml(item.text);
     }
+    const chords = item.chords || [];
     let chordHtml;
-    if (item.chord) {
-      const annos = (item.annos || []).map(a => `<span class="chord-anno">${escapeHtml(a)}</span>`).join('');
-      chordHtml = `<span class="seg-chord">${escapeHtml(displayChord(item.chord))}${annos}</span>`;
+    if (chords.length === 0) {
+      chordHtml = `<span class="seg-chord-row"><span class="seg-chord seg-chord-spacer">&nbsp;</span></span>`;
     } else {
-      chordHtml = `<span class="seg-chord seg-chord-spacer">&nbsp;</span>`;
+      const chips = chords.map(c => {
+        const annos = (c.annos || []).map(a => `<span class="chord-anno">${escapeHtml(a)}</span>`).join('');
+        return `<span class="seg-chord">${escapeHtml(displayChord(c.chord))}${annos}</span>`;
+      }).join('');
+      chordHtml = `<span class="seg-chord-row${chords.length > 1 ? ' seg-chord-row-multi' : ''}">${chips}</span>`;
     }
     return `<span class="chord-segment">${chordHtml}<span class="seg-text">${escapeHtml(item.text)}</span></span>`;
   }).join('');
