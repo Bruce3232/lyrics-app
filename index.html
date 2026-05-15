@@ -4659,26 +4659,50 @@ function buildWordItems(text, chordEntries) {
     words.push({ start: wm.index, end: wm.index + wm[0].length, text: wm[0] });
   }
 
+  // Place each chord into either a word (when its column is inside that
+  // word's character range) or into the gap BEFORE a word (when its column
+  // is in whitespace). Gap chords are rendered as standalone chips between
+  // the surrounding words so the chord stays visually between them instead
+  // of jumping onto the next word.
   const wordChords = {};
-  const trailing = [];
+  const gapChords = {};
   for (const cp of chordEntries) {
-    let assigned = false;
+    let placed = false;
     for (let wi = 0; wi < words.length; wi++) {
-      if (cp.position < words[wi].end) {
+      const w = words[wi];
+      if (cp.position >= w.start && cp.position < w.end) {
         (wordChords[wi] = wordChords[wi] || []).push(cp);
-        assigned = true;
+        placed = true;
+        break;
+      }
+      if (cp.position < w.start) {
+        (gapChords[wi] = gapChords[wi] || []).push(cp);
+        placed = true;
         break;
       }
     }
-    if (!assigned) trailing.push(cp);
+    if (!placed) {
+      const tailIdx = words.length;
+      (gapChords[tailIdx] = gapChords[tailIdx] || []).push(cp);
+    }
   }
 
   const items = [];
   let lastEnd = 0;
   for (let wi = 0; wi < words.length; wi++) {
     const w = words[wi];
-    if (lastEnd < w.start) {
-      items.push({ type: 'space', text: text.slice(lastEnd, w.start) });
+    const gapText = text.slice(lastEnd, w.start);
+    const gaps = gapChords[wi] || [];
+    if (gaps.length > 0) {
+      items.push({
+        type: 'segment',
+        chords: gaps.map(cp => ({ chord: cp.chord, annos: cp.annos || [] })),
+        text: ' ',
+        isGap: true,
+      });
+      if (gapText) items.push({ type: 'space', text: gapText });
+    } else if (gapText) {
+      items.push({ type: 'space', text: gapText });
     }
     const cps = wordChords[wi] || [];
     items.push({
@@ -4688,15 +4712,18 @@ function buildWordItems(text, chordEntries) {
     });
     lastEnd = w.end;
   }
-  if (lastEnd < text.length) {
-    items.push({ type: 'space', text: text.slice(lastEnd) });
-  }
-  for (const cp of trailing) {
+  const tailText = lastEnd < text.length ? text.slice(lastEnd) : '';
+  const tailChords = gapChords[words.length] || [];
+  if (tailChords.length > 0) {
+    if (tailText) items.push({ type: 'space', text: tailText });
     items.push({
       type: 'segment',
-      chords: [{ chord: cp.chord, annos: cp.annos || [] }],
-      text: ' ',
+      chords: tailChords.map(cp => ({ chord: cp.chord, annos: cp.annos || [] })),
+      text: ' ',
+      isGap: true,
     });
+  } else if (tailText) {
+    items.push({ type: 'space', text: tailText });
   }
   return items;
 }
