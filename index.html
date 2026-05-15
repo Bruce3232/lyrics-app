@@ -1004,6 +1004,45 @@
     transition: all 0.15s var(--ease);
     min-width: 40px;
   }
+  .ed-setlists-field {
+    margin-bottom: 14px;
+  }
+  .ed-setlist-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .ed-setlist-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--bg-2);
+    color: var(--text-1);
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.15s var(--ease);
+  }
+  .ed-setlist-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .ed-setlist-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .ed-setlist-chip .chip-mark {
+    font-weight: 800;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.85;
+  }
   .chord-pill:hover, .chord-pill:active {
     background: var(--accent);
     color: #fff;
@@ -2214,6 +2253,11 @@
           <label class="field-label">Künstler</label>
           <input class="field-input" id="ed-artist" placeholder="Künstler / Band">
         </div>
+      </div>
+
+      <div class="ed-setlists-field" id="ed-setlists-wrap" style="display:none;">
+        <label class="field-label">In Setlists einsortieren</label>
+        <div class="ed-setlist-chips" id="ed-setlist-chips"></div>
       </div>
 
       <div class="version-tabs" id="version-tabs"></div>
@@ -3999,12 +4043,39 @@ function openEditor(song) {
   document.getElementById('ed-speed-value').textContent = (ver.scrollSpeed || 30) + ' px/s';
   document.getElementById('editor-title-display').textContent = state.currentSong.title || 'Neuer Song';
 
+  // Pre-select setlists this song already belongs to so the picker reflects
+  // current membership; toggling chips updates it on save.
+  state.currentSongSetlistIds = new Set();
+  const sid = state.currentSong.id;
+  for (const sl of state.setlists || []) {
+    if ((sl.songIds || []).includes(sid)) state.currentSongSetlistIds.add(sl.id);
+  }
+
   // Editor preview always shows the original chords (transpose is performance-only)
   state.transpose = 0;
   renderVersionTabs();
   renderChordPalette();
+  renderEditorSetlists();
   updateEditorPreview();
   showView('editor');
+}
+
+function renderEditorSetlists() {
+  const wrap = document.getElementById('ed-setlists-wrap');
+  const chipsEl = document.getElementById('ed-setlist-chips');
+  if (!wrap || !chipsEl) return;
+  const setlists = state.setlists || [];
+  if (setlists.length === 0) {
+    wrap.style.display = 'none';
+    chipsEl.innerHTML = '';
+    return;
+  }
+  wrap.style.display = '';
+  const selected = state.currentSongSetlistIds || new Set();
+  chipsEl.innerHTML = setlists.map(sl => {
+    const active = selected.has(sl.id);
+    return `<button type="button" class="ed-setlist-chip${active ? ' active' : ''}" data-id="${escapeHtml(sl.id)}"><span class="chip-mark">${active ? '✓' : '+'}</span>${escapeHtml(sl.name || 'Setlist')}</button>`;
+  }).join('');
 }
 
 // Live preview pane: renders the textarea content using the same engine
@@ -4118,6 +4189,24 @@ async function saveCurrentSong() {
   pullEditorIntoCurrentVersion();
   state.currentSong.updatedAt = Date.now();
   await dbPut(state.currentSong);
+  await syncEditorSetlistMembership();
+}
+
+async function syncEditorSetlistMembership() {
+  const sid = state.currentSong && state.currentSong.id;
+  if (!sid) return;
+  const wanted = state.currentSongSetlistIds || new Set();
+  for (const sl of state.setlists || []) {
+    sl.songIds = sl.songIds || [];
+    const has = sl.songIds.includes(sid);
+    if (wanted.has(sl.id) && !has) {
+      sl.songIds.push(sid);
+      await setlistPut(sl);
+    } else if (!wanted.has(sl.id) && has) {
+      sl.songIds = sl.songIds.filter(x => x !== sid);
+      await setlistPut(sl);
+    }
+  }
 }
 
 function renderVersionTabs() {
@@ -4380,6 +4469,16 @@ document.getElementById('chord-palette-row').addEventListener('click', (e) => {
   const pill = e.target.closest('.chord-pill');
   if (!pill) return;
   insertChordAlignedAtCursor(pill.dataset.chord);
+});
+
+document.getElementById('ed-setlist-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.ed-setlist-chip');
+  if (!chip) return;
+  const id = chip.dataset.id;
+  if (!state.currentSongSetlistIds) state.currentSongSetlistIds = new Set();
+  if (state.currentSongSetlistIds.has(id)) state.currentSongSetlistIds.delete(id);
+  else state.currentSongSetlistIds.add(id);
+  renderEditorSetlists();
 });
 
 document.getElementById('chord-palette-insert').addEventListener('click', () => {
