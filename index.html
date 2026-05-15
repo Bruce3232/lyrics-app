@@ -4750,13 +4750,7 @@ function renderLyrics(lines) {
 // Word-based item builder so each chord rides above its word and lines wrap
 // naturally on narrow screens (e.g. iPad portrait). Spaces between words are
 // regular inline text, so the browser breaks the line at natural points.
-function buildWordItems(text, chordEntries, options) {
-  const opts = options || {};
-  // gapAtWordStart: in the aligned chord-over-text format, a chord whose
-  // column equals a word's first character is intended to sit BETWEEN that
-  // word and the previous one (since the user aligned visually in a
-  // monospace editor). Inline [F]word format keeps the chord on the word.
-  const gapAtWordStart = !!opts.gapAtWordStart;
+function buildWordItems(text, chordEntries) {
   const words = [];
   const re = /\S+/g;
   let wm;
@@ -4765,51 +4759,25 @@ function buildWordItems(text, chordEntries, options) {
   }
 
   const wordChords = {};
-  const gapChords = {};
+  const trailing = [];
   for (const cp of chordEntries) {
-    let placed = false;
+    let assigned = false;
     for (let wi = 0; wi < words.length; wi++) {
-      const w = words[wi];
-      const atWordStart = cp.position === w.start;
-      const hasGapBefore = wi > 0 && w.start > words[wi - 1].end;
-      if (atWordStart && gapAtWordStart && hasGapBefore) {
-        (gapChords[wi] = gapChords[wi] || []).push(cp);
-        placed = true;
-        break;
-      }
-      if (cp.position >= w.start && cp.position < w.end) {
+      if (cp.position < words[wi].end) {
         (wordChords[wi] = wordChords[wi] || []).push(cp);
-        placed = true;
-        break;
-      }
-      if (cp.position < w.start) {
-        (gapChords[wi] = gapChords[wi] || []).push(cp);
-        placed = true;
+        assigned = true;
         break;
       }
     }
-    if (!placed) {
-      const tailIdx = words.length;
-      (gapChords[tailIdx] = gapChords[tailIdx] || []).push(cp);
-    }
+    if (!assigned) trailing.push(cp);
   }
 
   const items = [];
   let lastEnd = 0;
   for (let wi = 0; wi < words.length; wi++) {
     const w = words[wi];
-    const gapText = text.slice(lastEnd, w.start);
-    const gaps = gapChords[wi] || [];
-    if (gaps.length > 0) {
-      items.push({
-        type: 'segment',
-        chords: gaps.map(cp => ({ chord: cp.chord, annos: cp.annos || [] })),
-        text: ' ',
-        isGap: true,
-      });
-      if (gapText) items.push({ type: 'space', text: gapText });
-    } else if (gapText) {
-      items.push({ type: 'space', text: gapText });
+    if (lastEnd < w.start) {
+      items.push({ type: 'space', text: text.slice(lastEnd, w.start) });
     }
     const cps = wordChords[wi] || [];
     items.push({
@@ -4819,18 +4787,15 @@ function buildWordItems(text, chordEntries, options) {
     });
     lastEnd = w.end;
   }
-  const tailText = lastEnd < text.length ? text.slice(lastEnd) : '';
-  const tailChords = gapChords[words.length] || [];
-  if (tailChords.length > 0) {
-    if (tailText) items.push({ type: 'space', text: tailText });
+  if (lastEnd < text.length) {
+    items.push({ type: 'space', text: text.slice(lastEnd) });
+  }
+  for (const cp of trailing) {
     items.push({
       type: 'segment',
-      chords: tailChords.map(cp => ({ chord: cp.chord, annos: cp.annos || [] })),
-      text: ' ',
-      isGap: true,
+      chords: [{ chord: cp.chord, annos: cp.annos || [] }],
+      text: ' ',
     });
-  } else if (tailText) {
-    items.push({ type: 'space', text: tailText });
   }
   return items;
 }
@@ -4886,7 +4851,7 @@ function renderChordLyricsPair(chordLine, lyricsLine) {
   }
 
   const chordEntries = groups.map(g => ({ chord: g.chord, position: g.column, annos: g.annos }));
-  const items = buildWordItems(lyricsLine, chordEntries, { gapAtWordStart: true });
+  const items = buildWordItems(lyricsLine, chordEntries);
   return `<div class="lyric-flow">${renderSegments(items)}</div>`;
 }
 
