@@ -1504,7 +1504,7 @@
     color: var(--chord-chip-color);
     border: 1px solid var(--chord-chip-border);
     border-radius: 4px;
-    padding: 0 4px;
+    padding: 0 0.25em;
     font-weight: 600;
     font-size: calc(0.62em * var(--chord-scale, 1));
     line-height: 1.25;
@@ -4687,39 +4687,35 @@ function adjustOverlay(overlay) {
 
   if (chips.length < 2) return;
 
+  // Only stack vertically when two chips share the SAME source column (rare:
+  // multiple chords typed on the exact same character). Chips that merely
+  // overlap visually because they're tight stay on row 0 — matches what the
+  // editor's monospace source shows.
   const data = chips.map(c => ({
     el: c,
-    left: c.offsetLeft,
-    right: c.offsetLeft + c.offsetWidth,
+    col: parseFloat(c.dataset.column),
     height: c.offsetHeight,
-  })).sort((a, b) => a.left - b.left);
+  }));
 
-  // Greedy row assignment: each chip goes to lowest row where it doesn't collide
-  const rows = []; // rightmost edge at each row
-  const minGap = 4;
-  let maxRow = 0;
-
+  const colGroups = new Map();
   for (const d of data) {
-    let row = 0;
-    while (row < rows.length && rows[row] + minGap > d.left) {
-      row++;
-    }
-    if (row >= rows.length) rows.push(d.right);
-    else rows[row] = d.right;
-    d.row = row;
-    if (row > maxRow) maxRow = row;
+    if (!isFinite(d.col)) continue;
+    const key = String(d.col);
+    if (!colGroups.has(key)) colGroups.set(key, []);
+    colGroups.get(key).push(d);
   }
 
-  if (maxRow === 0) return; // no collisions
-
-  // Apply: row 0 at bottom (closest to lyric line), higher rows stack upward
-  const chipHeight = data[0].height;
-  const rowGap = 2;
-  for (const d of data) {
-    d.el.style.top = ((maxRow - d.row) * (chipHeight + rowGap)) + 'px';
+  let maxStack = 0;
+  for (const [, group] of colGroups) {
+    if (group.length > 1) maxStack = Math.max(maxStack, group.length - 1);
+    group.forEach((d, i) => {
+      d.el.style.top = ((group.length - 1 - i) * (d.height + 2)) + 'px';
+    });
   }
-  const newHeight = chipHeight * (maxRow + 1) + rowGap * maxRow + 4;
-  overlay.style.height = newHeight + 'px';
+  if (maxStack > 0) {
+    const chipHeight = data[0].height;
+    overlay.style.height = (chipHeight * (maxStack + 1) + 2 * maxStack + 4) + 'px';
+  }
 }
 
 function buildLyricsHtml(lines) {
