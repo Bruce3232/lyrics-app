@@ -4761,7 +4761,50 @@ function renderLyrics(lines) {
   track.innerHTML = buildLyricsHtml(lines);
   requestAnimationFrame(() => {
     adjustChordOverlaps();
+    fitLyricLines(track);
     measureMaxScroll();
+  });
+}
+
+// Each lyric-pair / lyric-line is rendered in monospace with no wrapping
+// (so chord chips stay column-aligned). When a single line is wider than
+// the stage, scale that line down via CSS transform so it fits without
+// touching the user's font-size setting.
+function fitLyricLines(root) {
+  const track = root || document.getElementById('lyrics-track');
+  if (!track) return;
+  const containerWidth = track.clientWidth;
+  if (containerWidth <= 0) return;
+  const lines = track.querySelectorAll('.lyric-pair, .lyric-line');
+  lines.forEach(line => {
+    // reset prior fit
+    line.style.transform = '';
+    line.style.width = '';
+    line.style.marginBottom = '';
+    line.style.transformOrigin = '';
+
+    let naturalWidth = 0;
+    const overlay = line.querySelector && line.querySelector('.chord-overlay');
+    const lyricEl = line.querySelector && line.querySelector('.lyric-text');
+    if (overlay) {
+      naturalWidth = Math.max(naturalWidth, overlay.scrollWidth);
+    }
+    if (lyricEl) {
+      naturalWidth = Math.max(naturalWidth, lyricEl.scrollWidth);
+    } else {
+      naturalWidth = Math.max(naturalWidth, line.scrollWidth);
+    }
+
+    if (naturalWidth > containerWidth + 1) {
+      const scale = containerWidth / naturalWidth;
+      const naturalHeight = line.offsetHeight;
+      line.style.transformOrigin = 'left top';
+      line.style.width = naturalWidth + 'px';
+      line.style.transform = `scale(${scale})`;
+      // transform is purely visual — compensate the empty space below by
+      // pulling next sibling up via negative margin equal to the shrunk space.
+      line.style.marginBottom = (-(naturalHeight * (1 - scale))) + 'px';
+    }
   });
 }
 
@@ -4953,6 +4996,7 @@ function changeFontSize(delta) {
   document.getElementById('perf-font-value').textContent = next;
   setTimeout(() => {
     adjustChordOverlaps();
+    fitLyricLines();
     measureMaxScroll();
     perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
     applyScroll();
@@ -5334,6 +5378,7 @@ function changeChordSize(delta) {
   document.getElementById('perf-chord-value').textContent = Math.round(next * 100) + '%';
   setTimeout(() => {
     adjustChordOverlaps();
+    fitLyricLines();
     measureMaxScroll();
     perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
     applyScroll();
@@ -5475,6 +5520,7 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('resize', () => {
   if (state.view === 'performance') {
     adjustChordOverlaps();
+    fitLyricLines();
     measureMaxScroll();
     perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
     applyScroll();
@@ -5492,6 +5538,7 @@ if ('visualViewport' in window) {
     zoomReflowTimer = setTimeout(() => {
       if (state.view === 'performance') {
         adjustChordOverlaps();
+        fitLyricLines();
         measureMaxScroll();
         perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
         applyScroll();
