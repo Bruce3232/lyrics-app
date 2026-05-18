@@ -3200,6 +3200,34 @@ function renderArtistFilter() {
 let listEditMode = false;
 let dragState = null;
 
+function getDragScrollContainer(el) {
+  // The library view scrolls internally (.view { overflow-y: auto }), so
+  // window.scrollBy does nothing inside it. Walk up to find the actual
+  // scrollable ancestor and scroll that during drag.
+  let p = el.parentElement;
+  while (p) {
+    const cs = window.getComputedStyle(p);
+    if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && p.scrollHeight > p.clientHeight) {
+      return p;
+    }
+    p = p.parentElement;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+function dragScrollTop(c) {
+  if (c === document.scrollingElement || c === document.documentElement) {
+    return window.scrollY || document.documentElement.scrollTop;
+  }
+  return c.scrollTop;
+}
+function dragScrollBy(c, dy) {
+  if (c === document.scrollingElement || c === document.documentElement) {
+    window.scrollBy(0, dy);
+  } else {
+    c.scrollTop += dy;
+  }
+}
+
 function startRowDrag(e, rowEl) {
   if (!listEditMode) return;
   e.preventDefault();
@@ -3208,9 +3236,10 @@ function startRowDrag(e, rowEl) {
   const startIdx = rows.indexOf(rowEl);
   if (startIdx < 0) return;
 
-  // Cache row centers in ABSOLUTE page coords (clientY + scrollY) so the
-  // layout positions stay valid even when the page auto-scrolls during drag.
-  const scrollAtStart = window.scrollY || document.documentElement.scrollTop;
+  const scrollContainer = getDragScrollContainer(rowEl);
+  // Cache row centers in ABSOLUTE container coords (clientY + scrollTop) so the
+  // layout positions stay valid even when the container auto-scrolls during drag.
+  const scrollAtStart = dragScrollTop(scrollContainer);
   const rowCenters = rows.map(r => {
     const rect = r.getBoundingClientRect();
     return rect.top + rect.height / 2 + scrollAtStart;
@@ -3219,6 +3248,7 @@ function startRowDrag(e, rowEl) {
   dragState = {
     rowEl,
     pointerId: e.pointerId,
+    scrollContainer,
     startAbsoluteY: e.clientY + scrollAtStart,
     lastClientY: e.clientY,
     startIdx,
@@ -3251,7 +3281,7 @@ function preventDefaultDuringDrag(e) {
 // Pulled out of pointermove so auto-scroll can re-run it without a new event.
 function applyDragUpdate() {
   if (!dragState) return;
-  const scrollNow = window.scrollY || document.documentElement.scrollTop;
+  const scrollNow = dragScrollTop(dragState.scrollContainer);
   const absoluteY = dragState.lastClientY + scrollNow;
   const dy = absoluteY - dragState.startAbsoluteY;
   dragState.rowEl.style.transform = `translateY(${dy}px)`;
@@ -3315,7 +3345,7 @@ function maybeStartAutoScroll() {
       if (dragState) dragState.autoScrollRAF = null;
       return;
     }
-    window.scrollBy(0, dragState.autoScrollSpeed);
+    dragScrollBy(dragState.scrollContainer, dragState.autoScrollSpeed);
     applyDragUpdate();
     dragState.autoScrollRAF = requestAnimationFrame(tick);
   };
@@ -3328,16 +3358,28 @@ function onRowDragMove(e) {
   dragState.lastClientY = e.clientY;
   applyDragUpdate();
 
-  // Auto-scroll when the finger gets near the top/bottom edge of the viewport.
-  // Speed ramps with distance into the margin so corners scroll faster.
-  const margin = 90;
-  const maxSpeed = 22;
-  const vh = window.innerHeight;
+  // Auto-scroll when the finger gets near the top/bottom edge of the SCROLL
+  // CONTAINER (not the viewport — the library view scrolls internally and may
+  // start below a fixed header). Speed ramps with distance into the margin.
+  const sc = dragState.scrollContainer;
+  let top, bottom;
+  if (sc === document.scrollingElement || sc === document.documentElement) {
+    top = 0;
+    bottom = window.innerHeight;
+  } else {
+    const r = sc.getBoundingClientRect();
+    top = r.top;
+    bottom = r.bottom;
+  }
+  const margin = 110;
+  const maxSpeed = 28;
   let speed = 0;
-  if (e.clientY < margin) {
-    speed = -Math.ceil(maxSpeed * (1 - e.clientY / margin));
-  } else if (e.clientY > vh - margin) {
-    speed = Math.ceil(maxSpeed * ((e.clientY - (vh - margin)) / margin));
+  if (e.clientY < top + margin) {
+    const into = Math.max(0, (top + margin) - e.clientY);
+    speed = -Math.ceil(maxSpeed * Math.min(1, into / margin));
+  } else if (e.clientY > bottom - margin) {
+    const into = Math.max(0, e.clientY - (bottom - margin));
+    speed = Math.ceil(maxSpeed * Math.min(1, into / margin));
   }
   dragState.autoScrollSpeed = speed;
   maybeStartAutoScroll();
