@@ -1403,6 +1403,12 @@
     overscroll-behavior: none;
     mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+    transition: padding-right 0.3s var(--ease);
+  }
+  /* When the setlist quick-switch panel slides in from the right, push the
+     centered lyrics block left so it isn't hidden behind the panel. */
+  #performance-view.quick-songs-open .lyrics-stage {
+    padding-right: min(360px, 85vw);
   }
   /* When the UI is fully hidden, drop the bottom/top fade so the lyric
      text fills the whole screen without a phantom faded strip near the
@@ -1421,9 +1427,9 @@
 
   .lyrics-track {
     width: 100%;
-    max-width: 1200px;
+    max-width: 900px;
     margin: 0 auto;
-    padding: 50vh 40px 50vh;
+    padding: 50vh 56px 50vh;
     will-change: transform;
     font-family: var(--font-mono);
     font-weight: 500;
@@ -1461,6 +1467,11 @@
     color: var(--accent-soft);
     font-weight: 700;
     font-size: 0.8em;
+  }
+  .lyric-line.chord .chord-sep {
+    color: var(--text-2);
+    font-weight: 600;
+    opacity: 0.7;
   }
   .lyric-line.section {
     color: var(--section-color);
@@ -1558,6 +1569,14 @@
     font-size: inherit;
     line-height: 1;
     pointer-events: none;
+    /* When several chords land on the same word they render side by side in
+       this flex row (with a gap) so they NEVER stack/overlap or hide each
+       other — that was the iPad "missing chord" + "overlapping chord" bug. */
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 0.4em;
+    white-space: nowrap;
   }
   .chord-segment .seg-chord-chip {
     display: inline-block;
@@ -1572,6 +1591,7 @@
     white-space: nowrap;
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     text-align: center;
+    flex: 0 0 auto;
   }
   body.light-mode .chord-segment .seg-chord {
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
@@ -2728,17 +2748,26 @@ function confirmDialog(title, text) {
 // Detect if line is purely chord notation (allows annotations like *, **, N.C.)
 const CHORD_TOKEN = /^[A-G][b#♭♯]?(maj|min|m|dim|aug|sus|add|M)?[0-9]*(add[0-9]+)?(sus[0-9]*)?(\/[A-G][b#♭♯]?[0-9]*)?$/;
 const CHORD_ANNO = /^(\*+|N\.?C\.?|x[0-9]+)$/;
+// Pure separator/symbol tokens that are ALLOWED to appear between chords in a
+// chord line (bar lines, repeats, brackets, operators, etc.) without breaking
+// chord detection. A token made entirely of these is treated as a separator,
+// not as lyrics. NOTE: these only count when the token is ONLY symbols — a real
+// chord like "D#7/G" still parses as a chord because it contains letters.
+const CHORD_SEP = /^[|%/+\-=()\[\]{}*#@&^~<>]+$/;
 function isChordToken(t) { return CHORD_TOKEN.test(t); }
+function isChordSep(t) { return CHORD_SEP.test(t); }
 function isChordOrAnno(t) { return CHORD_TOKEN.test(t) || CHORD_ANNO.test(t); }
 
 function isChordLine(line) {
   const trimmed = line.trim();
   if (!trimmed) return false;
   const tokens = trimmed.split(/\s+/);
-  if (tokens.length === 0 || tokens.length > 24) return false;
+  if (tokens.length === 0 || tokens.length > 48) return false;
   // Need at least one real chord token
   if (!tokens.some(isChordToken)) return false;
-  return tokens.every(isChordOrAnno);
+  // Every other token must be a chord, an annotation, or a pure separator
+  // symbol (| % / etc.) — those don't disqualify the line as a chord line.
+  return tokens.every(t => isChordOrAnno(t) || isChordSep(t));
 }
 
 function isSectionLine(line) {
@@ -2840,6 +2869,9 @@ function renderChordLineHtml(line) {
     const tok = m[0];
     if (CHORD_ANNO.test(tok)) {
       out.push(`<span class="chord-anno">${escapeHtml(tok)}</span>`);
+    } else if (isChordSep(tok)) {
+      // Bar lines / repeat marks / operators stay as plain text.
+      out.push(`<span class="chord-sep">${escapeHtml(tok)}</span>`);
     } else {
       out.push(`<span class="chord-chip">${escapeHtml(displayChord(tok))}</span>`);
     }
@@ -4880,11 +4912,15 @@ function renderSegments(items) {
     const chords = item.chords || [];
     let chordHtml = '';
     if (chords.length > 0) {
-      chordHtml = chords.map(c => {
+      // All chords for this word render in ONE flex row positioned at the
+      // leftmost chord's source column. Side-by-side, never stacked.
+      const offsets = chords.map(c => (typeof c.columnOffset === 'number' ? c.columnOffset : 0));
+      const minOff = Math.min(...offsets);
+      const chips = chords.map(c => {
         const annos = (c.annos || []).map(a => `<span class="chord-anno">${escapeHtml(a)}</span>`).join('');
-        const off = typeof c.columnOffset === 'number' ? c.columnOffset : 0;
-        return `<span class="seg-chord" style="left:${off}ch;"><span class="seg-chord-chip">${escapeHtml(displayChord(c.chord))}${annos}</span></span>`;
+        return `<span class="seg-chord-chip">${escapeHtml(displayChord(c.chord))}${annos}</span>`;
       }).join('');
+      chordHtml = `<span class="seg-chord" style="left:${minOff}ch;">${chips}</span>`;
     }
     return `<span class="chord-segment">${chordHtml}<span class="seg-text">${escapeHtml(item.text)}</span></span>`;
   }).join('');
@@ -4913,6 +4949,11 @@ function renderChordLyricsPair(chordLine, lyricsLine) {
 
   const groups = [];
   for (const t of tokens) {
+    if (isChordSep(t.token)) {
+      // Separators (| % / …) above a lyric line carry no chord — skip them so
+      // they don't render as bogus chips, but they still don't break parsing.
+      continue;
+    }
     if (CHORD_ANNO.test(t.token) && groups.length > 0) {
       groups[groups.length - 1].annos.push(t.token);
     } else {
@@ -5137,11 +5178,27 @@ async function openQuickSongs() {
   renderQuickSongsList();
   document.getElementById('quick-songs-panel').classList.add('show');
   document.getElementById('quick-songs-backdrop').classList.add('show');
+  document.getElementById('performance-view').classList.add('quick-songs-open');
+  remeasureAfterPanelShift();
 }
 
 function closeQuickSongs() {
   document.getElementById('quick-songs-panel').classList.remove('show');
   document.getElementById('quick-songs-backdrop').classList.remove('show');
+  document.getElementById('performance-view').classList.remove('quick-songs-open');
+  remeasureAfterPanelShift();
+}
+
+function remeasureAfterPanelShift() {
+  // The lyrics width changes as the panel pushes the stage in/out, so re-flow
+  // chord positions and scroll bounds once the transition has settled.
+  setTimeout(() => {
+    if (state.view !== 'performance') return;
+    adjustChordOverlaps();
+    measureMaxScroll();
+    perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
+    applyScroll();
+  }, 320);
 }
 
 function renderQuickSongsList() {
