@@ -2014,6 +2014,9 @@
     animation: fadeIn 0.2s var(--ease);
   }
   .modal-backdrop.show { display: flex; }
+  /* The confirm dialog must always sit ABOVE any other modal (e.g. the folder
+     menu), so a delete confirmation is never hidden behind it. */
+  .modal-backdrop-top { z-index: 300; }
   .modal {
     background: var(--surface-strong);
     border: 1px solid var(--border-strong);
@@ -2759,7 +2762,7 @@
 </div>
 
 <!-- Confirm modal -->
-<div class="modal-backdrop" id="confirm-modal">
+<div class="modal-backdrop modal-backdrop-top" id="confirm-modal">
   <div class="modal">
     <h3 id="confirm-title">Sicher?</h3>
     <p id="confirm-text">Diese Aktion kann nicht rückgängig gemacht werden.</p>
@@ -4713,13 +4716,20 @@ async function deleteFolder(id) {
   const f = state.folders.find(x => x.id === id);
   if (!f || id === MAIN_FOLDER_ID) return;
   const count = songCountForFolder(id);
+  // Close the folder menu FIRST so the confirmation appears on top, fully
+  // visible, instead of behind the (still-open) folder modal.
+  closeFolderModal();
   const ok = await confirmDialog(
     `Ordner "${f.name}" löschen?`,
     count > 0
       ? `Der Ordner und seine ${count} Song${count === 1 ? '' : 's'} (+ Setlists) werden endgültig gelöscht.`
       : `Der leere Ordner wird gelöscht.`
   );
-  if (!ok) return;
+  if (!ok) {
+    // User cancelled — reopen the folder menu where they were.
+    openFolderModal();
+    return;
+  }
   // Delete the folder's songs + setlists, then the folder itself.
   for (const s of state.songs.filter(s => effectiveFolderId(s) === id)) {
     try { await dbDelete(s.id); } catch (e) {}
@@ -4734,7 +4744,6 @@ async function deleteFolder(id) {
     state.currentSetlistId = null;
   }
   state.folders = await foldersWithMain();
-  closeFolderModal();
   await renderLibrary();
   showToast(`Ordner "${f.name}" gelöscht`, 'success');
 }
