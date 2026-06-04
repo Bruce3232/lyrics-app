@@ -2412,6 +2412,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Aus Setlist
         </button>
+        <button class="btn" id="select-move-folder-btn" title="In einen anderen Ordner verschieben oder kopieren">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          In Ordner
+        </button>
         <button class="btn btn-danger" id="select-delete-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
           Löschen
@@ -2769,6 +2773,24 @@
     </div>
     <div class="modal-actions" style="margin-top:18px;">
       <button class="btn" id="folder-close">Schliessen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Move/copy songs to folder modal -->
+<div class="modal-backdrop" id="move-folder-modal">
+  <div class="modal modal-large">
+    <h3 id="move-folder-title">In Ordner</h3>
+    <p style="color:var(--text-1); margin-bottom:12px;" id="move-folder-sub">Wähle den Zielordner.</p>
+    <div class="folder-list" id="move-folder-list"></div>
+    <div class="folder-new-row" style="margin-bottom:14px;">
+      <input class="field-input" id="move-folder-new-name" placeholder="…oder neuen Ordner erstellen" maxlength="40" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="move-folder-cancel">Abbrechen</button>
+      <div style="flex:1;"></div>
+      <button class="btn" id="move-folder-copy">Kopieren</button>
+      <button class="btn btn-primary" id="move-folder-move">Verschieben</button>
     </div>
   </div>
 </div>
@@ -4716,6 +4738,127 @@ document.getElementById('folder-new-btn').addEventListener('click', async () => 
 document.getElementById('folder-new-name').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); document.getElementById('folder-new-btn').click(); }
 });
+
+// ===== Move / copy selected songs to another folder =====
+let moveFolderSelectedId = null;   // target folder chosen in the move modal
+let moveFolderSongIds = [];        // song ids being moved/copied
+
+function openMoveFolderModal(songIds) {
+  moveFolderSongIds = songIds.slice();
+  moveFolderSelectedId = null;
+  document.getElementById('move-folder-new-name').value = '';
+  document.getElementById('move-folder-sub').textContent =
+    `${songIds.length} Song${songIds.length === 1 ? '' : 's'} verschieben oder kopieren in:`;
+  renderMoveFolderList();
+  document.getElementById('move-folder-modal').classList.add('show');
+}
+function closeMoveFolderModal() {
+  document.getElementById('move-folder-modal').classList.remove('show');
+  moveFolderSongIds = [];
+  moveFolderSelectedId = null;
+}
+function renderMoveFolderList() {
+  const listEl = document.getElementById('move-folder-list');
+  if (!listEl) return;
+  const folderSvg = '<svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+  listEl.innerHTML = state.folders.map(f => {
+    const active = f.id === moveFolderSelectedId ? ' active' : '';
+    const isCurrent = f.id === state.currentFolderId ? ' <span class="folder-meta">(aktuell)</span>' : '';
+    return `<div class="folder-item${active}" data-id="${escapeHtml(f.id)}">${folderSvg}<span class="folder-name">${escapeHtml(f.name)}${isCurrent}</span></div>`;
+  }).join('');
+  listEl.querySelectorAll('.folder-item').forEach(row => {
+    row.addEventListener('click', () => {
+      moveFolderSelectedId = row.dataset.id;
+      document.getElementById('move-folder-new-name').value = '';
+      renderMoveFolderList();
+    });
+  });
+}
+// Resolve chosen target (existing selection or a new folder typed in the field).
+async function resolveMoveTargetFolderId() {
+  const newName = (document.getElementById('move-folder-new-name').value || '').trim();
+  if (newName) {
+    const folder = await createFolder(newName);
+    return folder ? folder.id : null;
+  }
+  if (moveFolderSelectedId) return moveFolderSelectedId;
+  showToast('Bitte einen Zielordner wählen', 'error');
+  return null;
+}
+
+// MOVE: change folderId of each selected song in place.
+async function performMove() {
+  const targetId = await resolveMoveTargetFolderId();
+  if (targetId === null) return;
+  const folderIdField = targetId === MAIN_FOLDER_ID ? undefined : targetId;
+  let moved = 0;
+  for (const id of moveFolderSongIds) {
+    const song = state.songs.find(s => s.id === id);
+    if (!song) continue;
+    if (effectiveFolderId(song) === targetId) continue;
+    song.folderId = folderIdField;
+    song.updatedAt = Date.now();
+    await dbPut(song);
+    // Remove the moved song from setlists of the OLD folder (it no longer lives there).
+    for (const sl of state.setlists) {
+      if ((sl.songIds || []).includes(id) && effectiveFolderId(sl) !== targetId) {
+        sl.songIds = sl.songIds.filter(x => x !== id);
+        sl.updatedAt = Date.now();
+        await setlistPut(sl);
+      }
+    }
+    moved++;
+  }
+  const tName = (state.folders.find(f => f.id === targetId) || {}).name || '—';
+  closeMoveFolderModal();
+  exitSelectionMode();
+  await renderLibrary();
+  showToast(`${moved} Song${moved === 1 ? '' : 's'} nach „${tName}“ verschoben`, 'success');
+  if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+}
+
+// COPY: make an independent duplicate (new id) in the target folder.
+async function performCopy() {
+  const targetId = await resolveMoveTargetFolderId();
+  if (targetId === null) return;
+  const folderIdField = targetId === MAIN_FOLDER_ID ? undefined : targetId;
+  let copied = 0;
+  for (const id of moveFolderSongIds) {
+    const song = state.songs.find(s => s.id === id);
+    if (!song) continue;
+    const dup = JSON.parse(JSON.stringify(song));
+    dup.id = uid();
+    dup.folderId = folderIdField;
+    dup.createdAt = Date.now();
+    dup.updatedAt = Date.now();
+    // give versions fresh ids so they don't collide
+    if (Array.isArray(dup.versions)) {
+      const map = {};
+      dup.versions.forEach(v => { const nv = vid(); map[v.id] = nv; v.id = nv; });
+      if (dup.activeVersionId && map[dup.activeVersionId]) dup.activeVersionId = map[dup.activeVersionId];
+    }
+    await dbPut(dup);
+    copied++;
+  }
+  const tName = (state.folders.find(f => f.id === targetId) || {}).name || '—';
+  closeMoveFolderModal();
+  exitSelectionMode();
+  await renderLibrary();
+  showToast(`${copied} Song${copied === 1 ? '' : 's'} nach „${tName}“ kopiert`, 'success');
+  if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+}
+
+document.getElementById('select-move-folder-btn').addEventListener('click', () => {
+  const ids = [...selection.ids];
+  if (ids.length === 0) { showToast('Keine Songs ausgewählt', 'error'); return; }
+  openMoveFolderModal(ids);
+});
+document.getElementById('move-folder-cancel').addEventListener('click', closeMoveFolderModal);
+document.getElementById('move-folder-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'move-folder-modal') closeMoveFolderModal();
+});
+document.getElementById('move-folder-move').addEventListener('click', performMove);
+document.getElementById('move-folder-copy').addEventListener('click', performCopy);
 
 // Filter event listeners
 document.getElementById('search-input').addEventListener('input', (e) => {
