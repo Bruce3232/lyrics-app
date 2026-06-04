@@ -984,9 +984,20 @@
   }
   .chord-palette-row {
     display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: 10px;
+  }
+  .chord-palette-group {
+    display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 10px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chord-palette-group:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
   }
   .chord-pill {
     display: inline-flex;
@@ -2326,7 +2337,7 @@
           </div>
           <div class="chord-palette-row" id="chord-palette-row"></div>
           <div class="chord-palette-custom">
-            <input type="text" id="chord-palette-input" placeholder="Eigener Akkord (z.B. Cmaj7)" maxlength="10">
+            <input type="text" id="chord-palette-input" placeholder="Eigener Akkord (z.B. Bm7b5, C7#9, Gmaj9)" maxlength="14">
             <button class="btn" id="chord-palette-insert">Einfügen</button>
           </div>
         </div>
@@ -2739,7 +2750,21 @@ function confirmDialog(title, text) {
 }
 
 // Detect if line is purely chord notation (allows annotations like *, **, N.C.)
-const CHORD_TOKEN = /^[A-G][b#♭♯]?(maj|min|m|dim|aug|sus|add|M)?[0-9]*(add[0-9]+)?(sus[0-9]*)?(\/[A-G][b#♭♯]?[0-9]*)?$/;
+// Comprehensive chord recognition for piano & guitar, incl. complex chords:
+//   m, maj, min, dim, aug, sus2/sus4, add9/11/13, 6, 7, 9, 11, 13, maj7, m7b5
+//   (half-diminished), dim7, alt, no3, omit, augmented/altered tensions like
+//   7#9, 7b9, 7#5, 7b5, 9#11, 13b9, slash bass notes (C/G, D#7/A#), and
+//   parenthesised tensions e.g. C7(b9), Gm7(add11).
+// Built from parts so root + accidental are isolated (needed for transpose),
+// and the quality part is permissive: any run of the known quality tokens,
+// digits, accidentals, and tension parens.
+const NOTE_RE = '[A-G][b#♭♯]?';
+const QUALITY_WORD = '(?:maj|major|min|minor|m|M|dim|aug|sus|add|alt|aug|dom|no|omit|ø|°|\\+|-)';
+const TENSION = '(?:[#b♯♭]?(?:5|6|7|9|11|13|2|4))';
+// quality = optional run of: quality-words, tensions, raw digits, parenthesised
+// tension groups. Allows things like m7b5, 7#9, maj9#11, 13(b9), sus4add9.
+const QUALITY_RE = `(?:${QUALITY_WORD}|${TENSION}|[0-9]|\\([#b♯♭0-9, a-zA-Z]*\\))*`;
+const CHORD_TOKEN = new RegExp(`^${NOTE_RE}${QUALITY_RE}(?:\\/${NOTE_RE})?$`);
 const CHORD_ANNO = /^(\*+|N\.?C\.?|x[0-9]+)$/;
 // Pure separator/symbol tokens that are ALLOWED to appear between chords in a
 // chord line (bar lines, repeats, brackets, operators, etc.) without breaking
@@ -4247,10 +4272,20 @@ function insertChordAlignedAtCursor(chord) {
 function renderChordPalette() {
   const row = document.getElementById('chord-palette-row');
   if (!row) return;
-  const common = ['C', 'D', 'Dm', 'E', 'Em', 'F', 'G', 'Am', 'A', 'B', 'Bm',
-                  'C7', 'D7', 'G7', 'Cmaj7', 'F#m', 'Bb'];
-  row.innerHTML = common.map(c =>
-    `<button type="button" class="chord-pill" data-chord="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+  // Grouped palette: majors, minors, 7ths/dominants, and a row of common
+  // complex piano/guitar chords. The custom input below accepts ANY chord
+  // (the parser now recognises complex chords like Bm7b5, C7#9, maj9#11…).
+  const groups = [
+    ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+    ['Cm', 'Dm', 'Em', 'Fm', 'Gm', 'Am', 'Bm'],
+    ['C#', 'D#', 'F#', 'G#', 'A#', 'Bb', 'Eb', 'Ab'],
+    ['C7', 'D7', 'E7', 'G7', 'A7', 'B7', 'Cmaj7', 'Dm7', 'Em7', 'Am7'],
+    ['Csus2', 'Csus4', 'Cadd9', 'C6', 'Cdim', 'Caug', 'Bm7b5', 'C7#9', 'C/G', 'D/F#'],
+  ];
+  row.innerHTML = groups.map(g =>
+    `<div class="chord-palette-group">` +
+    g.map(c => `<button type="button" class="chord-pill" data-chord="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('') +
+    `</div>`
   ).join('');
 }
 
