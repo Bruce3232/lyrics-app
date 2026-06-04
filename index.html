@@ -2862,25 +2862,33 @@
     <h3>Songs importieren</h3>
     <div id="import-summary" class="import-summary"></div>
 
-    <p style="color:var(--text-1); margin:14px 0 8px; font-weight:600;">Importziel (Ordner)</p>
-    <div class="import-target-row">
-      <select class="field-input" id="import-target-folder"></select>
-    </div>
-    <div class="import-target-new" id="import-target-new" style="display:none;">
-      <input class="field-input" id="import-target-new-name" placeholder="Name des neuen Ordners" maxlength="40" autocomplete="off">
-    </div>
-
-    <p style="color:var(--text-1); margin:14px 0 10px; font-weight:600;">Wie sollen die Songs importiert werden?</p>
-
-    <button class="import-option" id="import-mode-merge" type="button">
-      <div class="import-option-title">➕ Nur neue Songs hinzufügen</div>
-      <div class="import-option-desc">Vorhandene Songs im Ziel-Ordner bleiben unverändert (Speed, Akkorde, Transponierung, Schrift, Setlists). Nur Songs die noch nicht existieren werden ergänzt.</div>
+    <!-- Shown only when the file contains its own folder structure -->
+    <button class="import-option" id="import-mode-structure" type="button" style="display:none; border-color: var(--accent);">
+      <div class="import-option-title">📁 Ordnerstruktur übernehmen</div>
+      <div class="import-option-desc" id="import-mode-structure-desc">Die Datei enthält eigene Ordner — diese werden 1:1 wiederhergestellt (jeder Song landet in seinem ursprünglichen Ordner).</div>
     </button>
 
-    <button class="import-option import-option-danger" id="import-mode-replace" type="button">
-      <div class="import-option-title">♻️ Ordner-Inhalt ersetzen</div>
-      <div class="import-option-desc">Löscht alle Songs + Setlists im Ziel-Ordner und ersetzt sie durch die Datei. Andere Ordner bleiben unberührt.</div>
-    </button>
+    <div id="import-target-block">
+      <p style="color:var(--text-1); margin:14px 0 8px; font-weight:600;">Importziel (Ordner)</p>
+      <div class="import-target-row">
+        <select class="field-input" id="import-target-folder"></select>
+      </div>
+      <div class="import-target-new" id="import-target-new" style="display:none;">
+        <input class="field-input" id="import-target-new-name" placeholder="Name des neuen Ordners" maxlength="40" autocomplete="off">
+      </div>
+
+      <p style="color:var(--text-1); margin:14px 0 10px; font-weight:600;">Wie sollen die Songs importiert werden?</p>
+
+      <button class="import-option" id="import-mode-merge" type="button">
+        <div class="import-option-title">➕ Nur neue Songs hinzufügen</div>
+        <div class="import-option-desc">Vorhandene Songs im Ziel-Ordner bleiben unverändert (Speed, Akkorde, Transponierung, Schrift, Setlists). Nur Songs die noch nicht existieren werden ergänzt.</div>
+      </button>
+
+      <button class="import-option import-option-danger" id="import-mode-replace" type="button">
+        <div class="import-option-title">♻️ Ordner-Inhalt ersetzen</div>
+        <div class="import-option-desc">Löscht alle Songs + Setlists im Ziel-Ordner und ersetzt sie durch die Datei. Andere Ordner bleiben unberührt.</div>
+      </button>
+    </div>
 
     <div class="modal-actions" style="margin-top:18px;">
       <button class="btn" id="import-cancel">Abbrechen</button>
@@ -6369,11 +6377,13 @@ document.getElementById('export-btn').addEventListener('click', async () => {
     showToast('Keine Songs zum Exportieren', 'error');
     return;
   }
+  const exportFolders = await folderAll();   // stored folders (main is virtual)
   const json = JSON.stringify({
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
-    songs: state.songs,        // includes versions (lyrics + speed + fontSize per version)
-    setlists: state.setlists,  // includes songId references
+    songs: state.songs,        // each carries folderId (versions, speed, fontSize…)
+    setlists: state.setlists,  // each carries folderId + songId references
+    folders: exportFolders,    // folder names so they survive a fresh import
   }, null, 2);
   const filename = `lyrics-backup-${new Date().toISOString().slice(0,10)}.json`;
   const file = new File([json], filename, { type: 'application/json' });
@@ -6515,11 +6525,83 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
     pendingImport = { data };
     fillImportTargetSelect();
     updateImportPreview();
+    // If the file carries its own folder structure (a multi-folder backup),
+    // offer the "restore structure" option and explain it.
+    const fileFolders = Array.isArray(data.folders) ? data.folders : [];
+    const songsWithFolder = data.songs.filter(s => s.folderId).length;
+    const hasStructure = fileFolders.length > 0 || songsWithFolder > 0;
+    const structBtn = document.getElementById('import-mode-structure');
+    if (structBtn) {
+      structBtn.style.display = hasStructure ? 'block' : 'none';
+      if (hasStructure) {
+        const names = fileFolders.map(f => f.name).filter(Boolean);
+        document.getElementById('import-mode-structure-desc').textContent =
+          `Die Datei enthält eigene Ordner (${names.length ? names.join(', ') : 'inkl. Hauptbibliothek'}) — diese werden 1:1 wiederhergestellt; jeder Song landet in seinem ursprünglichen Ordner. Vorhandene Daten bleiben erhalten.`;
+      }
+    }
     document.getElementById('import-modal').classList.add('show');
   } catch (err) {
     showToast('Import fehlgeschlagen: ' + err.message, 'error');
   }
   e.target.value = '';
+});
+
+// ---- Mode: restore the file's own folder structure 1:1 ----
+document.getElementById('import-mode-structure').addEventListener('click', async () => {
+  if (!pendingImport) return;
+  const { data } = pendingImport;
+  document.getElementById('import-modal').classList.remove('show');
+  try {
+    const fileFolders = Array.isArray(data.folders) ? data.folders : [];
+    // Recreate folders (preserve their ids so songs/setlists referencing them
+    // line up). Skip ids that already exist locally.
+    const existingFolderIds = new Set((await folderAll()).map(f => f.id));
+    for (const f of fileFolders) {
+      if (!f.id || f.id === MAIN_FOLDER_ID) continue;
+      if (existingFolderIds.has(f.id)) continue;
+      await folderPut({ id: f.id, name: f.name || 'Ordner', createdAt: f.createdAt || Date.now(), updatedAt: Date.now() });
+    }
+    // Add songs, keeping their folderId. Give new ids only on collision.
+    const allIds = new Set(state.songs.map(s => s.id));
+    let added = 0, skipped = 0;
+    const idRemap = new Map();
+    // Duplicate check is per (folderId, title, artist) so the same song in two
+    // folders both restore.
+    const keyOf = s => (effectiveFolderId(s) + '|' + songMatchKey(s));
+    const existingKeys = new Set(state.songs.map(keyOf));
+    for (const raw of data.songs) {
+      const s = stripLegacyAudio({ ...raw });
+      if (existingKeys.has(keyOf(s))) { if (s.id) idRemap.set(s.id, s.id); skipped++; continue; }
+      let newId = s.id;
+      if (!newId || allIds.has(newId)) newId = uid();
+      if (s.id) idRemap.set(s.id, newId);
+      s.id = newId;
+      if (!s.createdAt) s.createdAt = Date.now();
+      s.updatedAt = s.updatedAt || Date.now();
+      await dbPut(s);
+      allIds.add(newId);
+      added++;
+    }
+    // Add setlists, keeping their folderId, remapping song refs.
+    if (Array.isArray(data.setlists)) {
+      const allSlIds = new Set(state.setlists.map(sl => sl.id));
+      for (const rawSl of data.setlists) {
+        const remapped = (rawSl.songIds || []).map(id => idRemap.get(id) || id);
+        let slId = rawSl.id;
+        if (!slId || allSlIds.has(slId)) slId = uid();
+        const sl = { ...rawSl, id: slId, songIds: remapped, updatedAt: Date.now() };
+        await setlistPut(sl);
+        allSlIds.add(slId);
+      }
+    }
+    pendingImport = null;
+    showToast(`Ordnerstruktur importiert · ${added} neu, ${skipped} übersprungen`, 'success');
+    await renderLibrary();
+    if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+  } catch (err) {
+    showToast('Import fehlgeschlagen: ' + err.message, 'error');
+    pendingImport = null;
+  }
 });
 
 document.getElementById('import-target-folder').addEventListener('change', () => {
@@ -7159,12 +7241,19 @@ function isFirebaseConfigured() {
 // delete+recreate must NOT register deletions that would wipe cloud data.
 window.__suppressTombstones = false;
 function getTombstones() {
-  try { return JSON.parse(localStorage.getItem('lyrics-tombstones') || '{"songs":[],"setlists":[]}'); }
-  catch { return { songs: [], setlists: [] }; }
+  let t;
+  try { t = JSON.parse(localStorage.getItem('lyrics-tombstones') || '{}'); }
+  catch { t = {}; }
+  // Ensure all kinds exist so callers can push safely.
+  t.songs = t.songs || [];
+  t.setlists = t.setlists || [];
+  t.folders = t.folders || [];
+  return t;
 }
 function addTombstone(kind, id) {
   if (window.__suppressTombstones) return;
   const t = getTombstones();
+  if (!t[kind]) t[kind] = [];
   if (!t[kind].includes(id)) { t[kind].push(id); localStorage.setItem('lyrics-tombstones', JSON.stringify(t)); }
 }
 function clearTombstones() {
@@ -7257,18 +7346,21 @@ async function runSync(opts = {}) {
     // 1. Local snapshot
     const localSongs = await dbAll();
     const localSetlists = await setlistAll();
+    const localFolders = await folderAll();   // stored folders only (not virtual main)
     const tomb = getTombstones();
 
     // 2. Remote snapshot
     const snap = await docRef.get();
-    const remote = snap.exists ? snap.data() : { songs: [], setlists: [], tombstones: { songs: [], setlists: [] } };
+    const remote = snap.exists ? snap.data() : { songs: [], setlists: [], folders: [], tombstones: { songs: [], setlists: [], folders: [] } };
     const remoteSongs = remote.songs || [];
     const remoteSetlists = remote.setlists || [];
-    const remoteTomb = remote.tombstones || { songs: [], setlists: [] };
+    const remoteFolders = remote.folders || [];
+    const remoteTomb = remote.tombstones || { songs: [], setlists: [], folders: [] };
 
     // 3. Union of tombstones (deletions from either side)
     const delSongs = new Set([...(tomb.songs || []), ...(remoteTomb.songs || [])]);
     const delSetlists = new Set([...(tomb.setlists || []), ...(remoteTomb.setlists || [])]);
+    const delFolders = new Set([...(tomb.folders || []), ...(remoteTomb.folders || [])]);
 
     // 4. Merge per id: keep the copy with the larger updatedAt (or createdAt).
     //    On a TIE, prefer the LOCAL copy — the user just touched it on this
@@ -7290,6 +7382,7 @@ async function runSync(opts = {}) {
     };
     let mergedSongs = mergeById(localSongs, remoteSongs, delSongs);
     let mergedSetlists = mergeById(localSetlists, remoteSetlists, delSetlists);
+    let mergedFolders = mergeById(localFolders, remoteFolders, delFolders);
 
     // 4b. The remote .get() above is a network round-trip; the user may have
     //     changed something locally WHILE it was in flight. Re-read the local
@@ -7297,19 +7390,23 @@ async function runSync(opts = {}) {
     //     "add song to setlist" is never wiped by the clear() below.
     const freshSongs = await dbAll();
     const freshSetlists = await setlistAll();
+    const freshFolders = await folderAll();
     mergedSongs = mergeById(freshSongs, mergedSongs, delSongs);
     mergedSetlists = mergeById(freshSetlists, mergedSetlists, delSetlists);
+    mergedFolders = mergeById(freshFolders, mergedFolders, delFolders);
 
     // 5. Write merged result back to LOCAL db
     //    (replace everything so deletions take effect)
     const db = await openDB();
     await new Promise((res, rej) => {
-      const tx = db.transaction([STORE, SETLIST_STORE], 'readwrite');
+      const tx = db.transaction([STORE, SETLIST_STORE, FOLDER_STORE], 'readwrite');
       const ss = tx.objectStore(STORE);
       const sl = tx.objectStore(SETLIST_STORE);
-      ss.clear(); sl.clear();
+      const fo = tx.objectStore(FOLDER_STORE);
+      ss.clear(); sl.clear(); fo.clear();
       mergedSongs.forEach(s => ss.put(s));
       mergedSetlists.forEach(s => sl.put(s));
+      mergedFolders.forEach(f => fo.put(f));
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
     });
@@ -7318,7 +7415,8 @@ async function runSync(opts = {}) {
     await docRef.set({
       songs: mergedSongs,
       setlists: mergedSetlists,
-      tombstones: { songs: [...delSongs], setlists: [...delSetlists] },
+      folders: mergedFolders,
+      tombstones: { songs: [...delSongs], setlists: [...delSetlists], folders: [...delFolders] },
       updatedAt: Date.now(),
     });
 
@@ -7357,8 +7455,9 @@ async function pushOverwriteCloud() {
   try {
     const songs = await dbAll();
     const setlists = await setlistAll();
+    const folders = await folderAll();
     const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
-    await docRef.set({ songs, setlists, tombstones: { songs: [], setlists: [] }, updatedAt: Date.now() });
+    await docRef.set({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, updatedAt: Date.now() });
     clearTombstones();
     localStorage.setItem('lyrics-last-sync', String(Date.now()));
     updateCloudUI();
