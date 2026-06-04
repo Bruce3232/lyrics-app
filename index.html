@@ -2248,16 +2248,22 @@
       padding-right: 28px;
       max-width: 700px;
     }
+  }
 
-    /* Library topbar: too many buttons to fit with text on a narrow screen.
-       Collapse the secondary buttons to icon-only (labels hidden) and tighten
-       spacing so everything fits on one row. The primary "Neuer Song" keeps
-       its label. */
-    .topbar { gap: 8px; padding: 14px 16px; }
+  /* Library topbar: with 5 secondary buttons + brand + primary, text labels
+     don't fit until the screen is fairly wide. Below 1200px (covers every
+     iPad, portrait AND landscape) collapse the secondary buttons to icon-only
+     and drop the brand text, so nothing is cut off. The primary "Neuer Song"
+     keeps its label down to phone width. */
+  @media (max-width: 1200px) {
+    .topbar { gap: 8px; padding: 14px 18px; flex-wrap: nowrap; }
     .topbar .btn-ghost { padding: 10px; }
     .topbar .btn-ghost .btn-label { display: none; }
     .topbar .btn svg { margin: 0; }
     .brand span { display: none; }   /* logo mark only, frees the most space */
+    /* Touch devices enlarge .btn — keep the icon buttons compact here. */
+    .topbar .btn-ghost.icon-btn,
+    .topbar .btn-ghost { font-size: 14px; }
   }
 
   /* Very narrow (phones): even the primary button drops its label to an icon. */
@@ -2271,6 +2277,9 @@
     .icon-btn { width: 48px; height: 48px; }
     .icon-btn svg { width: 22px; height: 22px; }
     .btn { padding: 12px 20px; font-size: 15px; }
+    /* …but keep the icon-collapsed topbar buttons compact so the bar still
+       fits on iPad (they have no visible label below 1200px). */
+    .topbar .btn-ghost { padding: 11px; }
     .song-row { padding: 16px; }
     .song-row-action { width: 44px; height: 44px; }
     .song-row-actions { opacity: 1; }
