@@ -6,7 +6,7 @@
 // and in the background try to refresh the cache from the network.
 // Next page load will pick up the new version automatically.
 
-const CACHE_VERSION = 'v69';
+const CACHE_VERSION = 'v70';
 const CACHE_NAME = `lyrics-app-${CACHE_VERSION}`;
 
 // Files that make up the app shell.
@@ -15,6 +15,11 @@ const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
+  // Firebase SDK bundled locally so the app shell stays 100% offline-capable.
+  // (Sync itself needs the network, but the app must still boot & work offline.)
+  './vendor/firebase-app-compat.js',
+  './vendor/firebase-auth-compat.js',
+  './vendor/firebase-firestore-compat.js',
 ];
 
 // ===== INSTALL =====

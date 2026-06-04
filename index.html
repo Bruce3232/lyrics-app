@@ -1957,6 +1957,44 @@
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
   .modal-large { max-width: 520px; }
 
+  /* Cloud sync modal */
+  .cloud-field { margin-bottom: 14px; }
+  .cloud-field .field-label { display: block; margin-bottom: 6px; }
+  .cloud-error {
+    background: rgba(255,71,87,0.12);
+    border: 1px solid rgba(255,71,87,0.3);
+    color: #ff6b7a;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .cloud-status-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .cloud-status-label { font-weight: 600; }
+  .cloud-switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+  .cloud-switch input { opacity: 0; width: 0; height: 0; }
+  .cloud-switch-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: 999px; transition: 0.25s var(--ease);
+  }
+  .cloud-switch-slider::before {
+    content: ''; position: absolute; height: 20px; width: 20px;
+    left: 3px; bottom: 3px; background: var(--text-1);
+    border-radius: 50%; transition: 0.25s var(--ease);
+  }
+  .cloud-switch input:checked + .cloud-switch-slider {
+    background: var(--accent); border-color: var(--accent);
+  }
+  .cloud-switch input:checked + .cloud-switch-slider::before {
+    transform: translateX(22px); background: #fff;
+  }
+  /* Small sync status dot on the Cloud topbar button */
+  #cloud-btn.synced #cloud-btn-label::after { content: ' ✓'; color: #2ecc71; }
+  #cloud-btn.syncing #cloud-btn-label::after { content: ' …'; }
+
   /* Personalize modal */
   .pers-section { margin-bottom: 20px; }
   .pers-label {
@@ -2196,6 +2234,10 @@
       <button class="btn btn-ghost" id="export-btn" title="Alle Songs exportieren">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export
+      </button>
+      <button class="btn btn-ghost" id="cloud-btn" title="Cloud-Sync (zwischen Geräten)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        <span id="cloud-btn-label">Cloud</span>
       </button>
       <button class="btn btn-primary" id="new-song-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2572,8 +2614,71 @@
   </div>
 </div>
 
+<!-- Cloud sync modal -->
+<div class="modal-backdrop" id="cloud-modal">
+  <div class="modal modal-large">
+    <h3>☁️ Cloud-Sync</h3>
+
+    <!-- Logged OUT state -->
+    <div id="cloud-logged-out">
+      <p style="color:var(--text-1); margin-bottom:18px;">
+        Melde dich an, damit deine Songs automatisch zwischen PC und iPad synchronisiert werden.
+        Import/Export per JSON bleibt weiterhin verfügbar.
+      </p>
+      <div class="cloud-field">
+        <label class="field-label">E-Mail</label>
+        <input class="field-input" id="cloud-email" type="email" placeholder="du@beispiel.de" autocomplete="email">
+      </div>
+      <div class="cloud-field">
+        <label class="field-label">Passwort</label>
+        <input class="field-input" id="cloud-password" type="password" placeholder="Mindestens 6 Zeichen" autocomplete="current-password">
+      </div>
+      <div id="cloud-error" class="cloud-error" style="display:none;"></div>
+      <div class="modal-actions" style="margin-top:22px;">
+        <button class="btn" id="cloud-cancel">Abbrechen</button>
+        <div style="flex:1;"></div>
+        <button class="btn" id="cloud-register">Registrieren</button>
+        <button class="btn btn-primary" id="cloud-login">Anmelden</button>
+      </div>
+    </div>
+
+    <!-- Logged IN state -->
+    <div id="cloud-logged-in" style="display:none;">
+      <p style="color:var(--text-1); margin-bottom:6px;">Angemeldet als</p>
+      <p id="cloud-user-email" style="font-weight:700; font-size:16px; margin-bottom:18px;">—</p>
+
+      <div class="cloud-status-row">
+        <span class="cloud-status-label">Auto-Sync</span>
+        <label class="cloud-switch">
+          <input type="checkbox" id="cloud-autosync-toggle" checked>
+          <span class="cloud-switch-slider"></span>
+        </label>
+      </div>
+      <p style="color:var(--text-2); font-size:13px; margin:6px 0 18px;">
+        Wenn an, werden Änderungen automatisch hochgeladen und beim Öffnen heruntergeladen.
+      </p>
+
+      <div id="cloud-sync-info" style="color:var(--text-2); font-size:13px; margin-bottom:18px;">
+        Zuletzt synchronisiert: <span id="cloud-last-sync">noch nie</span>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" id="cloud-logout">Abmelden</button>
+        <div style="flex:1;"></div>
+        <button class="btn" id="cloud-sync-now">Jetzt synchronisieren</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <input type="file" id="import-file" accept="application/json" style="display:none">
+
+<!-- Firebase SDK (bundled locally; app still boots offline). Loaded before the
+     app script so the global `firebase` is available when sync initialises. -->
+<script src="./vendor/firebase-app-compat.js"></script>
+<script src="./vendor/firebase-auth-compat.js"></script>
+<script src="./vendor/firebase-firestore-compat.js"></script>
 
 <script>
 // =====================================================
@@ -2625,7 +2730,7 @@ async function storePut(storeName, item) {
   return new Promise((res, rej) => {
     const tx = db.transaction(storeName, 'readwrite');
     tx.objectStore(storeName).put(item);
-    tx.oncomplete = () => res();
+    tx.oncomplete = () => { res(); maybeScheduleAutoSync(); };
     tx.onerror = () => rej(tx.error);
   });
 }
@@ -2634,7 +2739,13 @@ async function storeDelete(storeName, id) {
   return new Promise((res, rej) => {
     const tx = db.transaction(storeName, 'readwrite');
     tx.objectStore(storeName).delete(id);
-    tx.oncomplete = () => res();
+    tx.oncomplete = () => {
+      res();
+      if (typeof addTombstone === 'function') {
+        addTombstone(storeName === SETLIST_STORE ? 'setlists' : 'songs', id);
+      }
+      maybeScheduleAutoSync();
+    };
     tx.onerror = () => rej(tx.error);
   });
 }
@@ -2660,7 +2771,7 @@ async function dbPut(song) {
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).put(song);
-    tx.oncomplete = () => res();
+    tx.oncomplete = () => { res(); maybeScheduleAutoSync(); };
     tx.onerror = () => rej(tx.error);
   });
 }
@@ -2670,9 +2781,15 @@ async function dbDelete(id) {
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => res();
+    tx.oncomplete = () => { res(); if (typeof addTombstone === 'function') addTombstone('songs', id); maybeScheduleAutoSync(); };
     tx.onerror = () => rej(tx.error);
   });
+}
+
+// Safe wrapper: scheduleAutoSync is defined later; guard so early calls (before
+// the cloud section is parsed) don't throw.
+function maybeScheduleAutoSync() {
+  if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
 }
 
 async function dbAll() {
@@ -5752,13 +5869,17 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
       return;
     }
 
-    // Wipe everything
+    // Wipe everything. Suppress tombstones during the wipe so the cloud copy
+    // isn't marked for deletion — the import is meant to REPLACE, and the final
+    // sync below pushes the imported library up.
+    window.__suppressTombstones = true;
     for (const s of existingSongs) {
       try { await dbDelete(s.id); } catch (err) {}
     }
     for (const sl of existingSetlists) {
       try { await setlistDelete(sl.id); } catch (err) {}
     }
+    window.__suppressTombstones = false;
 
     let songCount = 0;
     let setlistCount = 0;
@@ -5792,6 +5913,10 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
     if (setlistCount > 0) parts.push(`${setlistCount} Setlist${setlistCount === 1 ? '' : 's'}`);
     showToast(parts.join(' + ') + ' importiert (Bibliothek ersetzt)', 'success');
     renderLibrary();
+    // If signed in, make the cloud match this imported library exactly.
+    if (typeof pushOverwriteCloud === 'function' && cloud && cloud.user) {
+      await pushOverwriteCloud();
+    }
   } catch (err) {
     showToast('Import fehlgeschlagen: ' + err.message, 'error');
   }
@@ -6225,6 +6350,315 @@ async function loadDemoSetlist() {
 }
 
 document.getElementById('load-setlist-btn').addEventListener('click', loadDemoSetlist);
+
+// =====================================================
+//                   Cloud Sync (Firebase)
+// =====================================================
+//
+// SETUP — fill in your own Firebase project config below (see the step-by-step
+// guide chat gave you). Without a real config, the Cloud button just shows a
+// "not configured" message and everything else (incl. JSON import/export)
+// keeps working exactly as before.
+//
+// 1. console.firebase.google.com → Add project (any name)
+// 2. Build → Authentication → Get started → enable "Email/Password"
+// 3. Build → Firestore Database → Create database → Start in production mode
+// 4. Firestore → Rules → paste:
+//      rules_version = '2';
+//      service cloud.firestore {
+//        match /databases/{db}/documents {
+//          match /users/{uid}/{document=**} {
+//            allow read, write: if request.auth != null && request.auth.uid == uid;
+//          }
+//        }
+//      }
+//    → Publish
+// 5. Project settings (gear) → Your apps → Web app (</>) → register →
+//    copy the firebaseConfig values into the object below.
+const FIREBASE_CONFIG = {
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE_PROJECT.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  storageBucket: "PASTE_PROJECT.appspot.com",
+  messagingSenderId: "PASTE_SENDER_ID",
+  appId: "PASTE_APP_ID",
+};
+
+const cloud = {
+  ready: false,
+  app: null,
+  auth: null,
+  db: null,
+  user: null,
+  syncing: false,
+  unsub: null,
+};
+
+function isFirebaseConfigured() {
+  return FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith('PASTE');
+}
+
+// Tombstones: IDs of items deleted locally, so a sync removes them remotely too
+// (and they don't get resurrected by an older copy on the other device).
+// suppressTombstones: set during bulk ops (JSON import replace) where the
+// delete+recreate must NOT register deletions that would wipe cloud data.
+window.__suppressTombstones = false;
+function getTombstones() {
+  try { return JSON.parse(localStorage.getItem('lyrics-tombstones') || '{"songs":[],"setlists":[]}'); }
+  catch { return { songs: [], setlists: [] }; }
+}
+function addTombstone(kind, id) {
+  if (window.__suppressTombstones) return;
+  const t = getTombstones();
+  if (!t[kind].includes(id)) { t[kind].push(id); localStorage.setItem('lyrics-tombstones', JSON.stringify(t)); }
+}
+function clearTombstones() {
+  localStorage.removeItem('lyrics-tombstones');
+}
+
+function isAutoSyncOn() { return localStorage.getItem('lyrics-autosync') !== 'off'; }
+function setAutoSync(on) { localStorage.setItem('lyrics-autosync', on ? 'on' : 'off'); }
+
+function initFirebase() {
+  if (cloud.ready) return true;
+  if (!isFirebaseConfigured()) return false;
+  if (typeof firebase === 'undefined') return false;
+  try {
+    cloud.app = firebase.initializeApp(FIREBASE_CONFIG);
+    cloud.auth = firebase.auth();
+    cloud.db = firebase.firestore();
+    // Persist the login across app restarts (so iPad stays signed in).
+    cloud.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+    cloud.ready = true;
+    cloud.auth.onAuthStateChanged(async (user) => {
+      cloud.user = user;
+      updateCloudUI();
+      if (user && isAutoSyncOn()) {
+        await runSync({ silent: true });
+      }
+    });
+    return true;
+  } catch (e) {
+    console.warn('Firebase init failed', e);
+    return false;
+  }
+}
+
+function updateCloudUI() {
+  const out = document.getElementById('cloud-logged-out');
+  const inn = document.getElementById('cloud-logged-in');
+  const btn = document.getElementById('cloud-btn');
+  const label = document.getElementById('cloud-btn-label');
+  if (cloud.user) {
+    if (out) out.style.display = 'none';
+    if (inn) inn.style.display = 'block';
+    const em = document.getElementById('cloud-user-email');
+    if (em) em.textContent = cloud.user.email || '(angemeldet)';
+    const tgl = document.getElementById('cloud-autosync-toggle');
+    if (tgl) tgl.checked = isAutoSyncOn();
+    if (label) label.textContent = 'Cloud';
+    if (btn) btn.classList.add('synced');
+    const last = localStorage.getItem('lyrics-last-sync');
+    const lastEl = document.getElementById('cloud-last-sync');
+    if (lastEl) lastEl.textContent = last ? new Date(parseInt(last, 10)).toLocaleString('de-DE') : 'noch nie';
+  } else {
+    if (out) out.style.display = 'block';
+    if (inn) inn.style.display = 'none';
+    if (btn) btn.classList.remove('synced');
+    if (label) label.textContent = 'Cloud';
+  }
+}
+
+function cloudError(msg) {
+  const el = document.getElementById('cloud-error');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+function clearCloudError() {
+  const el = document.getElementById('cloud-error');
+  if (el) el.style.display = 'none';
+}
+
+function friendlyAuthError(e) {
+  const c = (e && e.code) || '';
+  if (c.includes('invalid-email')) return 'Ungültige E-Mail-Adresse.';
+  if (c.includes('user-not-found')) return 'Kein Konto mit dieser E-Mail. Bitte registrieren.';
+  if (c.includes('wrong-password') || c.includes('invalid-credential')) return 'Falsches Passwort.';
+  if (c.includes('email-already-in-use')) return 'Diese E-Mail ist schon registriert. Bitte anmelden.';
+  if (c.includes('weak-password')) return 'Passwort zu schwach (mindestens 6 Zeichen).';
+  if (c.includes('network')) return 'Keine Internetverbindung.';
+  return (e && e.message) || 'Fehler bei der Anmeldung.';
+}
+
+// ---- Merge sync: newest updatedAt wins; tombstones remove items everywhere ----
+async function runSync(opts = {}) {
+  const silent = !!opts.silent;
+  if (!cloud.ready || !cloud.user || cloud.syncing) return;
+  cloud.syncing = true;
+  const btn = document.getElementById('cloud-btn');
+  if (btn) { btn.classList.add('syncing'); btn.classList.remove('synced'); }
+  try {
+    const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
+
+    // 1. Local snapshot
+    const localSongs = await dbAll();
+    const localSetlists = await setlistAll();
+    const tomb = getTombstones();
+
+    // 2. Remote snapshot
+    const snap = await docRef.get();
+    const remote = snap.exists ? snap.data() : { songs: [], setlists: [], tombstones: { songs: [], setlists: [] } };
+    const remoteSongs = remote.songs || [];
+    const remoteSetlists = remote.setlists || [];
+    const remoteTomb = remote.tombstones || { songs: [], setlists: [] };
+
+    // 3. Union of tombstones (deletions from either side)
+    const delSongs = new Set([...(tomb.songs || []), ...(remoteTomb.songs || [])]);
+    const delSetlists = new Set([...(tomb.setlists || []), ...(remoteTomb.setlists || [])]);
+
+    // 4. Merge per id: keep the copy with the larger updatedAt (or createdAt)
+    const mergeById = (a, b, deleted) => {
+      const map = new Map();
+      const stamp = x => (x.updatedAt || x.createdAt || 0);
+      for (const item of [...a, ...b]) {
+        if (deleted.has(item.id)) continue;
+        const cur = map.get(item.id);
+        if (!cur || stamp(item) >= stamp(cur)) map.set(item.id, item);
+      }
+      return [...map.values()];
+    };
+    const mergedSongs = mergeById(localSongs, remoteSongs, delSongs);
+    const mergedSetlists = mergeById(localSetlists, remoteSetlists, delSetlists);
+
+    // 5. Write merged result back to LOCAL db
+    //    (replace everything so deletions take effect)
+    const db = await openDB();
+    await new Promise((res, rej) => {
+      const tx = db.transaction([STORE, SETLIST_STORE], 'readwrite');
+      const ss = tx.objectStore(STORE);
+      const sl = tx.objectStore(SETLIST_STORE);
+      ss.clear(); sl.clear();
+      mergedSongs.forEach(s => ss.put(s));
+      mergedSetlists.forEach(s => sl.put(s));
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+
+    // 6. Write merged result back to REMOTE (with the unioned tombstones)
+    await docRef.set({
+      songs: mergedSongs,
+      setlists: mergedSetlists,
+      tombstones: { songs: [...delSongs], setlists: [...delSetlists] },
+      updatedAt: Date.now(),
+    });
+
+    // 7. Local tombstones are now reflected remotely — clear them
+    clearTombstones();
+    localStorage.setItem('lyrics-last-sync', String(Date.now()));
+
+    // 8. Refresh UI
+    await loadSongs();
+    if (state.view === 'library') await renderLibrary();
+    updateCloudUI();
+
+    if (!silent) showToast(`Synchronisiert · ${mergedSongs.length} Songs`, 'success');
+  } catch (e) {
+    console.warn('sync failed', e);
+    if (!silent) showToast('Sync fehlgeschlagen: ' + (e.message || e), 'error');
+  } finally {
+    cloud.syncing = false;
+    if (btn) { btn.classList.remove('syncing'); if (cloud.user) btn.classList.add('synced'); }
+  }
+}
+
+// Debounced auto-sync after local changes
+let autoSyncTimer = null;
+function scheduleAutoSync() {
+  if (!cloud.ready || !cloud.user || !isAutoSyncOn()) return;
+  if (cloud.syncing) return;
+  clearTimeout(autoSyncTimer);
+  autoSyncTimer = setTimeout(() => runSync({ silent: true }), 2500);
+}
+
+// Force the cloud to exactly match the current local library (used after a JSON
+// import-replace, which is a deliberate "make everything look like this" op).
+async function pushOverwriteCloud() {
+  if (!cloud.ready || !cloud.user) return;
+  try {
+    const songs = await dbAll();
+    const setlists = await setlistAll();
+    const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
+    await docRef.set({ songs, setlists, tombstones: { songs: [], setlists: [] }, updatedAt: Date.now() });
+    clearTombstones();
+    localStorage.setItem('lyrics-last-sync', String(Date.now()));
+    updateCloudUI();
+  } catch (e) { console.warn('push overwrite failed', e); }
+}
+
+// ---- Cloud modal wiring ----
+function openCloudModal() {
+  if (!isFirebaseConfigured()) {
+    showToast('Cloud-Sync noch nicht eingerichtet (Firebase-Config fehlt)', 'error');
+    return;
+  }
+  initFirebase();
+  clearCloudError();
+  updateCloudUI();
+  document.getElementById('cloud-modal').classList.add('show');
+}
+function closeCloudModal() {
+  document.getElementById('cloud-modal').classList.remove('show');
+}
+
+document.getElementById('cloud-btn').addEventListener('click', openCloudModal);
+document.getElementById('cloud-cancel').addEventListener('click', closeCloudModal);
+document.getElementById('cloud-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'cloud-modal') closeCloudModal();
+});
+
+document.getElementById('cloud-login').addEventListener('click', async () => {
+  clearCloudError();
+  const email = document.getElementById('cloud-email').value.trim();
+  const pw = document.getElementById('cloud-password').value;
+  if (!email || !pw) { cloudError('Bitte E-Mail und Passwort eingeben.'); return; }
+  if (!initFirebase()) { cloudError('Firebase nicht verfügbar.'); return; }
+  try {
+    await cloud.auth.signInWithEmailAndPassword(email, pw);
+    showToast('Angemeldet — synchronisiere…', 'success');
+    await runSync({ silent: false });
+  } catch (e) { cloudError(friendlyAuthError(e)); }
+});
+
+document.getElementById('cloud-register').addEventListener('click', async () => {
+  clearCloudError();
+  const email = document.getElementById('cloud-email').value.trim();
+  const pw = document.getElementById('cloud-password').value;
+  if (!email || !pw) { cloudError('Bitte E-Mail und Passwort eingeben.'); return; }
+  if (pw.length < 6) { cloudError('Passwort braucht mindestens 6 Zeichen.'); return; }
+  if (!initFirebase()) { cloudError('Firebase nicht verfügbar.'); return; }
+  try {
+    await cloud.auth.createUserWithEmailAndPassword(email, pw);
+    showToast('Konto erstellt — synchronisiere…', 'success');
+    await runSync({ silent: false });
+  } catch (e) { cloudError(friendlyAuthError(e)); }
+});
+
+document.getElementById('cloud-logout').addEventListener('click', async () => {
+  if (cloud.auth) await cloud.auth.signOut().catch(() => {});
+  updateCloudUI();
+  showToast('Abgemeldet', 'success');
+});
+
+document.getElementById('cloud-sync-now').addEventListener('click', () => runSync({ silent: false }));
+
+document.getElementById('cloud-autosync-toggle').addEventListener('change', (e) => {
+  setAutoSync(e.target.checked);
+  if (e.target.checked) runSync({ silent: true });
+});
+
+// Boot Firebase early so a persisted login auto-syncs on app open.
+if (isFirebaseConfigured()) {
+  initFirebase();
+}
 
 // =====================================================
 //                   Service Worker (offline caching)
