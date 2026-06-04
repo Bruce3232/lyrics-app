@@ -1417,9 +1417,13 @@
     transition: padding-right 0.3s var(--ease);
   }
   /* When the setlist quick-switch panel slides in from the right, push the
-     centered lyrics block left so it isn't hidden behind the panel. */
-  #performance-view.quick-songs-open .lyrics-stage {
-    padding-right: min(360px, 85vw);
+     centered lyrics block left so it isn't hidden behind the panel. On wide
+     screens only — on narrow/portrait the panel covers most of the width, so
+     pushing would squash the lyrics; there we just let it overlay. */
+  @media (min-width: 901px) {
+    #performance-view.quick-songs-open .lyrics-stage {
+      padding-right: min(360px, 40vw);
+    }
   }
   /* When the UI is fully hidden, drop the bottom/top fade so the lyric
      text fills the whole screen without a phantom faded strip near the
@@ -2066,6 +2070,30 @@
     .perf-control-group { padding: 4px 12px 4px 12px; }
   }
 
+  /* Narrow / portrait tablets & big phones (iPad portrait ~768-834, iPad mini,
+     iPad Air portrait). The header gets tight with title + TR + AK + 5 icons,
+     and 36px lyrics overflow. Shrink the header gap, give the title room, and
+     keep a comfortable lyric size with safe side padding so chord chips at the
+     start of a line are never clipped on the left. */
+  @media (max-width: 900px) {
+    .perf-overlay { padding: 12px 16px; gap: 8px; }
+    .perf-overlay .perf-transpose-group,
+    .perf-overlay .perf-chord-size-group { margin: 0 2px; padding: 3px 8px; }
+    .perf-overlay .perf-control-group .label { font-size: 9px; }
+    .perf-overlay .perf-control-group .value { font-size: 12px; min-width: 28px; }
+    .perf-title { font-size: 15px; }
+    .perf-artist { font-size: 11px; }
+    /* Hide the help (?) and theme toggle in the header on narrow screens —
+       they're available elsewhere and free up space so nothing is squashed. */
+    #perf-help, #theme-toggle-3 { display: none; }
+    .lyrics-track {
+      font-size: 26px;
+      padding-left: 28px;
+      padding-right: 28px;
+      max-width: 700px;
+    }
+  }
+
   /* iPad-optimized touch targets */
   @media (hover: none) and (pointer: coarse) {
     .icon-btn { width: 48px; height: 48px; }
@@ -2087,8 +2115,10 @@
     .field-textarea { font-size: 15px; padding: 16px; }
   }
 
-  /* Pure iPad optimizations - landscape primary */
-  @media (min-width: 768px) and (max-width: 1366px) and (hover: none) {
+  /* Pure iPad optimizations - landscape primary. Only kick the big 36px lyric
+     size in at >=901px so it doesn't override the narrow/portrait rule above
+     (which keeps text from overflowing in iPad portrait). */
+  @media (min-width: 901px) and (max-width: 1366px) and (hover: none) {
     .lyrics-track { font-size: 36px; }
   }
 
@@ -4795,7 +4825,6 @@ function resolveChordCollisions(flow) {
   if (chips.length === 0) return;
   // Reset any prior nudge so we re-measure from the true column positions.
   chips.forEach(c => { c.style.transform = ''; });
-  if (chips.length < 2) return;
 
   // Force layout, then read each chip's box in flow-relative coords. Because
   // chips live in different segments, compare against the flow's own left edge.
@@ -4807,11 +4836,13 @@ function resolveChordCollisions(flow) {
   }).sort((a, b) => a.left - b.left);
 
   const gap = 6; // px minimum gap between adjacent chips
-  let prevRight = -Infinity;
+  // Start at 0 so the FIRST chip can never sit left of the line's left edge
+  // (negative columnOffset chips were being clipped off-screen on the left).
+  let prevRight = 0;
   for (const b of boxes) {
     let left = b.left;
-    if (left < prevRight + gap) {
-      const shift = (prevRight + gap) - left;
+    if (left < prevRight + (prevRight > 0 ? gap : 0)) {
+      const shift = (prevRight + (prevRight > 0 ? gap : 0)) - left;
       b.el.style.transform = `translateX(${shift}px)`;
       left = left + shift;
     }
