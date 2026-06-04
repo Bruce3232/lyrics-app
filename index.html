@@ -2792,6 +2792,61 @@ function isChordLine(line) {
   return tokens.every(t => isChordOrAnno(t) || isChordSep(t));
 }
 
+// A chord-ish token: starts with a note letter A–G and stays short. This is the
+// loose, POSITION-BASED test — used only when a line sits directly above a
+// lyric line. It lets exotic/unusual chords (B7alt, Csus2/F#, Gadd9/11, F#m7-5,
+// odd jazz voicings) be treated as chords without needing the strict regex to
+// know every spelling, exactly like a printed songbook where the line above the
+// words is "the chord line" no matter what's on it.
+function looksLikeChordishToken(t) {
+  if (isChordSep(t)) return true;            // | % / etc.
+  if (CHORD_ANNO.test(t)) return true;       // *, N.C., x4
+  if (isChordToken(t)) return true;          // strict chord
+  // Loose: note letter start, short, no lowercase-word vibe. Reject tokens that
+  // are clearly a word (4+ consecutive letters, or contain two+ vowels in a row
+  // typical of lyrics). Chords are dense with #/b/digits/slashes.
+  if (t.length > 11) return false;
+  if (!/^[A-Ga-g][#b♯♭]?/.test(t)) return false;
+  // Must look chord-shaped: after the root, only chord-ish characters.
+  // Allowed: letters that appear in chord qualities + digits + # b / ( ) + - ° ø
+  if (!/^[A-G][#b♯♭]?[A-Za-z0-9#b♯♭/().,+\-°ø]*$/.test(t)) return false;
+  // Reject if the part after the root contains a run of 4+ letters (a word like
+  // "beautiful" → "B" + "eautiful"). Chord qualities never have 4+ letters in a
+  // row (maj=3, min=3, sus=3, add=3, dim=3, aug=3).
+  const afterRoot = t.replace(/^[A-G][#b♯♭]?/, '');
+  if (/[A-Za-z]{4,}/.test(afterRoot)) return false;
+  return true;
+}
+
+// Position-based chord line: the line itself isn't a strict chord line, but it
+// sits directly above a lyric line, is sparse (lots of spacing), and every
+// token looks chord-ish. Then we treat ALL its tokens as chords.
+function isPositionalChordLine(line, nextLine) {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  if (!nextLine || !nextLine.trim()) return false;       // needs a lyric line below
+  if (isSectionLine(line) || hasInlineChords(line)) return false;
+  // The line below must read as lyrics, not another chord/section line.
+  if (isChordLine(nextLine) || isSectionLine(nextLine) || hasInlineChords(nextLine)) return false;
+
+  const tokens = trimmed.split(/\s+/);
+  if (tokens.length === 0 || tokens.length > 48) return false;
+  // At least one token must start with a note letter (so a pure word line like
+  // "oh oh oh" above another lyric line isn't hijacked).
+  if (!tokens.some(t => /^[A-G][#b♯♭]?/.test(t))) return false;
+  // Every token must look chord-ish.
+  if (!tokens.every(looksLikeChordishToken)) return false;
+  // Sparseness guard: a real chord line has generous spacing between tokens.
+  // Average gap (spaces) per token should be reasonable, OR the line is short.
+  const nonSpace = trimmed.replace(/\s/g, '').length;
+  const total = line.replace(/[^\S\n]+$/,'').length || trimmed.length;
+  const density = nonSpace / Math.max(total, 1);
+  // Lyrics lines are dense (>0.7 chars are non-space). Chord lines are sparse.
+  // Allow dense only when there are very few tokens (e.g. "Am G F").
+  if (density > 0.78 && tokens.length > 3) return false;
+  return true;
+}
+
 function isSectionLine(line) {
   const trimmed = line.trim();
   // Must be ONLY a single [...] block - no other content before or after,
@@ -4794,6 +4849,13 @@ function buildLyricsHtml(lines) {
       }
       html.push(`<div class="lyric-line chord">${renderChordLineHtml(line)}</div>`);
       i++;
+      continue;
+    }
+    // Position-based fallback: a sparse line of chord-ish tokens sitting above a
+    // lyric line — treat ALL its tokens as chords even if some are exotic.
+    if (isPositionalChordLine(line, next)) {
+      html.push(renderChordLyricsPair(line, next));
+      i += 2;
       continue;
     }
     html.push(`<div class="lyric-line">${escapeHtml(line)}</div>`);
