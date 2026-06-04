@@ -2407,10 +2407,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span class="btn-label">Auswählen</span>
       </button>
-      <button class="btn btn-ghost" id="personalize-btn" title="Farbe & Einstellungen anpassen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.504 5.555-5.555C21.992 6.012 17.516 2 12 2z"/></svg>
-        <span class="btn-label">Personalisieren</span>
-      </button>
       <button class="btn btn-ghost" id="import-btn" title="Songs aus JSON importieren">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span class="btn-label">Import</span>
@@ -2462,6 +2458,10 @@
         <button class="btn" id="select-add-to-setlist-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Zu Setlist
+        </button>
+        <button class="btn" id="select-share-btn" title="Ausgewählte Songs an einen Freund senden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Teilen
         </button>
         <button class="btn" id="select-remove-from-setlist-btn" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2853,7 +2853,13 @@
 <!-- Cloud sync modal -->
 <div class="modal-backdrop" id="cloud-modal">
   <div class="modal modal-large">
-    <h3>☁️ Cloud-Sync</h3>
+    <h3>☁️ Cloud & Einstellungen</h3>
+
+    <!-- Always available: appearance/personalize -->
+    <button class="import-option" id="cloud-open-personalize" type="button" style="margin-bottom:16px;">
+      <div class="import-option-title">🎨 Personalisieren</div>
+      <div class="import-option-desc">Akzentfarbe, Hintergrund und Aussehen anpassen.</div>
+    </button>
 
     <!-- Logged OUT state -->
     <div id="cloud-logged-out">
@@ -2951,7 +2957,10 @@
 
     <!-- Main friends UI -->
     <div id="friends-main" style="display:none;">
-      <p style="color:var(--text-2); font-size:13px; margin-bottom:12px;">Dein Benutzername: <strong id="friends-my-username">—</strong></p>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;">
+        <p style="color:var(--text-2); font-size:13px; margin:0;">Dein Benutzername: <strong id="friends-my-username">—</strong></p>
+        <button class="btn btn-mini" id="open-inbox-btn">📥 Posteingang <span class="friends-badge" id="inbox-tab-badge" style="display:none;">0</span></button>
+      </div>
       <div class="friends-tabs">
         <button class="friends-tab active" data-tab="list">Freunde <span id="ftab-list-count"></span></button>
         <button class="friends-tab" data-tab="requests">Anfragen <span class="friends-badge" id="ftab-req-badge" style="display:none;">0</span></button>
@@ -2978,6 +2987,49 @@
       <div class="modal-actions" style="margin-top:16px;">
         <button class="btn" id="friends-close-3">Schliessen</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Share: pick a friend to send to -->
+<div class="modal-backdrop" id="share-modal">
+  <div class="modal modal-large">
+    <h3 id="share-title">Mit Freund teilen</h3>
+    <p id="share-sub" style="color:var(--text-1); margin-bottom:12px;">Wähle einen Freund.</p>
+    <div class="friends-tab-body" id="share-friend-list"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn" id="share-cancel">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inbox: received shares -->
+<div class="modal-backdrop" id="inbox-modal">
+  <div class="modal modal-large">
+    <h3>📥 Posteingang</h3>
+    <div class="friends-tab-body" id="inbox-list"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn" id="inbox-close">Schliessen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Receive: choose where to save an accepted share -->
+<div class="modal-backdrop" id="receive-modal">
+  <div class="modal modal-large">
+    <h3 id="receive-title">Songs übernehmen</h3>
+    <div id="receive-summary" class="import-summary"></div>
+    <p style="color:var(--text-1); margin:14px 0 8px; font-weight:600;">Wohin speichern?</p>
+    <div class="import-target-row">
+      <select class="field-input" id="receive-target-folder"></select>
+    </div>
+    <div class="import-target-new" id="receive-target-new" style="display:none;">
+      <input class="field-input" id="receive-target-new-name" placeholder="Name des neuen Ordners" maxlength="40" autocomplete="off">
+    </div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn" id="receive-cancel">Abbrechen</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" id="receive-save">Nur neue hinzufügen</button>
     </div>
   </div>
 </div>
@@ -3686,7 +3738,12 @@ function renderBgSwatches() {
   });
 }
 
-document.getElementById('personalize-btn').addEventListener('click', openPersonalize);
+// Personalize is reached from the Cloud & Settings modal (it was removed from
+// the header to make room for the Friends button).
+document.getElementById('cloud-open-personalize').addEventListener('click', () => {
+  document.getElementById('cloud-modal').classList.remove('show');
+  openPersonalize();
+});
 document.getElementById('pers-cancel').addEventListener('click', closePersonalize);
 document.getElementById('personalize-modal').addEventListener('click', (e) => {
   if (e.target.id === 'personalize-modal') closePersonalize();
@@ -4260,6 +4317,9 @@ function renderSongList() {
           ${lineCount}
         </div>
         <div class="song-row-actions">
+          <button class="song-row-action" data-action="share" title="Mit Freund teilen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </button>
           <button class="song-row-action" data-action="edit" title="Bearbeiten">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
@@ -4288,6 +4348,11 @@ function renderSongList() {
       if (song) openPerformance(song);
     });
     if (!selection.active) {
+      const shareBtn = row.querySelector('[data-action="share"]');
+      if (shareBtn) shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openShareModal({ kind: 'songs', songIds: [id] });
+      });
       row.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
         e.stopPropagation();
         const song = state.songs.find(s => s.id === id);
@@ -4492,20 +4557,32 @@ function openSetlistManager() {
   const modal = document.getElementById('setlist-manage-modal');
   const list = document.getElementById('setlist-manage-list');
 
+  const shareSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
   const renderList = () => {
-    if (state.setlists.length === 0) {
-      list.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text-2);">Noch keine Setlists</p>';
+    // Only show setlists of the current folder.
+    const folderSetlists = setlistsInCurrentFolder();
+    if (folderSetlists.length === 0) {
+      list.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text-2);">Noch keine Setlists in diesem Ordner</p>';
       return;
     }
-    list.innerHTML = state.setlists.map(sl => `
+    list.innerHTML = folderSetlists.map(sl => `
       <div class="setlist-manage-item" data-id="${sl.id}">
         <input type="text" data-action="rename" value="${escapeHtml(sl.name)}">
         <span class="count">${(sl.songIds || []).length} Songs</span>
+        <button class="song-row-action" data-action="share" title="Setlist an Freund senden">${shareSvg}</button>
         <button class="song-row-action danger" data-action="delete" title="Setlist löschen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
       </div>
     `).join('');
+
+    list.querySelectorAll('[data-action="share"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.closest('.setlist-manage-item').dataset.id;
+        document.getElementById('setlist-manage-modal').classList.remove('show');
+        openShareModal({ kind: 'setlist', setlistId: id });
+      });
+    });
 
     list.querySelectorAll('.setlist-manage-item').forEach(item => {
       const id = item.dataset.id;
@@ -4748,15 +4825,17 @@ function renderFolderList() {
   const delSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>';
   const folderSvg = '<svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
 
+  const shareSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
   listEl.innerHTML = state.folders.map(f => {
     const active = f.id === state.currentFolderId ? ' active' : '';
     const count = songCountForFolder(f.id);
     const isMain = f.id === MAIN_FOLDER_ID;
-    const actions = isMain ? '' :
-      `<div class="folder-actions">
-         <button class="folder-act" data-act="rename" data-id="${escapeHtml(f.id)}" title="Umbenennen">${editSvg}</button>
-         <button class="folder-act" data-act="delete" data-id="${escapeHtml(f.id)}" title="Löschen">${delSvg}</button>
-       </div>`;
+    // Every folder (incl. main) can be SHARED; only non-main can be renamed/deleted.
+    const shareAct = count > 0 ? `<button class="folder-act" data-act="share" data-id="${escapeHtml(f.id)}" title="Bibliothek an Freund senden">${shareSvg}</button>` : '';
+    const editDel = isMain ? '' :
+      `<button class="folder-act" data-act="rename" data-id="${escapeHtml(f.id)}" title="Umbenennen">${editSvg}</button>
+       <button class="folder-act" data-act="delete" data-id="${escapeHtml(f.id)}" title="Löschen">${delSvg}</button>`;
+    const actions = (shareAct || editDel) ? `<div class="folder-actions">${shareAct}${editDel}</div>` : '';
     return `<div class="folder-item${active}" data-id="${escapeHtml(f.id)}">
       ${folderSvg}
       <span class="folder-name">${escapeHtml(f.name)}</span>
@@ -4778,6 +4857,7 @@ function renderFolderList() {
       const id = btn.dataset.id;
       if (btn.dataset.act === 'rename') await renameFolder(id);
       else if (btn.dataset.act === 'delete') await deleteFolder(id);
+      else if (btn.dataset.act === 'share') { closeFolderModal(); openShareModal({ kind: 'library', folderId: id }); }
     });
   });
 }
@@ -7561,12 +7641,15 @@ function stopFriendsListeners() {
 }
 
 function updateFriendsBadge() {
-  const n = (cloud.incoming ? cloud.incoming.length : 0) + (cloud.inbox ? cloud.inbox.length : 0);
+  const inN = cloud.inbox ? cloud.inbox.length : 0;
+  const reqN = cloud.incoming ? cloud.incoming.length : 0;
+  const n = reqN + inN;
   const badge = document.getElementById('friends-badge');
   if (badge) { badge.textContent = String(n); badge.style.display = n > 0 ? 'inline-flex' : 'none'; }
   const reqBadge = document.getElementById('ftab-req-badge');
-  const ri = cloud.incoming ? cloud.incoming.length : 0;
-  if (reqBadge) { reqBadge.textContent = String(ri); reqBadge.style.display = ri > 0 ? 'inline-flex' : 'none'; }
+  if (reqBadge) { reqBadge.textContent = String(reqN); reqBadge.style.display = reqN > 0 ? 'inline-flex' : 'none'; }
+  const inboxBadge = document.getElementById('inbox-tab-badge');
+  if (inboxBadge) { inboxBadge.textContent = String(inN); inboxBadge.style.display = inN > 0 ? 'inline-flex' : 'none'; }
 }
 
 // Look up a username -> {uid, username} or null.
@@ -7784,6 +7867,7 @@ document.getElementById('username-save').addEventListener('click', async () => {
 });
 
 document.getElementById('friends-btn').addEventListener('click', () => { initFirebase(); openFriendsModal(); });
+document.getElementById('open-inbox-btn').addEventListener('click', () => { closeFriendsModal(); openInboxModal(); });
 ['friends-close-1','friends-close-2','friends-close-3'].forEach(id => {
   const el = document.getElementById(id); if (el) el.addEventListener('click', closeFriendsModal);
 });
@@ -7791,10 +7875,291 @@ document.getElementById('friends-modal').addEventListener('click', (e) => {
   if (e.target.id === 'friends-modal') closeFriendsModal();
 });
 
-// Placeholders filled in Phase 2/3 (sharing + inbox). Defined now so Phase-1
-// listeners/handlers referencing them don't throw.
-function openShareModal() { showToast('Senden kommt im nächsten Schritt', 'error'); }
-function onInboxChanged() { /* inbox UI added in Phase 3 */ }
+// =====================================================
+//        Sharing (send) + Inbox (receive)
+// =====================================================
+// A share payload is one of:
+//   { type:'songs',   songs:[...], title }                      one or many songs
+//   { type:'setlist', setlist:{name}, songs:[...], title }      a setlist + its songs
+//   { type:'library', folder:{name}, songs:[...], setlists:[...], title }  whole folder
+
+// Strip a song down to a clean, shareable copy (no folderId — the receiver
+// decides placement) with fresh-but-stable content.
+function shareableSong(song) {
+  const s = JSON.parse(JSON.stringify(song));
+  delete s.folderId;
+  delete s.position;
+  return s;
+}
+
+// Build the payload for the current share request.
+function buildSharePayload(req) {
+  if (req.kind === 'songs') {
+    const songs = req.songIds.map(id => state.songs.find(s => s.id === id)).filter(Boolean).map(shareableSong);
+    const title = songs.length === 1 ? songs[0].title : `${songs.length} Songs`;
+    return { type: 'songs', songs, title };
+  }
+  if (req.kind === 'setlist') {
+    const sl = state.setlists.find(s => s.id === req.setlistId);
+    if (!sl) return null;
+    const songs = (sl.songIds || []).map(id => state.songs.find(s => s.id === id)).filter(Boolean).map(shareableSong);
+    return { type: 'setlist', setlist: { name: sl.name }, songs, title: 'Setlist: ' + sl.name };
+  }
+  if (req.kind === 'library') {
+    const fid = req.folderId;
+    const folder = state.folders.find(f => f.id === fid) || { name: MAIN_FOLDER_NAME };
+    const songs = state.songs.filter(s => effectiveFolderId(s) === fid).map(shareableSong);
+    // map old song ids -> new (so setlist refs stay valid in the payload)
+    const setlists = state.setlists.filter(sl => effectiveFolderId(sl) === fid)
+      .map(sl => ({ name: sl.name, songIds: (sl.songIds || []).slice() }));
+    return { type: 'library', folder: { name: folder.name }, songs, setlists, title: 'Bibliothek: ' + folder.name };
+  }
+  return null;
+}
+
+let shareRequest = null;   // the pending {kind, ...} being shared
+
+// Open the friend picker for a share. `req` describes what's being sent.
+// If a uid/name is passed, send immediately to that friend (from friends list).
+function openShareModal(req, directUid, directName) {
+  if (!cloud.ready || !cloud.user) { showToast('Bitte zuerst über Cloud anmelden', 'error'); return; }
+  if (!cloud.username) { showToast('Bitte zuerst einen Benutzernamen festlegen (Cloud)', 'error'); return; }
+  if (req && req.kind === 'pick') {
+    // came from the friends list "Senden" with a friend already chosen, but no
+    // content yet → not used; we always pass content. Guard anyway.
+    showToast('Wähle einen Song/eine Bibliothek zum Senden', 'error');
+    return;
+  }
+  shareRequest = req;
+  if (directUid) { sendShareTo(directUid, directName); return; }
+
+  const listEl = document.getElementById('share-friend-list');
+  document.getElementById('share-sub').textContent =
+    `„${(buildSharePayload(req) || {}).title || ''}“ senden an:`;
+  if (!cloud.friends.length) {
+    listEl.innerHTML = `<div class="friends-empty">Du hast noch keine Freunde. Füge zuerst welche über „Freunde“ hinzu.</div>`;
+  } else {
+    listEl.innerHTML = cloud.friends.map(f => `
+      <div class="friend-row">
+        <span class="f-avatar">${escapeHtml((f.username||'?')[0])}</span>
+        <span class="f-name">@${escapeHtml(f.username||'?')}</span>
+        <div class="f-actions"><button class="btn btn-mini btn-primary" data-uid="${escapeHtml(f.uid)}" data-name="${escapeHtml(f.username||'')}">Senden</button></div>
+      </div>`).join('');
+    listEl.querySelectorAll('button[data-uid]').forEach(b => {
+      b.onclick = () => sendShareTo(b.dataset.uid, b.dataset.name);
+    });
+  }
+  document.getElementById('share-modal').classList.add('show');
+}
+function closeShareModal() { document.getElementById('share-modal').classList.remove('show'); shareRequest = null; }
+
+async function sendShareTo(toUid, toName) {
+  const payload = buildSharePayload(shareRequest);
+  if (!payload || !payload.songs || payload.songs.length === 0) { showToast('Nichts zu senden', 'error'); return; }
+  // Firestore doc limit is ~1MB. Warn if the payload is very large.
+  const approxBytes = JSON.stringify(payload).length;
+  if (approxBytes > 900000) {
+    showToast('Zu groß zum Senden (max ~1MB). Teile weniger Songs auf einmal.', 'error');
+    return;
+  }
+  try {
+    const item = {
+      from: cloud.user.uid,
+      fromName: cloud.username,
+      at: Date.now(),
+      ...payload,
+    };
+    await cloud.db.collection('users').doc(toUid).collection('inbox').add(item);
+    closeShareModal();
+    showToast(`„${payload.title}“ an @${toName} gesendet`, 'success');
+  } catch (e) {
+    showToast('Senden fehlgeschlagen: ' + (e.message || e), 'error');
+  }
+}
+
+document.getElementById('share-cancel').addEventListener('click', closeShareModal);
+document.getElementById('share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-modal') closeShareModal(); });
+
+// ---- Inbox (receive) ----
+function onInboxChanged() {
+  // Notify on a newly arrived item while the app is open.
+  const n = cloud.inbox ? cloud.inbox.length : 0;
+  if (n > 0 && !inboxModalOpen) {
+    const newest = cloud.inbox.slice().sort((a, b) => (b.at||0) - (a.at||0))[0];
+    if (newest && newest.id !== lastNotifiedInboxId) {
+      lastNotifiedInboxId = newest.id;
+      // Only toast for items that arrived after this session started.
+      if ((newest.at || 0) > sessionStartedAt) {
+        showToast(`📥 @${newest.fromName || 'Jemand'} hat dir „${newest.title || 'etwas'}“ gesendet`, 'success');
+      }
+    }
+  }
+  renderInboxIfOpen();
+}
+let lastNotifiedInboxId = null;
+const sessionStartedAt = Date.now();
+
+let inboxModalOpen = false;
+function openInboxModal() { inboxModalOpen = true; document.getElementById('inbox-modal').classList.add('show'); renderInbox(); }
+function closeInboxModal() { inboxModalOpen = false; document.getElementById('inbox-modal').classList.remove('show'); }
+function renderInboxIfOpen() { if (inboxModalOpen) renderInbox(); }
+
+function renderInbox() {
+  const listEl = document.getElementById('inbox-list');
+  if (!cloud.inbox || cloud.inbox.length === 0) {
+    listEl.innerHTML = `<div class="friends-empty">Keine neuen Sendungen.</div>`;
+    return;
+  }
+  const items = cloud.inbox.slice().sort((a, b) => (b.at||0) - (a.at||0));
+  const typeLabel = it => it.type === 'library' ? 'Bibliothek' : it.type === 'setlist' ? 'Setlist' : (it.songs && it.songs.length === 1 ? 'Song' : 'Songs');
+  listEl.innerHTML = items.map(it => `
+    <div class="friend-row" data-id="${escapeHtml(it.id)}">
+      <span class="f-avatar">${escapeHtml((it.fromName||'?')[0])}</span>
+      <div style="flex:1; min-width:0;">
+        <div class="f-name" style="white-space:normal;">@${escapeHtml(it.fromName||'?')}</div>
+        <div style="color:var(--text-2); font-size:13px;">${typeLabel(it)} · ${escapeHtml(it.title||'')} · ${(it.songs||[]).length} Song${(it.songs||[]).length===1?'':'s'}</div>
+      </div>
+      <div class="f-actions">
+        <button class="btn btn-mini btn-primary" data-act="accept" data-id="${escapeHtml(it.id)}">Übernehmen</button>
+        <button class="btn btn-mini" data-act="decline" data-id="${escapeHtml(it.id)}">Ablehnen</button>
+      </div>
+    </div>`).join('');
+  listEl.querySelectorAll('button[data-act]').forEach(b => {
+    b.onclick = async () => {
+      const it = cloud.inbox.find(x => x.id === b.dataset.id);
+      if (!it) return;
+      if (b.dataset.act === 'decline') {
+        await deleteInboxItem(it.id);
+        renderInbox();
+      } else {
+        openReceiveModal(it);
+      }
+    };
+  });
+}
+
+async function deleteInboxItem(id) {
+  try { await cloud.db.collection('users').doc(cloud.user.uid).collection('inbox').doc(id).delete(); }
+  catch (e) { console.warn('delete inbox failed', e); }
+}
+
+// ---- Receive: choose destination + dedupe ----
+let receiveItem = null;
+function openReceiveModal(item) {
+  receiveItem = item;
+  // target select
+  const sel = document.getElementById('receive-target-folder');
+  sel.innerHTML = state.folders.map(f =>
+    `<option value="${escapeHtml(f.id)}"${f.id === state.currentFolderId ? ' selected' : ''}>${escapeHtml(f.name)}</option>`).join('')
+    + `<option value="__new__">+ Neuen Ordner erstellen…</option>`;
+  // For a shared library, default the new-folder name to the library's name.
+  document.getElementById('receive-target-new-name').value =
+    item.type === 'library' && item.folder ? item.folder.name : '';
+  document.getElementById('receive-title').textContent =
+    item.type === 'library' ? 'Bibliothek übernehmen' : item.type === 'setlist' ? 'Setlist übernehmen' : 'Songs übernehmen';
+  document.getElementById('receive-summary').innerHTML =
+    `Von <span class="num">@${escapeHtml(item.fromName||'?')}</span><br>` +
+    `<span class="num">${(item.songs||[]).length}</span> Song${(item.songs||[]).length===1?'':'s'}` +
+    (item.type==='library' && item.setlists ? ` + <span class="num">${item.setlists.length}</span> Setlist${item.setlists.length===1?'':'s'}` : '') +
+    (item.type==='setlist' ? ` (als Setlist „${escapeHtml(item.setlist?item.setlist.name:'')}“)` : '');
+  toggleReceiveNewFolder();
+  document.getElementById('inbox-modal').classList.remove('show');
+  document.getElementById('receive-modal').classList.add('show');
+}
+function toggleReceiveNewFolder() {
+  const sel = document.getElementById('receive-target-folder');
+  document.getElementById('receive-target-new').style.display = sel.value === '__new__' ? 'block' : 'none';
+}
+function closeReceiveModal() { document.getElementById('receive-modal').classList.remove('show'); receiveItem = null; }
+
+document.getElementById('receive-target-folder').addEventListener('change', toggleReceiveNewFolder);
+document.getElementById('receive-cancel').addEventListener('click', () => { closeReceiveModal(); openInboxModal(); });
+document.getElementById('receive-modal').addEventListener('click', (e) => { if (e.target.id === 'receive-modal') closeReceiveModal(); });
+
+document.getElementById('receive-save').addEventListener('click', async () => {
+  if (!receiveItem) return;
+  const item = receiveItem;
+  // resolve target folder
+  const sel = document.getElementById('receive-target-folder');
+  let targetFolderId;
+  if (sel.value === '__new__') {
+    const name = (document.getElementById('receive-target-new-name').value || '').trim();
+    if (!name) { showToast('Bitte Ordnernamen eingeben', 'error'); return; }
+    const folder = await createFolder(name);
+    if (!folder) return;
+    targetFolderId = folder.id;
+  } else {
+    targetFolderId = sel.value;
+  }
+  const folderIdField = targetFolderId === MAIN_FOLDER_ID ? undefined : targetFolderId;
+
+  try {
+    // Dedupe against songs already in the TARGET folder (title+artist).
+    const scope = state.songs.filter(s => effectiveFolderId(s) === targetFolderId);
+    const byKey = new Map(scope.map(s => [songMatchKey(s), s]));
+    const allIds = new Set(state.songs.map(s => s.id));
+    let added = 0, skipped = 0;
+    const idRemap = new Map(); // old payload id -> new local id (or existing)
+
+    for (const raw of (item.songs || [])) {
+      const s = stripLegacyAudio({ ...raw });
+      const existing = byKey.get(songMatchKey(s));
+      if (existing) { if (s.id) idRemap.set(s.id, existing.id); skipped++; continue; }
+      let newId = uid();
+      if (s.id) idRemap.set(s.id, newId);
+      s.id = newId;
+      s.folderId = folderIdField;
+      // fresh version ids
+      if (Array.isArray(s.versions)) {
+        const vmap = {};
+        s.versions.forEach(v => { const nv = vid(); vmap[v.id] = nv; v.id = nv; });
+        if (s.activeVersionId && vmap[s.activeVersionId]) s.activeVersionId = vmap[s.activeVersionId];
+      }
+      s.createdAt = Date.now(); s.updatedAt = Date.now();
+      await dbPut(s);
+      allIds.add(newId);
+      byKey.set(songMatchKey(s), s);
+      added++;
+    }
+
+    // Recreate setlists (for setlist or library shares) into the target folder.
+    const setlistsToMake = item.type === 'setlist'
+      ? [{ name: item.setlist ? item.setlist.name : 'Setlist', songIds: (item.songs||[]).map(s => s.id) }]
+      : (item.type === 'library' ? (item.setlists || []) : []);
+    for (const sl of setlistsToMake) {
+      const remapped = (sl.songIds || []).map(id => idRemap.get(id)).filter(Boolean);
+      if (remapped.length === 0 && (sl.songIds||[]).length > 0) continue; // all were dupes & not added
+      await setlistPut({
+        id: uid(),
+        name: sl.name || 'Setlist',
+        songIds: remapped,
+        folderId: folderIdField,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    await deleteInboxItem(item.id);
+    closeReceiveModal();
+    state.currentFolderId = targetFolderId;
+    state.currentSetlistId = null;
+    await renderLibrary();
+    showToast(`Übernommen · ${added} neu, ${skipped} Duplikate übersprungen`, 'success');
+    if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+  } catch (e) {
+    showToast('Übernehmen fehlgeschlagen: ' + (e.message || e), 'error');
+  }
+});
+
+document.getElementById('inbox-close').addEventListener('click', closeInboxModal);
+document.getElementById('inbox-modal').addEventListener('click', (e) => { if (e.target.id === 'inbox-modal') closeInboxModal(); });
+
+// Selection-bar "Teilen" → share selected songs
+document.getElementById('select-share-btn').addEventListener('click', () => {
+  const ids = [...selection.ids];
+  if (ids.length === 0) { showToast('Keine Songs ausgewählt', 'error'); return; }
+  openShareModal({ kind: 'songs', songIds: ids });
+});
 
 // ---- Merge sync: newest updatedAt wins; tombstones remove items everywhere ----
 async function runSync(opts = {}) {
