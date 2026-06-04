@@ -1957,6 +1957,37 @@
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
   .modal-large { max-width: 520px; }
 
+  /* Import mode chooser */
+  .import-summary {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .import-summary .num { font-weight: 800; color: var(--accent-soft); }
+  .import-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+    touch-action: manipulation;
+  }
+  .import-option:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .import-option-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .import-option-desc { color: var(--text-2); font-size: 13px; line-height: 1.5; }
+  .import-option-danger:hover { border-color: #ff4757; }
+
   /* Cloud sync modal */
   .cloud-field { margin-bottom: 14px; }
   .cloud-field .field-label { display: block; margin-bottom: 6px; }
@@ -2667,6 +2698,29 @@
         <div style="flex:1;"></div>
         <button class="btn" id="cloud-sync-now">Jetzt synchronisieren</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import mode chooser -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal modal-large">
+    <h3>Songs importieren</h3>
+    <div id="import-summary" class="import-summary"></div>
+    <p style="color:var(--text-1); margin:14px 0 10px;">Wie sollen die Songs importiert werden?</p>
+
+    <button class="import-option" id="import-mode-merge" type="button">
+      <div class="import-option-title">➕ Nur neue Songs hinzufügen</div>
+      <div class="import-option-desc">Vorhandene Songs bleiben unverändert (Speed, Akkorde, Transponierung, Schrift, Setlists). Nur Songs die noch nicht existieren werden ergänzt.</div>
+    </button>
+
+    <button class="import-option import-option-danger" id="import-mode-replace" type="button">
+      <div class="import-option-title">♻️ Alles ersetzen</div>
+      <div class="import-option-desc">Löscht die komplette aktuelle Bibliothek und ersetzt sie durch die Datei.</div>
+    </button>
+
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="import-cancel">Abbrechen</button>
     </div>
   </div>
 </div>
@@ -5838,6 +5892,29 @@ document.getElementById('import-btn').addEventListener('click', () => {
   document.getElementById('import-file').click();
 });
 
+// Normalise title+artist for fuzzy duplicate matching (case/space-insensitive)
+function songMatchKey(s) {
+  return ((s.title || '').trim().toLowerCase() + '|||' + (s.artist || '').trim().toLowerCase());
+}
+
+// Does an imported song already exist locally? Prefer stable ID, fall back to
+// title+artist. Returns the matching existing song, or null.
+function findExistingSong(imported, existingSongs, byId, byKey) {
+  if (imported.id && byId.has(imported.id)) return byId.get(imported.id);
+  const k = songMatchKey(imported);
+  if (byKey.has(k)) return byKey.get(k);
+  return null;
+}
+
+function stripLegacyAudio(s) {
+  delete s.audioBlob; delete s.audioName; delete s.audioData;
+  delete s.audioType; delete s.timings; delete s.bpm;
+  return s;
+}
+
+// Holds the parsed file + counts between opening the chooser and acting on it.
+let pendingImport = null;
+
 document.getElementById('import-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -5846,58 +5923,137 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
     const data = JSON.parse(text);
     if (!data.songs || !Array.isArray(data.songs)) throw new Error('Ungültiges Format');
 
-    // Count current data to warn user
     const existingSongs = await dbAll();
     const existingSetlists = await setlistAll();
 
-    const importSongCount = data.songs.length;
+    // Pre-compute how many imported songs are new vs duplicates.
+    const byId = new Map(existingSongs.map(s => [s.id, s]));
+    const byKey = new Map(existingSongs.map(s => [songMatchKey(s), s]));
+    let newCount = 0, dupCount = 0;
+    for (const s of data.songs) {
+      if (findExistingSong(s, existingSongs, byId, byKey)) dupCount++;
+      else newCount++;
+    }
+
+    pendingImport = { data, existingSongs, existingSetlists, byId, byKey, newCount, dupCount };
+
+    // Fill the summary box
     const importSetlistCount = (data.setlists && Array.isArray(data.setlists)) ? data.setlists.length : 0;
+    document.getElementById('import-summary').innerHTML =
+      `Datei enthält <span class="num">${data.songs.length}</span> Song${data.songs.length === 1 ? '' : 's'}` +
+      (importSetlistCount ? ` + <span class="num">${importSetlistCount}</span> Setlist${importSetlistCount === 1 ? '' : 's'}` : '') + `<br>` +
+      `Bereits vorhanden: <span class="num">${existingSongs.length}</span> Song${existingSongs.length === 1 ? '' : 's'}<br>` +
+      `Davon neu: <span class="num">${newCount}</span> · Duplikate (werden übersprungen): <span class="num">${dupCount}</span>`;
 
-    // Confirm destructive replace
-    let warning = '';
-    if (existingSongs.length > 0 || existingSetlists.length > 0) {
-      warning = `\n\n⚠️ Aktuelle Bibliothek wird KOMPLETT GELÖSCHT:\n• ${existingSongs.length} Song${existingSongs.length === 1 ? '' : 's'}\n• ${existingSetlists.length} Setlist${existingSetlists.length === 1 ? '' : 's'}`;
-    }
-    const ok = await confirmDialog(
-      'Import: Bibliothek ersetzen?',
-      `${importSongCount} Song${importSongCount === 1 ? '' : 's'}` +
-      (importSetlistCount ? ` + ${importSetlistCount} Setlist${importSetlistCount === 1 ? '' : 's'}` : '') +
-      ' werden importiert.' + warning
-    );
-    if (!ok) {
-      e.target.value = '';
-      return;
+    document.getElementById('import-modal').classList.add('show');
+  } catch (err) {
+    showToast('Import fehlgeschlagen: ' + err.message, 'error');
+  }
+  e.target.value = '';
+});
+
+function closeImportModal() {
+  document.getElementById('import-modal').classList.remove('show');
+  pendingImport = null;
+}
+document.getElementById('import-cancel').addEventListener('click', closeImportModal);
+document.getElementById('import-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'import-modal') closeImportModal();
+});
+
+// ---- Mode: only add new songs (existing songs untouched) ----
+document.getElementById('import-mode-merge').addEventListener('click', async () => {
+  if (!pendingImport) return;
+  const { data, byId, byKey, existingSongs } = pendingImport;
+  document.getElementById('import-modal').classList.remove('show');
+  try {
+    let added = 0, skipped = 0;
+    const idRemap = new Map();   // imported id -> actual id used (existing or new)
+
+    for (const raw of data.songs) {
+      const s = stripLegacyAudio({ ...raw });
+      const match = findExistingSong(s, existingSongs, byId, byKey);
+      if (match) {
+        // Duplicate: keep the EXISTING song exactly as is. Just remember the id
+        // mapping so imported setlists can still reference it.
+        if (s.id) idRemap.set(s.id, match.id);
+        skipped++;
+        continue;
+      }
+      // New song: ensure a unique id, then add.
+      let newId = s.id;
+      if (!newId || byId.has(newId)) newId = uid();
+      if (s.id) idRemap.set(s.id, newId);
+      s.id = newId;
+      if (!s.createdAt) s.createdAt = Date.now();
+      s.updatedAt = s.updatedAt || Date.now();
+      await dbPut(s);
+      byId.set(newId, s);
+      added++;
     }
 
-    // Wipe everything. Suppress tombstones during the wipe so the cloud copy
-    // isn't marked for deletion — the import is meant to REPLACE, and the final
-    // sync below pushes the imported library up.
+    // Merge setlists: add ones that don't exist; for existing ones, append only
+    // missing song references. Never remove or reorder existing setlists.
+    let setlistsAdded = 0;
+    if (data.setlists && Array.isArray(data.setlists)) {
+      const existingSetlists = await setlistAll();
+      const slById = new Map(existingSetlists.map(sl => [sl.id, sl]));
+      const slByName = new Map(existingSetlists.map(sl => [(sl.name || '').trim().toLowerCase(), sl]));
+      for (const rawSl of data.setlists) {
+        const remappedIds = (rawSl.songIds || []).map(id => idRemap.get(id) || id);
+        const existing = (rawSl.id && slById.get(rawSl.id)) || slByName.get((rawSl.name || '').trim().toLowerCase());
+        if (existing) {
+          // Append only missing ids, keep existing order intact.
+          const have = new Set(existing.songIds || []);
+          let changed = false;
+          for (const id of remappedIds) { if (!have.has(id)) { existing.songIds.push(id); have.add(id); changed = true; } }
+          if (changed) { existing.updatedAt = Date.now(); await setlistPut(existing); }
+        } else {
+          const newSl = { ...rawSl, id: (rawSl.id && !slById.has(rawSl.id)) ? rawSl.id : uid(), songIds: remappedIds, updatedAt: Date.now() };
+          await setlistPut(newSl);
+          slById.set(newSl.id, newSl);
+          setlistsAdded++;
+        }
+      }
+    }
+
+    pendingImport = null;
+    showToast(`${added} neu hinzugefügt · ${skipped} übersprungen`, 'success');
+    await loadSongs();
+    renderLibrary();
+    if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+  } catch (err) {
+    showToast('Import fehlgeschlagen: ' + err.message, 'error');
+    pendingImport = null;
+  }
+});
+
+// ---- Mode: replace everything (old behaviour) ----
+document.getElementById('import-mode-replace').addEventListener('click', async () => {
+  if (!pendingImport) return;
+  const { data, existingSongs, existingSetlists } = pendingImport;
+  document.getElementById('import-modal').classList.remove('show');
+
+  const ok = await confirmDialog(
+    'Alles ersetzen?',
+    `Die komplette aktuelle Bibliothek (${existingSongs.length} Song${existingSongs.length === 1 ? '' : 's'}` +
+    (existingSetlists.length ? `, ${existingSetlists.length} Setlist${existingSetlists.length === 1 ? '' : 's'}` : '') +
+    `) wird gelöscht und durch die Datei ersetzt.`
+  );
+  if (!ok) { pendingImport = null; return; }
+
+  try {
     window.__suppressTombstones = true;
-    for (const s of existingSongs) {
-      try { await dbDelete(s.id); } catch (err) {}
-    }
-    for (const sl of existingSetlists) {
-      try { await setlistDelete(sl.id); } catch (err) {}
-    }
+    for (const s of existingSongs) { try { await dbDelete(s.id); } catch (err) {} }
+    for (const sl of existingSetlists) { try { await setlistDelete(sl.id); } catch (err) {} }
     window.__suppressTombstones = false;
 
-    let songCount = 0;
-    let setlistCount = 0;
-
-    // Pass 1: Import songs (IDs are now guaranteed unique since DB was wiped)
-    for (const s of data.songs) {
-      // Strip legacy audio fields if present
-      delete s.audioBlob;
-      delete s.audioName;
-      delete s.audioData;
-      delete s.audioType;
-      delete s.timings;
-      delete s.bpm;
+    let songCount = 0, setlistCount = 0;
+    for (const raw of data.songs) {
+      const s = stripLegacyAudio({ ...raw });
       await dbPut(s);
       songCount++;
     }
-
-    // Pass 2: Import setlists - song IDs from backup remain valid since we wiped + restored
     if (data.setlists && Array.isArray(data.setlists)) {
       const validSongIds = new Set(data.songs.map(s => s.id));
       for (const sl of data.setlists) {
@@ -5907,20 +6063,20 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
       }
     }
 
-    // Reset library state
     state.currentSetlistId = null;
+    pendingImport = null;
     const parts = [`${songCount} Song${songCount === 1 ? '' : 's'}`];
     if (setlistCount > 0) parts.push(`${setlistCount} Setlist${setlistCount === 1 ? '' : 's'}`);
     showToast(parts.join(' + ') + ' importiert (Bibliothek ersetzt)', 'success');
+    await loadSongs();
     renderLibrary();
-    // If signed in, make the cloud match this imported library exactly.
     if (typeof pushOverwriteCloud === 'function' && cloud && cloud.user) {
       await pushOverwriteCloud();
     }
   } catch (err) {
     showToast('Import fehlgeschlagen: ' + err.message, 'error');
+    pendingImport = null;
   }
-  e.target.value = '';
 });
 
 // =====================================================
