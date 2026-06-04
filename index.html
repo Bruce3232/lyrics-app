@@ -1565,17 +1565,10 @@
     position: absolute;
     top: 2px;
     /* font-size is inherited from chord-segment (= lyric), so 1ch == one
-       monospace lyric character. Do not change this. */
+       monospace lyric character (left: Xch) lands at the source column. */
     font-size: inherit;
     line-height: 1;
     pointer-events: none;
-    /* When several chords land on the same word they render side by side in
-       this flex row (with a gap) so they NEVER stack/overlap or hide each
-       other — that was the iPad "missing chord" + "overlapping chord" bug. */
-    display: flex;
-    flex-direction: row;
-    align-items: flex-end;
-    gap: 0.4em;
     white-space: nowrap;
   }
   .chord-segment .seg-chord-chip {
@@ -4692,105 +4685,43 @@ function openPerformance(song) {
   requestWakeLock();
 }
 
+// Chord chips are absolutely positioned at their source column (left: Xch).
+// Two chips can still physically overlap when their columns are close and the
+// chord text is wide (e.g. "Cmaj7" then "E7" two columns apart). This pushes
+// any overlapping chip to the right just enough to clear the previous one,
+// keeping a small gap — chips never sit on top of each other, and chips that
+// already have free space keep their exact column position.
 function adjustChordOverlaps(root) {
   const scope = root || document;
-  scope.querySelectorAll('.chord-overlay').forEach(adjustOverlay);
+  scope.querySelectorAll('.lyric-flow').forEach(resolveChordCollisions);
 }
 
-// Cache char width per overlay-context (lyric font)
-function measureCharWidth(referenceEl) {
-  const cs = window.getComputedStyle(referenceEl);
-  const measure = document.createElement('span');
-  measure.style.fontFamily = cs.fontFamily;
-  measure.style.fontSize = cs.fontSize;
-  measure.style.fontWeight = cs.fontWeight;
-  measure.style.fontStyle = cs.fontStyle;
-  measure.style.letterSpacing = cs.letterSpacing;
-  measure.style.position = 'absolute';
-  measure.style.visibility = 'hidden';
-  measure.style.whiteSpace = 'pre';
-  measure.style.left = '-9999px';
-  measure.style.top = '0';
-  measure.textContent = 'M'.repeat(40);
-  document.body.appendChild(measure);
-  const width = measure.getBoundingClientRect().width / 40;
-  document.body.removeChild(measure);
-  return width;
-}
-
-function adjustOverlay(overlay) {
-  const chips = Array.from(overlay.querySelectorAll('.chord-chip-positioned'));
+function resolveChordCollisions(flow) {
+  const chips = Array.from(flow.querySelectorAll('.seg-chord'));
   if (chips.length === 0) return;
-
-  // Reset previous adjustments
-  chips.forEach(c => { c.style.top = ''; });
-  overlay.style.height = '';
-
-  // Use the lyric line below as reference for the actual character width,
-  // since `1ch` can drift due to font fallback / subpixel rendering quirks.
-  const pair = overlay.parentElement;
-  const lyricEl = pair && pair.querySelector('.lyric-text');
-
-  if (lyricEl) {
-    const charWidth = measureCharWidth(lyricEl);
-    if (charWidth > 0 && isFinite(charWidth)) {
-      // Compensate for chord-text padding+border so the chord text's
-      // first character aligns exactly with the lyric character at that column.
-      let textOffset = 0;
-      const sampleText = chips[0].querySelector('.chord-text');
-      if (sampleText) {
-        const tcs = window.getComputedStyle(sampleText);
-        textOffset = parseFloat(tcs.paddingLeft || 0) + parseFloat(tcs.borderLeftWidth || 0);
-      }
-      let maxRight = 0;
-      for (const chip of chips) {
-        const col = parseFloat(chip.dataset.column);
-        if (isFinite(col)) {
-          const left = col * charWidth - textOffset;
-          chip.style.left = left + 'px';
-          const right = left + chip.offsetWidth;
-          if (right > maxRight) maxRight = right;
-        }
-      }
-      // Make sure horizontal scroll reaches the rightmost chip even when
-      // the chord sits past the end of the lyric text.
-      if (maxRight > 0) overlay.style.minWidth = Math.ceil(maxRight) + 'px';
-    }
-  }
-
-  // Force layout recalc before measuring
-  void overlay.offsetHeight;
-
+  // Reset any prior nudge so we re-measure from the true column positions.
+  chips.forEach(c => { c.style.transform = ''; });
   if (chips.length < 2) return;
 
-  // Only stack vertically when two chips share the SAME source column (rare:
-  // multiple chords typed on the exact same character). Chips that merely
-  // overlap visually because they're tight stay on row 0 — matches what the
-  // editor's monospace source shows.
-  const data = chips.map(c => ({
-    el: c,
-    col: parseFloat(c.dataset.column),
-    height: c.offsetHeight,
-  }));
+  // Force layout, then read each chip's box in flow-relative coords. Because
+  // chips live in different segments, compare against the flow's own left edge.
+  void flow.offsetHeight;
+  const flowLeft = flow.getBoundingClientRect().left;
+  const boxes = chips.map(c => {
+    const r = c.getBoundingClientRect();
+    return { el: c, left: r.left - flowLeft, width: r.width };
+  }).sort((a, b) => a.left - b.left);
 
-  const colGroups = new Map();
-  for (const d of data) {
-    if (!isFinite(d.col)) continue;
-    const key = String(d.col);
-    if (!colGroups.has(key)) colGroups.set(key, []);
-    colGroups.get(key).push(d);
-  }
-
-  let maxStack = 0;
-  for (const [, group] of colGroups) {
-    if (group.length > 1) maxStack = Math.max(maxStack, group.length - 1);
-    group.forEach((d, i) => {
-      d.el.style.top = ((group.length - 1 - i) * (d.height + 2)) + 'px';
-    });
-  }
-  if (maxStack > 0) {
-    const chipHeight = data[0].height;
-    overlay.style.height = (chipHeight * (maxStack + 1) + 2 * maxStack + 4) + 'px';
+  const gap = 6; // px minimum gap between adjacent chips
+  let prevRight = -Infinity;
+  for (const b of boxes) {
+    let left = b.left;
+    if (left < prevRight + gap) {
+      const shift = (prevRight + gap) - left;
+      b.el.style.transform = `translateX(${shift}px)`;
+      left = left + shift;
+    }
+    prevRight = left + b.width;
   }
 }
 
@@ -4912,15 +4843,16 @@ function renderSegments(items) {
     const chords = item.chords || [];
     let chordHtml = '';
     if (chords.length > 0) {
-      // All chords for this word render in ONE flex row positioned at the
-      // leftmost chord's source column. Side-by-side, never stacked.
-      const offsets = chords.map(c => (typeof c.columnOffset === 'number' ? c.columnOffset : 0));
-      const minOff = Math.min(...offsets);
-      const chips = chords.map(c => {
+      // Each chord is its OWN absolutely-positioned chip at its source column
+      // (left: Xch). They keep their real horizontal positions so the spacing
+      // matches the editor. adjustChordOverlaps() later nudges any chips that
+      // would physically overlap to the right so they never sit on top of
+      // each other (the "freien Raum" the user wants respected).
+      chordHtml = chords.map(c => {
         const annos = (c.annos || []).map(a => `<span class="chord-anno">${escapeHtml(a)}</span>`).join('');
-        return `<span class="seg-chord-chip">${escapeHtml(displayChord(c.chord))}${annos}</span>`;
+        const off = typeof c.columnOffset === 'number' ? c.columnOffset : 0;
+        return `<span class="seg-chord" data-col="${off}" style="left:${off}ch;"><span class="seg-chord-chip">${escapeHtml(displayChord(c.chord))}${annos}</span></span>`;
       }).join('');
-      chordHtml = `<span class="seg-chord" style="left:${minOff}ch;">${chips}</span>`;
     }
     return `<span class="chord-segment">${chordHtml}<span class="seg-text">${escapeHtml(item.text)}</span></span>`;
   }).join('');
