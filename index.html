@@ -2038,6 +2038,10 @@
     line-height: 1.7;
   }
   .import-summary .num { font-weight: 800; color: var(--accent-soft); }
+  .import-target-row { margin-bottom: 8px; }
+  .import-target-row .field-input { width: 100%; }
+  .import-target-new { margin-bottom: 6px; }
+  .import-target-new .field-input { width: 100%; }
   .import-option {
     display: block;
     width: 100%;
@@ -2835,16 +2839,25 @@
   <div class="modal modal-large">
     <h3>Songs importieren</h3>
     <div id="import-summary" class="import-summary"></div>
-    <p style="color:var(--text-1); margin:14px 0 10px;">Wie sollen die Songs importiert werden?</p>
+
+    <p style="color:var(--text-1); margin:14px 0 8px; font-weight:600;">Importziel (Ordner)</p>
+    <div class="import-target-row">
+      <select class="field-input" id="import-target-folder"></select>
+    </div>
+    <div class="import-target-new" id="import-target-new" style="display:none;">
+      <input class="field-input" id="import-target-new-name" placeholder="Name des neuen Ordners" maxlength="40" autocomplete="off">
+    </div>
+
+    <p style="color:var(--text-1); margin:14px 0 10px; font-weight:600;">Wie sollen die Songs importiert werden?</p>
 
     <button class="import-option" id="import-mode-merge" type="button">
       <div class="import-option-title">➕ Nur neue Songs hinzufügen</div>
-      <div class="import-option-desc">Vorhandene Songs bleiben unverändert (Speed, Akkorde, Transponierung, Schrift, Setlists). Nur Songs die noch nicht existieren werden ergänzt.</div>
+      <div class="import-option-desc">Vorhandene Songs im Ziel-Ordner bleiben unverändert (Speed, Akkorde, Transponierung, Schrift, Setlists). Nur Songs die noch nicht existieren werden ergänzt.</div>
     </button>
 
     <button class="import-option import-option-danger" id="import-mode-replace" type="button">
-      <div class="import-option-title">♻️ Alles ersetzen</div>
-      <div class="import-option-desc">Löscht die komplette aktuelle Bibliothek und ersetzt sie durch die Datei.</div>
+      <div class="import-option-title">♻️ Ordner-Inhalt ersetzen</div>
+      <div class="import-option-desc">Löscht alle Songs + Setlists im Ziel-Ordner und ersetzt sie durch die Datei. Andere Ordner bleiben unberührt.</div>
     </button>
 
     <div class="modal-actions" style="margin-top:18px;">
@@ -6278,6 +6291,76 @@ function stripLegacyAudio(s) {
 // Holds the parsed file + counts between opening the chooser and acting on it.
 let pendingImport = null;
 
+// Populate the import target-folder <select> with current folders + a
+// "new folder" option. Defaults to the folder the user is currently viewing.
+function fillImportTargetSelect() {
+  const sel = document.getElementById('import-target-folder');
+  if (!sel) return;
+  const opts = state.folders.map(f =>
+    `<option value="${escapeHtml(f.id)}"${f.id === state.currentFolderId ? ' selected' : ''}>${escapeHtml(f.name)}</option>`
+  ).join('');
+  sel.innerHTML = opts + `<option value="__new__">+ Neuen Ordner erstellen…</option>`;
+  toggleImportNewFolderField();
+}
+function toggleImportNewFolderField() {
+  const sel = document.getElementById('import-target-folder');
+  const box = document.getElementById('import-target-new');
+  if (!sel || !box) return;
+  box.style.display = sel.value === '__new__' ? 'block' : 'none';
+}
+
+// Recompute the "new vs duplicate" preview against the CURRENTLY chosen target
+// folder, so the numbers reflect where the songs will actually land.
+function updateImportPreview() {
+  if (!pendingImport) return;
+  const { data } = pendingImport;
+  const targetId = currentImportTargetId();
+  // Duplicate detection is scoped to the target folder (real-copy model:
+  // a song that exists in another folder is NOT a duplicate here).
+  const scope = (targetId === '__new__')
+    ? []
+    : state.songs.filter(s => effectiveFolderId(s) === targetId);
+  const byId = new Map(scope.map(s => [s.id, s]));
+  const byKey = new Map(scope.map(s => [songMatchKey(s), s]));
+  let newCount = 0, dupCount = 0;
+  for (const s of data.songs) {
+    if (findExistingSong(s, scope, byId, byKey)) dupCount++;
+    else newCount++;
+  }
+  pendingImport.targetScope = scope;
+  pendingImport.byId = byId;
+  pendingImport.byKey = byKey;
+  pendingImport.newCount = newCount;
+  pendingImport.dupCount = dupCount;
+
+  const importSetlistCount = (data.setlists && Array.isArray(data.setlists)) ? data.setlists.length : 0;
+  const targetName = targetId === '__new__' ? 'neuer Ordner' :
+    (state.folders.find(f => f.id === targetId) || {}).name || '—';
+  document.getElementById('import-summary').innerHTML =
+    `Datei enthält <span class="num">${data.songs.length}</span> Song${data.songs.length === 1 ? '' : 's'}` +
+    (importSetlistCount ? ` + <span class="num">${importSetlistCount}</span> Setlist${importSetlistCount === 1 ? '' : 's'}` : '') + `<br>` +
+    `Ziel-Ordner „${escapeHtml(targetName)}“: <span class="num">${scope.length}</span> Song${scope.length === 1 ? '' : 's'} vorhanden<br>` +
+    `Davon neu: <span class="num">${newCount}</span> · Duplikate (übersprungen): <span class="num">${dupCount}</span>`;
+}
+
+function currentImportTargetId() {
+  const sel = document.getElementById('import-target-folder');
+  return sel ? sel.value : MAIN_FOLDER_ID;
+}
+
+// Resolve the chosen target into a concrete folderId, creating a new folder
+// first if the user picked that option. Returns null if creation was cancelled.
+async function resolveImportTargetFolderId() {
+  const sel = document.getElementById('import-target-folder');
+  if (sel && sel.value === '__new__') {
+    const name = (document.getElementById('import-target-new-name').value || '').trim();
+    if (!name) { showToast('Bitte Ordnernamen eingeben', 'error'); return null; }
+    const folder = await createFolder(name);
+    return folder ? folder.id : null;
+  }
+  return sel ? sel.value : MAIN_FOLDER_ID;
+}
+
 document.getElementById('import-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -6286,33 +6369,19 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
     const data = JSON.parse(text);
     if (!data.songs || !Array.isArray(data.songs)) throw new Error('Ungültiges Format');
 
-    const existingSongs = await dbAll();
-    const existingSetlists = await setlistAll();
-
-    // Pre-compute how many imported songs are new vs duplicates.
-    const byId = new Map(existingSongs.map(s => [s.id, s]));
-    const byKey = new Map(existingSongs.map(s => [songMatchKey(s), s]));
-    let newCount = 0, dupCount = 0;
-    for (const s of data.songs) {
-      if (findExistingSong(s, existingSongs, byId, byKey)) dupCount++;
-      else newCount++;
-    }
-
-    pendingImport = { data, existingSongs, existingSetlists, byId, byKey, newCount, dupCount };
-
-    // Fill the summary box
-    const importSetlistCount = (data.setlists && Array.isArray(data.setlists)) ? data.setlists.length : 0;
-    document.getElementById('import-summary').innerHTML =
-      `Datei enthält <span class="num">${data.songs.length}</span> Song${data.songs.length === 1 ? '' : 's'}` +
-      (importSetlistCount ? ` + <span class="num">${importSetlistCount}</span> Setlist${importSetlistCount === 1 ? '' : 's'}` : '') + `<br>` +
-      `Bereits vorhanden: <span class="num">${existingSongs.length}</span> Song${existingSongs.length === 1 ? '' : 's'}<br>` +
-      `Davon neu: <span class="num">${newCount}</span> · Duplikate (werden übersprungen): <span class="num">${dupCount}</span>`;
-
+    pendingImport = { data };
+    fillImportTargetSelect();
+    updateImportPreview();
     document.getElementById('import-modal').classList.add('show');
   } catch (err) {
     showToast('Import fehlgeschlagen: ' + err.message, 'error');
   }
   e.target.value = '';
+});
+
+document.getElementById('import-target-folder').addEventListener('change', () => {
+  toggleImportNewFolderField();
+  updateImportPreview();
 });
 
 function closeImportModal() {
@@ -6324,66 +6393,75 @@ document.getElementById('import-modal').addEventListener('click', (e) => {
   if (e.target.id === 'import-modal') closeImportModal();
 });
 
-// ---- Mode: only add new songs (existing songs untouched) ----
+// ---- Mode: only add new songs (existing songs in target folder untouched) ----
 document.getElementById('import-mode-merge').addEventListener('click', async () => {
   if (!pendingImport) return;
-  const { data, byId, byKey, existingSongs } = pendingImport;
+  const { data } = pendingImport;
+  const targetFolderId = await resolveImportTargetFolderId();
+  if (targetFolderId === null) return; // new-folder creation cancelled
+  const folderIdField = targetFolderId === MAIN_FOLDER_ID ? undefined : targetFolderId;
+  // Duplicate scope = songs already in the TARGET folder only.
+  const scope = state.songs.filter(s => effectiveFolderId(s) === targetFolderId);
+  const byId = new Map(scope.map(s => [s.id, s]));
+  const byKey = new Map(scope.map(s => [songMatchKey(s), s]));
   document.getElementById('import-modal').classList.remove('show');
   try {
     let added = 0, skipped = 0;
     const idRemap = new Map();   // imported id -> actual id used (existing or new)
 
+    // Need global id set to avoid colliding with songs in OTHER folders.
+    const allIds = new Set(state.songs.map(s => s.id));
+
     for (const raw of data.songs) {
       const s = stripLegacyAudio({ ...raw });
-      const match = findExistingSong(s, existingSongs, byId, byKey);
+      const match = findExistingSong(s, scope, byId, byKey);
       if (match) {
-        // Duplicate: keep the EXISTING song exactly as is. Just remember the id
-        // mapping so imported setlists can still reference it.
         if (s.id) idRemap.set(s.id, match.id);
         skipped++;
         continue;
       }
-      // New song: ensure a unique id, then add.
       let newId = s.id;
-      if (!newId || byId.has(newId)) newId = uid();
+      if (!newId || allIds.has(newId)) newId = uid();
       if (s.id) idRemap.set(s.id, newId);
       s.id = newId;
+      s.folderId = folderIdField;       // land in the target folder
       if (!s.createdAt) s.createdAt = Date.now();
       s.updatedAt = s.updatedAt || Date.now();
       await dbPut(s);
+      allIds.add(newId);
       byId.set(newId, s);
       added++;
     }
 
-    // Merge setlists: add ones that don't exist; for existing ones, append only
-    // missing song references. Never remove or reorder existing setlists.
-    let setlistsAdded = 0;
+    // Merge setlists into the target folder.
     if (data.setlists && Array.isArray(data.setlists)) {
-      const existingSetlists = await setlistAll();
-      const slById = new Map(existingSetlists.map(sl => [sl.id, sl]));
-      const slByName = new Map(existingSetlists.map(sl => [(sl.name || '').trim().toLowerCase(), sl]));
+      const folderSetlists = state.setlists.filter(sl => effectiveFolderId(sl) === targetFolderId);
+      const slById = new Map(folderSetlists.map(sl => [sl.id, sl]));
+      const slByName = new Map(folderSetlists.map(sl => [(sl.name || '').trim().toLowerCase(), sl]));
+      const allSlIds = new Set(state.setlists.map(sl => sl.id));
       for (const rawSl of data.setlists) {
         const remappedIds = (rawSl.songIds || []).map(id => idRemap.get(id) || id);
         const existing = (rawSl.id && slById.get(rawSl.id)) || slByName.get((rawSl.name || '').trim().toLowerCase());
         if (existing) {
-          // Append only missing ids, keep existing order intact.
           const have = new Set(existing.songIds || []);
           let changed = false;
           for (const id of remappedIds) { if (!have.has(id)) { existing.songIds.push(id); have.add(id); changed = true; } }
           if (changed) { existing.updatedAt = Date.now(); await setlistPut(existing); }
         } else {
-          const newSl = { ...rawSl, id: (rawSl.id && !slById.has(rawSl.id)) ? rawSl.id : uid(), songIds: remappedIds, updatedAt: Date.now() };
+          const newSlId = (rawSl.id && !allSlIds.has(rawSl.id)) ? rawSl.id : uid();
+          const newSl = { ...rawSl, id: newSlId, songIds: remappedIds, folderId: folderIdField, updatedAt: Date.now() };
           await setlistPut(newSl);
-          slById.set(newSl.id, newSl);
-          setlistsAdded++;
+          allSlIds.add(newSlId);
         }
       }
     }
 
     pendingImport = null;
+    // Jump to the target folder so the user sees the result.
+    state.currentFolderId = targetFolderId;
+    state.currentSetlistId = null;
     showToast(`${added} neu hinzugefügt · ${skipped} übersprungen`, 'success');
-    await loadSongs();
-    renderLibrary();
+    await renderLibrary();
     if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
   } catch (err) {
     showToast('Import fehlgeschlagen: ' + err.message, 'error');
@@ -6391,51 +6469,66 @@ document.getElementById('import-mode-merge').addEventListener('click', async () 
   }
 });
 
-// ---- Mode: replace everything (old behaviour) ----
+// ---- Mode: replace the TARGET FOLDER's contents (other folders untouched) ----
 document.getElementById('import-mode-replace').addEventListener('click', async () => {
   if (!pendingImport) return;
-  const { data, existingSongs, existingSetlists } = pendingImport;
+  const { data } = pendingImport;
+  const targetFolderId = await resolveImportTargetFolderId();
+  if (targetFolderId === null) return;
+  const folderIdField = targetFolderId === MAIN_FOLDER_ID ? undefined : targetFolderId;
+  const targetName = (state.folders.find(f => f.id === targetFolderId) || {}).name || '—';
+  const folderSongs = state.songs.filter(s => effectiveFolderId(s) === targetFolderId);
+  const folderSetlists = state.setlists.filter(sl => effectiveFolderId(sl) === targetFolderId);
   document.getElementById('import-modal').classList.remove('show');
 
   const ok = await confirmDialog(
-    'Alles ersetzen?',
-    `Die komplette aktuelle Bibliothek (${existingSongs.length} Song${existingSongs.length === 1 ? '' : 's'}` +
-    (existingSetlists.length ? `, ${existingSetlists.length} Setlist${existingSetlists.length === 1 ? '' : 's'}` : '') +
-    `) wird gelöscht und durch die Datei ersetzt.`
+    `Ordner „${targetName}“ ersetzen?`,
+    `Alle Songs (${folderSongs.length}) und Setlists (${folderSetlists.length}) im Ordner „${targetName}“ werden gelöscht und durch die Datei ersetzt. Andere Ordner bleiben unberührt.`
   );
   if (!ok) { pendingImport = null; return; }
 
   try {
     window.__suppressTombstones = true;
-    for (const s of existingSongs) { try { await dbDelete(s.id); } catch (err) {} }
-    for (const sl of existingSetlists) { try { await setlistDelete(sl.id); } catch (err) {} }
+    for (const s of folderSongs) { try { await dbDelete(s.id); } catch (err) {} }
+    for (const sl of folderSetlists) { try { await setlistDelete(sl.id); } catch (err) {} }
     window.__suppressTombstones = false;
 
+    const allIds = new Set(state.songs.filter(s => effectiveFolderId(s) !== targetFolderId).map(s => s.id));
     let songCount = 0, setlistCount = 0;
+    const idRemap = new Map();
     for (const raw of data.songs) {
       const s = stripLegacyAudio({ ...raw });
+      let newId = s.id;
+      if (!newId || allIds.has(newId)) newId = uid();
+      if (s.id) idRemap.set(s.id, newId);
+      s.id = newId;
+      s.folderId = folderIdField;
       await dbPut(s);
+      allIds.add(newId);
       songCount++;
     }
     if (data.setlists && Array.isArray(data.setlists)) {
-      const validSongIds = new Set(data.songs.map(s => s.id));
-      for (const sl of data.setlists) {
-        sl.songIds = (sl.songIds || []).filter(id => validSongIds.has(id));
+      const validSongIds = new Set([...idRemap.values()]);
+      const allSlIds = new Set(state.setlists.filter(sl => effectiveFolderId(sl) !== targetFolderId).map(sl => sl.id));
+      for (const rawSl of data.setlists) {
+        const remapped = (rawSl.songIds || []).map(id => idRemap.get(id)).filter(Boolean);
+        let slId = rawSl.id;
+        if (!slId || allSlIds.has(slId)) slId = uid();
+        const sl = { ...rawSl, id: slId, songIds: remapped, folderId: folderIdField, updatedAt: Date.now() };
         await setlistPut(sl);
+        allSlIds.add(slId);
         setlistCount++;
       }
     }
 
+    state.currentFolderId = targetFolderId;
     state.currentSetlistId = null;
     pendingImport = null;
     const parts = [`${songCount} Song${songCount === 1 ? '' : 's'}`];
     if (setlistCount > 0) parts.push(`${setlistCount} Setlist${setlistCount === 1 ? '' : 's'}`);
-    showToast(parts.join(' + ') + ' importiert (Bibliothek ersetzt)', 'success');
-    await loadSongs();
-    renderLibrary();
-    if (typeof pushOverwriteCloud === 'function' && cloud && cloud.user) {
-      await pushOverwriteCloud();
-    }
+    showToast(parts.join(' + ') + ` importiert (Ordner „${targetName}“ ersetzt)`, 'success');
+    await renderLibrary();
+    if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
   } catch (err) {
     showToast('Import fehlgeschlagen: ' + err.message, 'error');
     pendingImport = null;
