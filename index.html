@@ -2408,11 +2408,11 @@
       <div class="field-row">
         <div class="field">
           <label class="field-label">Titel</label>
-          <input class="field-input" id="ed-title" placeholder="Song-Titel">
+          <input class="field-input" id="ed-title" placeholder="Song-Titel" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" name="song-title-field" data-1p-ignore data-lpignore="true" data-form-type="other">
         </div>
         <div class="field">
           <label class="field-label">Künstler</label>
-          <input class="field-input" id="ed-artist" placeholder="Künstler / Band">
+          <input class="field-input" id="ed-artist" placeholder="Künstler / Band" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" name="song-artist-field" data-1p-ignore data-lpignore="true" data-form-type="other">
         </div>
       </div>
 
@@ -2684,21 +2684,25 @@
         Melde dich an, damit deine Songs automatisch zwischen PC und iPad synchronisiert werden.
         Import/Export per JSON bleibt weiterhin verfügbar.
       </p>
-      <div class="cloud-field">
-        <label class="field-label">E-Mail</label>
-        <input class="field-input" id="cloud-email" type="email" placeholder="du@beispiel.de" autocomplete="email">
-      </div>
-      <div class="cloud-field">
-        <label class="field-label">Passwort</label>
-        <input class="field-input" id="cloud-password" type="password" placeholder="Mindestens 6 Zeichen" autocomplete="current-password">
-      </div>
-      <div id="cloud-error" class="cloud-error" style="display:none;"></div>
-      <div class="modal-actions" style="margin-top:22px;">
-        <button class="btn" id="cloud-cancel">Abbrechen</button>
-        <div style="flex:1;"></div>
-        <button class="btn" id="cloud-register">Registrieren</button>
-        <button class="btn btn-primary" id="cloud-login">Anmelden</button>
-      </div>
+      <!-- Real <form> so the browser's password manager activates ONLY here,
+           never on the song editor. -->
+      <form id="cloud-form" onsubmit="return false;" autocomplete="on">
+        <div class="cloud-field">
+          <label class="field-label">E-Mail</label>
+          <input class="field-input" id="cloud-email" type="email" placeholder="du@beispiel.de" autocomplete="username" name="email">
+        </div>
+        <div class="cloud-field">
+          <label class="field-label">Passwort</label>
+          <input class="field-input" id="cloud-password" type="password" placeholder="Mindestens 6 Zeichen" autocomplete="current-password" name="password">
+        </div>
+        <div id="cloud-error" class="cloud-error" style="display:none;"></div>
+        <div class="modal-actions" style="margin-top:22px;">
+          <button type="button" class="btn" id="cloud-cancel">Abbrechen</button>
+          <div style="flex:1;"></div>
+          <button type="button" class="btn" id="cloud-register">Registrieren</button>
+          <button type="submit" class="btn btn-primary" id="cloud-login">Anmelden</button>
+        </div>
+      </form>
     </div>
 
     <!-- Logged IN state -->
@@ -3426,12 +3430,18 @@ const selection = {
 async function loadSongs() {
   state.songs = await dbAll();
   state.setlists = await setlistAll();
-  // Cleanup: remove deleted song IDs from setlists
-  const validIds = new Set(state.songs.map(s => s.id));
+  // Cleanup: drop setlist references to songs that are TRULY gone (deleted via
+  // tombstone), NOT songs that merely aren't in state.songs yet (which can
+  // happen mid-sync and used to wipe a freshly-added song out of its setlist).
+  let deletedIds;
+  try { deletedIds = new Set((getTombstones().songs) || []); }
+  catch { deletedIds = new Set(); }
   for (const sl of state.setlists) {
-    const filtered = (sl.songIds || []).filter(id => validIds.has(id));
-    if (filtered.length !== (sl.songIds || []).length) {
+    const before = (sl.songIds || []).length;
+    const filtered = (sl.songIds || []).filter(id => !deletedIds.has(id));
+    if (filtered.length !== before) {
       sl.songIds = filtered;
+      sl.updatedAt = Date.now();
       await setlistPut(sl);
     }
   }
@@ -4604,9 +4614,11 @@ async function syncEditorSetlistMembership() {
     const has = sl.songIds.includes(sid);
     if (wanted.has(sl.id) && !has) {
       sl.songIds.push(sid);
+      sl.updatedAt = Date.now();   // fresh stamp so cloud sync keeps this change
       await setlistPut(sl);
     } else if (!wanted.has(sl.id) && has) {
       sl.songIds = sl.songIds.filter(x => x !== sid);
+      sl.updatedAt = Date.now();
       await setlistPut(sl);
     }
   }
@@ -6699,19 +6711,35 @@ async function runSync(opts = {}) {
     const delSongs = new Set([...(tomb.songs || []), ...(remoteTomb.songs || [])]);
     const delSetlists = new Set([...(tomb.setlists || []), ...(remoteTomb.setlists || [])]);
 
-    // 4. Merge per id: keep the copy with the larger updatedAt (or createdAt)
-    const mergeById = (a, b, deleted) => {
+    // 4. Merge per id: keep the copy with the larger updatedAt (or createdAt).
+    //    On a TIE, prefer the LOCAL copy — the user just touched it on this
+    //    device, so it must never be clobbered by an equally-stamped remote.
+    //    (a = local is added first; only a strictly newer remote overrides it.)
+    const mergeById = (local, remote, deleted) => {
       const map = new Map();
       const stamp = x => (x.updatedAt || x.createdAt || 0);
-      for (const item of [...a, ...b]) {
+      for (const item of local) {
+        if (deleted.has(item.id)) continue;
+        map.set(item.id, item);
+      }
+      for (const item of remote) {
         if (deleted.has(item.id)) continue;
         const cur = map.get(item.id);
-        if (!cur || stamp(item) >= stamp(cur)) map.set(item.id, item);
+        if (!cur || stamp(item) > stamp(cur)) map.set(item.id, item);
       }
       return [...map.values()];
     };
-    const mergedSongs = mergeById(localSongs, remoteSongs, delSongs);
-    const mergedSetlists = mergeById(localSetlists, remoteSetlists, delSetlists);
+    let mergedSongs = mergeById(localSongs, remoteSongs, delSongs);
+    let mergedSetlists = mergeById(localSetlists, remoteSetlists, delSetlists);
+
+    // 4b. The remote .get() above is a network round-trip; the user may have
+    //     changed something locally WHILE it was in flight. Re-read the local
+    //     DB now and merge those fresh local changes on top, so an in-flight
+    //     "add song to setlist" is never wiped by the clear() below.
+    const freshSongs = await dbAll();
+    const freshSetlists = await setlistAll();
+    mergedSongs = mergeById(freshSongs, mergedSongs, delSongs);
+    mergedSetlists = mergeById(freshSetlists, mergedSetlists, delSetlists);
 
     // 5. Write merged result back to LOCAL db
     //    (replace everything so deletions take effect)
