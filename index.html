@@ -2066,6 +2066,44 @@
   .import-option-desc { color: var(--text-2); font-size: 13px; line-height: 1.5; }
   .import-option-danger:hover { border-color: #ff4757; }
 
+  /* Friends */
+  .friends-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    background: #ff4757; color: #fff; border-radius: 999px;
+    font-size: 11px; font-weight: 800; line-height: 1; margin-left: 4px;
+  }
+  #friends-btn { position: relative; }
+  #friends-btn .friends-badge { position: absolute; top: 4px; right: 4px; margin: 0; }
+  .friends-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .friends-tab {
+    padding: 10px 14px; background: transparent; border: none;
+    color: var(--text-1); font-weight: 600; font-size: 14px; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .friends-tab.active { color: var(--accent-soft); border-bottom-color: var(--accent); }
+  .friends-tab-body { min-height: 120px; max-height: 50vh; overflow-y: auto; }
+  .friend-row, .request-row, .search-row-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 8px; background: var(--bg-2);
+  }
+  .friend-row .f-name, .request-row .f-name, .search-row-item .f-name {
+    flex: 1; font-weight: 600;
+  }
+  .friend-row .f-actions, .request-row .f-actions, .search-row-item .f-actions { display: flex; gap: 6px; }
+  .f-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--accent); color: #fff; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; text-transform: uppercase;
+  }
+  .friends-search-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .friends-search-row .field-input { flex: 1; }
+  .friends-empty { color: var(--text-2); font-size: 14px; text-align: center; padding: 24px 0; }
+  .friends-section-label { font-size: 12px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; margin: 10px 0 8px; }
+  .btn-mini { padding: 8px 12px; font-size: 13px; }
+
   /* Cloud sync modal */
   .cloud-field { margin-bottom: 14px; }
   .cloud-field .field-label { display: block; margin-bottom: 6px; }
@@ -2384,6 +2422,11 @@
       <button class="btn btn-ghost" id="cloud-btn" title="Cloud-Sync (zwischen Geräten)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
         <span class="btn-label" id="cloud-btn-label">Cloud</span>
+      </button>
+      <button class="btn btn-ghost" id="friends-btn" title="Freunde & Songs teilen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="btn-label">Freunde</span>
+        <span class="friends-badge" id="friends-badge" style="display:none;">0</span>
       </button>
       <button class="btn btn-primary" id="new-song-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2863,6 +2906,65 @@
         <button class="btn" id="cloud-logout">Abmelden</button>
         <div style="flex:1;"></div>
         <button class="btn" id="cloud-sync-now">Jetzt synchronisieren</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Friends modal -->
+<div class="modal-backdrop" id="friends-modal">
+  <div class="modal modal-large">
+    <h3>👥 Freunde</h3>
+
+    <!-- Not signed in -->
+    <div id="friends-need-login" style="display:none;">
+      <p style="color:var(--text-1); margin:10px 0 16px;">Melde dich zuerst über den <strong>Cloud</strong>-Button an, um Freunde hinzuzufügen und Songs zu teilen.</p>
+      <div class="modal-actions"><button class="btn" id="friends-close-1">Schliessen</button></div>
+    </div>
+
+    <!-- Needs a username -->
+    <div id="friends-need-username" style="display:none;">
+      <p style="color:var(--text-1); margin:10px 0 12px;">Lege einen öffentlichen Benutzernamen fest, damit Freunde dich finden können.</p>
+      <div class="cloud-field">
+        <label class="field-label">Benutzername</label>
+        <input class="field-input" id="username-input" placeholder="z.B. bruce_piano" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <div id="username-error" class="cloud-error" style="display:none;"></div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="btn" id="friends-close-2">Abbrechen</button>
+        <div style="flex:1;"></div>
+        <button class="btn btn-primary" id="username-save">Speichern</button>
+      </div>
+    </div>
+
+    <!-- Main friends UI -->
+    <div id="friends-main" style="display:none;">
+      <p style="color:var(--text-2); font-size:13px; margin-bottom:12px;">Dein Benutzername: <strong id="friends-my-username">—</strong></p>
+      <div class="friends-tabs">
+        <button class="friends-tab active" data-tab="list">Freunde <span id="ftab-list-count"></span></button>
+        <button class="friends-tab" data-tab="requests">Anfragen <span class="friends-badge" id="ftab-req-badge" style="display:none;">0</span></button>
+        <button class="friends-tab" data-tab="add">Hinzufügen</button>
+      </div>
+
+      <div class="friends-tab-body" id="ftab-list">
+        <div id="friends-list-content"></div>
+      </div>
+
+      <div class="friends-tab-body" id="ftab-requests" style="display:none;">
+        <div id="friends-requests-incoming"></div>
+        <div id="friends-requests-outgoing"></div>
+      </div>
+
+      <div class="friends-tab-body" id="ftab-add" style="display:none;">
+        <div class="friends-search-row">
+          <input class="field-input" id="friend-search-input" placeholder="Benutzername suchen…" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false">
+          <button class="btn btn-primary" id="friend-search-btn">Suchen</button>
+        </div>
+        <div id="friend-search-results"></div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="btn" id="friends-close-3">Schliessen</button>
       </div>
     </div>
   </div>
@@ -7247,6 +7349,13 @@ const cloud = {
   user: null,
   syncing: false,
   unsub: null,
+  // Friends/sharing state
+  username: null,        // this user's public username (or null if not set)
+  friends: [],           // [{uid, username}]
+  incoming: [],          // incoming friend requests [{uid, username}]
+  outgoing: [],          // outgoing friend requests [{uid, username}]
+  inbox: [],             // received share items
+  friendsUnsub: null,    // live listener teardown
 };
 
 function isFirebaseConfigured() {
@@ -7297,6 +7406,14 @@ function initFirebase() {
       updateCloudUI();
       if (user && isAutoSyncOn()) {
         await runSync({ silent: true });
+      }
+      if (user) {
+        await loadMyProfile();
+        startFriendsListeners();
+      } else {
+        stopFriendsListeners();
+        cloud.username = null; cloud.friends = []; cloud.incoming = []; cloud.outgoing = []; cloud.inbox = [];
+        updateFriendsBadge();
       }
     });
     return true;
@@ -7350,6 +7467,317 @@ function friendlyAuthError(e) {
   if (c.includes('network')) return 'Keine Internetverbindung.';
   return (e && e.message) || 'Fehler bei der Anmeldung.';
 }
+
+// =====================================================
+//                   Friends & Sharing
+// =====================================================
+// Firestore layout:
+//   usernames/{username}          -> { uid }                    (public lookup)
+//   users/{uid}                   -> { username }               (public profile)
+//   users/{uid}/friends/{fUid}    -> { username, since }        (private)
+//   users/{uid}/incoming/{fUid}   -> { username, at }           (private)
+//   users/{uid}/outgoing/{fUid}   -> { username, at }           (private)
+//   users/{uid}/inbox/{itemId}    -> { ...share payload }       (private)
+
+function normalizeUsername(u) {
+  return (u || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+}
+
+async function loadMyProfile() {
+  if (!cloud.ready || !cloud.user) return;
+  try {
+    const doc = await cloud.db.collection('users').doc(cloud.user.uid).get();
+    cloud.username = doc.exists ? (doc.data().username || null) : null;
+  } catch (e) { console.warn('loadMyProfile failed', e); cloud.username = null; }
+}
+
+async function saveUsername(raw) {
+  const username = normalizeUsername(raw);
+  if (username.length < 3) throw new Error('Mindestens 3 Zeichen (a–z, 0–9, _).');
+  if (username.length > 20) throw new Error('Höchstens 20 Zeichen.');
+  const unameRef = cloud.db.collection('usernames').doc(username);
+  const userRef = cloud.db.collection('users').doc(cloud.user.uid);
+  // Claim the username transactionally so two people can't grab the same one.
+  await cloud.db.runTransaction(async (tx) => {
+    const snap = await tx.get(unameRef);
+    if (snap.exists && snap.data().uid !== cloud.user.uid) {
+      throw new Error('Benutzername bereits vergeben.');
+    }
+    // release an old username if changing
+    if (cloud.username && cloud.username !== username) {
+      tx.delete(cloud.db.collection('usernames').doc(cloud.username));
+    }
+    tx.set(unameRef, { uid: cloud.user.uid });
+    tx.set(userRef, { username }, { merge: true });
+  });
+  cloud.username = username;
+}
+
+// Live listeners for friends + requests + inbox so badges update in real time.
+function startFriendsListeners() {
+  stopFriendsListeners();
+  if (!cloud.ready || !cloud.user) return;
+  const base = cloud.db.collection('users').doc(cloud.user.uid);
+  const unsubs = [];
+  unsubs.push(base.collection('friends').onSnapshot(s => {
+    cloud.friends = s.docs.map(d => ({ uid: d.id, ...d.data() }));
+    renderFriendsModalIfOpen();
+  }, e => console.warn('friends listener', e)));
+  unsubs.push(base.collection('incoming').onSnapshot(s => {
+    cloud.incoming = s.docs.map(d => ({ uid: d.id, ...d.data() }));
+    updateFriendsBadge();
+    renderFriendsModalIfOpen();
+  }, e => console.warn('incoming listener', e)));
+  unsubs.push(base.collection('outgoing').onSnapshot(s => {
+    cloud.outgoing = s.docs.map(d => ({ uid: d.id, ...d.data() }));
+    renderFriendsModalIfOpen();
+  }, e => console.warn('outgoing listener', e)));
+  unsubs.push(base.collection('inbox').onSnapshot(s => {
+    cloud.inbox = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    updateFriendsBadge();
+    onInboxChanged();
+  }, e => console.warn('inbox listener', e)));
+  cloud.friendsUnsub = () => unsubs.forEach(fn => { try { fn(); } catch (e) {} });
+}
+function stopFriendsListeners() {
+  if (cloud.friendsUnsub) { cloud.friendsUnsub(); cloud.friendsUnsub = null; }
+}
+
+function updateFriendsBadge() {
+  const n = (cloud.incoming ? cloud.incoming.length : 0) + (cloud.inbox ? cloud.inbox.length : 0);
+  const badge = document.getElementById('friends-badge');
+  if (badge) { badge.textContent = String(n); badge.style.display = n > 0 ? 'inline-flex' : 'none'; }
+  const reqBadge = document.getElementById('ftab-req-badge');
+  const ri = cloud.incoming ? cloud.incoming.length : 0;
+  if (reqBadge) { reqBadge.textContent = String(ri); reqBadge.style.display = ri > 0 ? 'inline-flex' : 'none'; }
+}
+
+// Look up a username -> {uid, username} or null.
+async function lookupUsername(raw) {
+  const username = normalizeUsername(raw);
+  if (!username) return null;
+  const doc = await cloud.db.collection('usernames').doc(username).get();
+  if (!doc.exists) return null;
+  return { uid: doc.data().uid, username };
+}
+
+// Send a friend request: write to my outgoing + their incoming.
+async function sendFriendRequest(targetUid, targetUsername) {
+  if (targetUid === cloud.user.uid) throw new Error('Das bist du selbst.');
+  if (cloud.friends.some(f => f.uid === targetUid)) throw new Error('Ihr seid bereits Freunde.');
+  const me = cloud.user.uid;
+  const myName = cloud.username;
+  const at = Date.now();
+  const batch = cloud.db.batch();
+  batch.set(cloud.db.collection('users').doc(me).collection('outgoing').doc(targetUid), { username: targetUsername, at });
+  batch.set(cloud.db.collection('users').doc(targetUid).collection('incoming').doc(me), { username: myName, at });
+  await batch.commit();
+}
+
+// Accept an incoming request: add each other as friends, clear the request.
+async function acceptFriendRequest(fromUid, fromUsername) {
+  const me = cloud.user.uid;
+  const myName = cloud.username;
+  const since = Date.now();
+  const batch = cloud.db.batch();
+  batch.set(cloud.db.collection('users').doc(me).collection('friends').doc(fromUid), { username: fromUsername, since });
+  batch.set(cloud.db.collection('users').doc(fromUid).collection('friends').doc(me), { username: myName, since });
+  batch.delete(cloud.db.collection('users').doc(me).collection('incoming').doc(fromUid));
+  batch.delete(cloud.db.collection('users').doc(fromUid).collection('outgoing').doc(me));
+  await batch.commit();
+}
+
+async function declineFriendRequest(fromUid) {
+  const me = cloud.user.uid;
+  const batch = cloud.db.batch();
+  batch.delete(cloud.db.collection('users').doc(me).collection('incoming').doc(fromUid));
+  batch.delete(cloud.db.collection('users').doc(fromUid).collection('outgoing').doc(me));
+  await batch.commit();
+}
+
+async function cancelOutgoingRequest(toUid) {
+  const me = cloud.user.uid;
+  const batch = cloud.db.batch();
+  batch.delete(cloud.db.collection('users').doc(me).collection('outgoing').doc(toUid));
+  batch.delete(cloud.db.collection('users').doc(toUid).collection('incoming').doc(me));
+  await batch.commit();
+}
+
+async function removeFriend(friendUid) {
+  const me = cloud.user.uid;
+  const batch = cloud.db.batch();
+  batch.delete(cloud.db.collection('users').doc(me).collection('friends').doc(friendUid));
+  batch.delete(cloud.db.collection('users').doc(friendUid).collection('friends').doc(me));
+  await batch.commit();
+}
+
+// ---- Friends modal UI ----
+let friendsModalOpen = false;
+function openFriendsModal() {
+  friendsModalOpen = true;
+  document.getElementById('friends-modal').classList.add('show');
+  renderFriendsModal();
+}
+function closeFriendsModal() {
+  friendsModalOpen = false;
+  document.getElementById('friends-modal').classList.remove('show');
+}
+function renderFriendsModalIfOpen() { if (friendsModalOpen) renderFriendsModal(); }
+
+function renderFriendsModal() {
+  const needLogin = document.getElementById('friends-need-login');
+  const needUser = document.getElementById('friends-need-username');
+  const main = document.getElementById('friends-main');
+  needLogin.style.display = needUser.style.display = main.style.display = 'none';
+
+  if (!cloud.ready || !cloud.user) { needLogin.style.display = 'block'; return; }
+  if (!cloud.username) { needUser.style.display = 'block'; return; }
+
+  main.style.display = 'block';
+  document.getElementById('friends-my-username').textContent = '@' + cloud.username;
+
+  // Friends list
+  const fc = document.getElementById('friends-list-content');
+  document.getElementById('ftab-list-count').textContent = cloud.friends.length ? `(${cloud.friends.length})` : '';
+  if (cloud.friends.length === 0) {
+    fc.innerHTML = `<div class="friends-empty">Noch keine Freunde. Füge welche über „Hinzufügen“ hinzu.</div>`;
+  } else {
+    fc.innerHTML = cloud.friends.map(f => `
+      <div class="friend-row" data-uid="${escapeHtml(f.uid)}">
+        <span class="f-avatar">${escapeHtml((f.username||'?')[0])}</span>
+        <span class="f-name">@${escapeHtml(f.username||'?')}</span>
+        <div class="f-actions">
+          <button class="btn btn-mini" data-act="share" data-uid="${escapeHtml(f.uid)}" data-name="${escapeHtml(f.username||'')}">Senden</button>
+          <button class="btn btn-mini" data-act="remove" data-uid="${escapeHtml(f.uid)}">Entfernen</button>
+        </div>
+      </div>`).join('');
+  }
+
+  // Requests
+  updateFriendsBadge();
+  const inc = document.getElementById('friends-requests-incoming');
+  const out = document.getElementById('friends-requests-outgoing');
+  inc.innerHTML = `<div class="friends-section-label">Eingehend</div>` + (cloud.incoming.length === 0
+    ? `<div class="friends-empty">Keine eingehenden Anfragen.</div>`
+    : cloud.incoming.map(r => `
+      <div class="request-row" data-uid="${escapeHtml(r.uid)}">
+        <span class="f-avatar">${escapeHtml((r.username||'?')[0])}</span>
+        <span class="f-name">@${escapeHtml(r.username||'?')}</span>
+        <div class="f-actions">
+          <button class="btn btn-mini btn-primary" data-act="accept" data-uid="${escapeHtml(r.uid)}" data-name="${escapeHtml(r.username||'')}">Annehmen</button>
+          <button class="btn btn-mini" data-act="decline" data-uid="${escapeHtml(r.uid)}">Ablehnen</button>
+        </div>
+      </div>`).join(''));
+  out.innerHTML = `<div class="friends-section-label">Gesendet</div>` + (cloud.outgoing.length === 0
+    ? `<div class="friends-empty">Keine gesendeten Anfragen.</div>`
+    : cloud.outgoing.map(r => `
+      <div class="request-row" data-uid="${escapeHtml(r.uid)}">
+        <span class="f-avatar">${escapeHtml((r.username||'?')[0])}</span>
+        <span class="f-name">@${escapeHtml(r.username||'?')} <span style="color:var(--text-2);font-weight:400;">· wartet</span></span>
+        <div class="f-actions">
+          <button class="btn btn-mini" data-act="cancel" data-uid="${escapeHtml(r.uid)}">Zurückziehen</button>
+        </div>
+      </div>`).join(''));
+
+  bindFriendRowActions();
+}
+
+function bindFriendRowActions() {
+  document.querySelectorAll('#friends-main [data-act]').forEach(btn => {
+    btn.onclick = async () => {
+      const uid = btn.dataset.uid;
+      const name = btn.dataset.name || '';
+      const act = btn.dataset.act;
+      btn.disabled = true;
+      try {
+        if (act === 'accept') { await acceptFriendRequest(uid, name); showToast(`@${name} ist jetzt dein Freund`, 'success'); }
+        else if (act === 'decline') { await declineFriendRequest(uid); }
+        else if (act === 'cancel') { await cancelOutgoingRequest(uid); }
+        else if (act === 'remove') {
+          const ok = await confirmDialog('Freund entfernen?', `@${(cloud.friends.find(f=>f.uid===uid)||{}).username||''} aus deiner Freundesliste entfernen?`);
+          if (ok) await removeFriend(uid);
+        }
+        else if (act === 'share') { openShareModal({ kind: 'pick' }, uid, name); }
+      } catch (e) { showToast('Fehler: ' + (e.message || e), 'error'); }
+      btn.disabled = false;
+    };
+  });
+}
+
+// Tab switching
+document.querySelectorAll('.friends-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.friends-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('ftab-list').style.display = tab.dataset.tab === 'list' ? 'block' : 'none';
+    document.getElementById('ftab-requests').style.display = tab.dataset.tab === 'requests' ? 'block' : 'none';
+    document.getElementById('ftab-add').style.display = tab.dataset.tab === 'add' ? 'block' : 'none';
+  });
+});
+
+// Friend search
+document.getElementById('friend-search-btn').addEventListener('click', async () => {
+  const q = document.getElementById('friend-search-input').value;
+  const box = document.getElementById('friend-search-results');
+  const uname = normalizeUsername(q);
+  if (!uname) { box.innerHTML = `<div class="friends-empty">Gib einen Benutzernamen ein.</div>`; return; }
+  box.innerHTML = `<div class="friends-empty">Suche…</div>`;
+  try {
+    const found = await lookupUsername(uname);
+    if (!found) { box.innerHTML = `<div class="friends-empty">Kein Benutzer „@${escapeHtml(uname)}“ gefunden.</div>`; return; }
+    if (found.uid === cloud.user.uid) { box.innerHTML = `<div class="friends-empty">Das bist du selbst.</div>`; return; }
+    const already = cloud.friends.some(f => f.uid === found.uid);
+    const pending = cloud.outgoing.some(o => o.uid === found.uid);
+    box.innerHTML = `
+      <div class="search-row-item" data-uid="${escapeHtml(found.uid)}">
+        <span class="f-avatar">${escapeHtml(found.username[0])}</span>
+        <span class="f-name">@${escapeHtml(found.username)}</span>
+        <div class="f-actions">
+          ${already ? '<span style="color:var(--text-2);font-size:13px;">Bereits Freund</span>'
+            : pending ? '<span style="color:var(--text-2);font-size:13px;">Anfrage gesendet</span>'
+            : `<button class="btn btn-mini btn-primary" id="send-req-btn" data-uid="${escapeHtml(found.uid)}" data-name="${escapeHtml(found.username)}">Anfrage senden</button>`}
+        </div>
+      </div>`;
+    const sb = document.getElementById('send-req-btn');
+    if (sb) sb.onclick = async () => {
+      sb.disabled = true;
+      try { await sendFriendRequest(sb.dataset.uid, sb.dataset.name); showToast('Anfrage gesendet', 'success'); renderFriendsModal(); }
+      catch (e) { showToast('Fehler: ' + (e.message || e), 'error'); sb.disabled = false; }
+    };
+  } catch (e) { box.innerHTML = `<div class="friends-empty">Suche fehlgeschlagen: ${escapeHtml(e.message||'')}</div>`; }
+});
+document.getElementById('friend-search-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('friend-search-btn').click(); }
+});
+
+// Username save
+document.getElementById('username-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('username-error');
+  errEl.style.display = 'none';
+  const val = document.getElementById('username-input').value;
+  const btn = document.getElementById('username-save');
+  btn.disabled = true;
+  try {
+    await saveUsername(val);
+    showToast('Benutzername gespeichert: @' + cloud.username, 'success');
+    renderFriendsModal();
+    startFriendsListeners();
+  } catch (e) { errEl.textContent = e.message || 'Fehler'; errEl.style.display = 'block'; }
+  btn.disabled = false;
+});
+
+document.getElementById('friends-btn').addEventListener('click', () => { initFirebase(); openFriendsModal(); });
+['friends-close-1','friends-close-2','friends-close-3'].forEach(id => {
+  const el = document.getElementById(id); if (el) el.addEventListener('click', closeFriendsModal);
+});
+document.getElementById('friends-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'friends-modal') closeFriendsModal();
+});
+
+// Placeholders filled in Phase 2/3 (sharing + inbox). Defined now so Phase-1
+// listeners/handlers referencing them don't throw.
+function openShareModal() { showToast('Senden kommt im nächsten Schritt', 'error'); }
+function onInboxChanged() { /* inbox UI added in Phase 3 */ }
 
 // ---- Merge sync: newest updatedAt wins; tombstones remove items everywhere ----
 async function runSync(opts = {}) {

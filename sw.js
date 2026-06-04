@@ -6,7 +6,7 @@
 // and in the background try to refresh the cache from the network.
 // Next page load will pick up the new version automatically.
 
-const CACHE_VERSION = 'v82';
+const CACHE_VERSION = 'v83';
 const CACHE_NAME = `lyrics-app-${CACHE_VERSION}`;
 
 // Files that make up the app shell.
