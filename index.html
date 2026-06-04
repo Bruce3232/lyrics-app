@@ -2885,7 +2885,19 @@
     <!-- Logged IN state -->
     <div id="cloud-logged-in" style="display:none;">
       <p style="color:var(--text-1); margin-bottom:6px;">Angemeldet als</p>
-      <p id="cloud-user-email" style="font-weight:700; font-size:16px; margin-bottom:18px;">—</p>
+      <p id="cloud-user-email" style="font-weight:700; font-size:16px; margin-bottom:14px;">—</p>
+
+      <!-- Profile: public username for friends -->
+      <div class="cloud-field">
+        <label class="field-label">Öffentlicher Benutzername (für Freunde)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input class="field-input" id="cloud-username-input" placeholder="z.B. bruce_piano" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" style="flex:1;">
+          <button class="btn btn-primary" id="cloud-username-save">Speichern</button>
+        </div>
+        <div id="cloud-username-error" class="cloud-error" style="display:none; margin-top:8px;"></div>
+        <p style="color:var(--text-2); font-size:12px; margin-top:6px;">Damit können dich Freunde finden und dir Songs schicken. Du kannst ihn jederzeit ändern.</p>
+      </div>
+      <div style="height:6px;"></div>
 
       <div class="cloud-status-row">
         <span class="cloud-status-label">Auto-Sync</span>
@@ -7435,6 +7447,11 @@ function updateCloudUI() {
     if (em) em.textContent = cloud.user.email || '(angemeldet)';
     const tgl = document.getElementById('cloud-autosync-toggle');
     if (tgl) tgl.checked = isAutoSyncOn();
+    // Show current public username in the profile field (if known).
+    const unameInput = document.getElementById('cloud-username-input');
+    if (unameInput && cloud.username && document.activeElement !== unameInput) {
+      unameInput.value = cloud.username;
+    }
     if (label) label.textContent = 'Cloud';
     if (btn) btn.classList.add('synced');
     const last = localStorage.getItem('lyrics-last-sync');
@@ -7969,6 +7986,27 @@ document.getElementById('cloud-sync-now').addEventListener('click', () => runSyn
 document.getElementById('cloud-autosync-toggle').addEventListener('change', (e) => {
   setAutoSync(e.target.checked);
   if (e.target.checked) runSync({ silent: true });
+});
+
+// Save / change public username from the Cloud profile section.
+document.getElementById('cloud-username-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('cloud-username-error');
+  errEl.style.display = 'none';
+  const val = document.getElementById('cloud-username-input').value;
+  const btn = document.getElementById('cloud-username-save');
+  btn.disabled = true;
+  try {
+    if (!cloud.ready || !cloud.user) throw new Error('Bitte zuerst anmelden.');
+    const before = cloud.username;
+    await saveUsername(val);
+    showToast(before ? 'Benutzername geändert: @' + cloud.username : 'Benutzername gespeichert: @' + cloud.username, 'success');
+    startFriendsListeners();
+    renderFriendsModalIfOpen();
+  } catch (e) {
+    errEl.textContent = e.message || 'Fehler';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
 });
 
 // Boot Firebase early so a persisted login auto-syncs on app open.
