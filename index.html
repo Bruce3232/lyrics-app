@@ -2023,8 +2023,20 @@
     transform: translateX(22px); background: #fff;
   }
   /* Small sync status dot on the Cloud topbar button */
-  #cloud-btn.synced #cloud-btn-label::after { content: ' ✓'; color: #2ecc71; }
-  #cloud-btn.syncing #cloud-btn-label::after { content: ' …'; }
+  /* Sync status: a small dot on the cloud icon itself, so it stays visible
+     even when the text label is hidden on narrow screens. */
+  #cloud-btn { position: relative; }
+  #cloud-btn.synced::after,
+  #cloud-btn.syncing::after {
+    content: '';
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+  }
+  #cloud-btn.synced::after { background: #2ecc71; }
+  #cloud-btn.syncing::after { background: #f1c40f; }
 
   /* Personalize modal */
   .pers-section { margin-bottom: 20px; }
@@ -2161,6 +2173,22 @@
       padding-right: 28px;
       max-width: 700px;
     }
+
+    /* Library topbar: too many buttons to fit with text on a narrow screen.
+       Collapse the secondary buttons to icon-only (labels hidden) and tighten
+       spacing so everything fits on one row. The primary "Neuer Song" keeps
+       its label. */
+    .topbar { gap: 8px; padding: 14px 16px; }
+    .topbar .btn-ghost { padding: 10px; }
+    .topbar .btn-ghost .btn-label { display: none; }
+    .topbar .btn svg { margin: 0; }
+    .brand span { display: none; }   /* logo mark only, frees the most space */
+  }
+
+  /* Very narrow (phones): even the primary button drops its label to an icon. */
+  @media (max-width: 560px) {
+    .topbar .btn-label-newsong { display: none; }
+    .topbar .btn-primary { padding: 10px; }
   }
 
   /* iPad-optimized touch targets */
@@ -2215,9 +2243,9 @@
   @media (max-width: 600px) {
     #library-view .body { padding: 16px 14px 60px; }
     .library-title { font-size: 24px; }
-    .topbar { padding: 8px 12px; gap: 6px; flex-wrap: wrap; }
-    .btn { padding: 8px 12px; font-size: 13px; }
-    .btn svg { width: 14px; height: 14px; }
+    .topbar { padding: 8px 10px; gap: 4px; }
+    .topbar .btn-ghost { padding: 9px; }
+    .btn { font-size: 13px; }
     .editor-split { min-height: 240px; }
     .editor-preview { max-height: 40vh; font-size: 14px; }
     .field-textarea { min-height: 220px; font-size: 14px; }
@@ -2252,27 +2280,27 @@
       </button>
       <button class="btn btn-ghost" id="select-btn" title="Mehrere Songs auswählen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Auswählen
+        <span class="btn-label">Auswählen</span>
       </button>
       <button class="btn btn-ghost" id="personalize-btn" title="Farbe & Einstellungen anpassen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.504 5.555-5.555C21.992 6.012 17.516 2 12 2z"/></svg>
-        Personalisieren
+        <span class="btn-label">Personalisieren</span>
       </button>
       <button class="btn btn-ghost" id="import-btn" title="Songs aus JSON importieren">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Import
+        <span class="btn-label">Import</span>
       </button>
       <button class="btn btn-ghost" id="export-btn" title="Alle Songs exportieren">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Export
+        <span class="btn-label">Export</span>
       </button>
       <button class="btn btn-ghost" id="cloud-btn" title="Cloud-Sync (zwischen Geräten)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-        <span id="cloud-btn-label">Cloud</span>
+        <span class="btn-label" id="cloud-btn-label">Cloud</span>
       </button>
       <button class="btn btn-primary" id="new-song-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Neuer Song
+        <span class="btn-label-newsong">Neuer Song</span>
       </button>
     </div>
 
