@@ -1459,20 +1459,32 @@
     min-height: 1.5em;
     text-shadow: var(--lyric-shadow);
   }
+  /* Chord-only line: a flex-WRAP row so chords flow onto the next line at
+     large font sizes / narrow screens instead of overflowing to the right. */
   .lyric-line.chord {
     font-weight: 700;
     line-height: 1.6;
     margin-bottom: 2px;
     color: transparent;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.5ch;
+    row-gap: 4px;
+    white-space: normal;   /* override .lyric-line { white-space: pre } */
+  }
+  .lyric-line.chord .chord-tok {
+    display: inline-flex;
+    align-items: baseline;
+    flex: 0 0 auto;        /* don't shrink — never squash a chord */
   }
   .lyric-line.chord .chord-chip {
-    display: inline;
+    display: inline-block;
     background: var(--chord-chip-bg);
     color: var(--chord-chip-color);
     border: 1px solid var(--chord-chip-border);
     border-radius: 5px;
-    padding: 1px 5px;
-    margin: 0 -6px;
+    padding: 1px 6px;
     font-weight: 600;
     font-size: 0.78em;
     white-space: nowrap;
@@ -3185,29 +3197,32 @@ function displayChord(chord) {
   return transposeChord(chord, n);
 }
 
+// Chord-only line (solo / instrumental). Rendered as a flex-WRAP row of chip
+// tokens so it never runs off the right edge — at large font sizes the chords
+// wrap onto the next line instead of being clipped. The original spacing is
+// preserved as gaps: a run of N spaces becomes a proportional left margin on
+// the following token, but everything stays wrappable.
 function renderChordLineHtml(line) {
   const out = [];
   const re = /\S+/g;
   let lastIdx = 0;
   let m;
   while ((m = re.exec(line)) !== null) {
-    if (m.index > lastIdx) {
-      out.push(escapeHtml(line.slice(lastIdx, m.index)));
-    }
+    // How many spaces preceded this token? Convey it as extra gap (capped) so
+    // wide gaps in the source stay visible but don't force overflow.
+    const gap = m.index - lastIdx;
+    const extraGap = gap > 1 ? Math.min(gap - 1, 8) : 0;
+    const style = extraGap > 0 ? ` style="margin-left:${extraGap * 0.45}ch;"` : '';
     const tok = m[0];
     if (CHORD_ANNO.test(tok) || isParenNote(tok)) {
-      // Annotations (*, N.C.) and paren notes ((hold), (2x)) stay as visible
-      // text, NOT transposed chord chips.
-      out.push(`<span class="chord-anno">${escapeHtml(tok)}</span>`);
+      out.push(`<span class="chord-tok chord-anno"${style}>${escapeHtml(tok)}</span>`);
     } else if (isChordSep(tok)) {
-      // Bar lines / repeat marks / operators stay as plain text.
-      out.push(`<span class="chord-sep">${escapeHtml(tok)}</span>`);
+      out.push(`<span class="chord-tok chord-sep"${style}>${escapeHtml(tok)}</span>`);
     } else {
-      out.push(`<span class="chord-chip">${escapeHtml(displayChord(tok))}</span>`);
+      out.push(`<span class="chord-tok"><span class="chord-chip"${style}>${escapeHtml(displayChord(tok))}</span></span>`);
     }
     lastIdx = m.index + m[0].length;
   }
-  if (lastIdx < line.length) out.push(escapeHtml(line.slice(lastIdx)));
   return out.join('');
 }
 
