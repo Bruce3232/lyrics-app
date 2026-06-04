@@ -2759,11 +2759,15 @@ function confirmDialog(title, text) {
 // and the quality part is permissive: any run of the known quality tokens,
 // digits, accidentals, and tension parens.
 const NOTE_RE = '[A-G][b#♭♯]?';
-const QUALITY_WORD = '(?:maj|major|min|minor|m|M|dim|aug|sus|add|alt|aug|dom|no|omit|ø|°|\\+|-)';
+// NOTE: bare "o" is intentionally NOT a quality word — it would falsely match
+// lyric words like "Go", "Do", "Bo" (G/D/B are note names). Use "dim"/"°"/"ø"
+// for diminished instead.
+const QUALITY_WORD = '(?:maj|major|ma|min|minor|m|M|dim|aug|sus|add|alt|dom|no|omit|ø|°|\\+|-)';
 const TENSION = '(?:[#b♯♭]?(?:5|6|7|9|11|13|2|4))';
-// quality = optional run of: quality-words, tensions, raw digits, parenthesised
-// tension groups. Allows things like m7b5, 7#9, maj9#11, 13(b9), sus4add9.
-const QUALITY_RE = `(?:${QUALITY_WORD}|${TENSION}|[0-9]|\\([#b♯♭0-9, a-zA-Z]*\\))*`;
+// quality = optional run of: quality-words, tensions, raw digits, "/9"-style
+// added-tone slashes (C6/9), and parenthesised tension groups. Allows m7b5,
+// 7#9, maj9#11, 13(b9), sus4add9, 6/9, ma7, o7, etc.
+const QUALITY_RE = `(?:${QUALITY_WORD}|${TENSION}|[0-9]|\\/(?:9|6|11|13)|\\([#b♯♭0-9, a-zA-Z]*\\))*`;
 const CHORD_TOKEN = new RegExp(`^${NOTE_RE}${QUALITY_RE}(?:\\/${NOTE_RE})?$`);
 const CHORD_ANNO = /^(\*+|N\.?C\.?|x[0-9]+)$/;
 // Pure separator/symbol tokens that are ALLOWED to appear between chords in a
