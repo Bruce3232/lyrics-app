@@ -613,6 +613,65 @@
   }
 
   /* Setlist Pills */
+  /* Folder / library switcher */
+  .folder-switch-row {
+    margin-bottom: 14px;
+  }
+  .folder-switch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    color: var(--text-0);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+    touch-action: manipulation;
+  }
+  .folder-switch-btn:hover { border-color: var(--accent); }
+  .folder-switch-btn svg { width: 18px; height: 18px; color: var(--accent-soft); }
+  .folder-switch-caret { width: 16px; height: 16px; opacity: 0.7; color: var(--text-1); }
+  .folder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 50vh;
+    overflow-y: auto;
+    margin-bottom: 14px;
+  }
+  .folder-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-2);
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+    touch-action: manipulation;
+  }
+  .folder-item:hover { border-color: var(--accent); }
+  .folder-item.active { border-color: var(--accent); background: rgba(255,140,26,0.08); }
+  .folder-item .folder-icon { color: var(--accent-soft); flex-shrink: 0; }
+  .folder-item .folder-name { flex: 1; font-weight: 600; }
+  .folder-item .folder-meta { color: var(--text-2); font-size: 13px; }
+  .folder-item .folder-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .folder-item .folder-act {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; background: transparent; color: var(--text-1);
+    border-radius: 6px; cursor: pointer;
+  }
+  .folder-item .folder-act:hover { background: rgba(255,255,255,0.08); color: var(--text-0); }
+  .folder-item .folder-act svg { width: 16px; height: 16px; }
+  .folder-new-row { display: flex; gap: 8px; }
+  .folder-new-row .field-input { flex: 1; }
+
   .setlist-bar {
     display: flex;
     gap: 6px;
@@ -2322,6 +2381,15 @@
         <p class="library-subtitle">Klicke einen Song zum Spielen, oder erstelle einen neuen.</p>
       </div>
 
+      <!-- Folder / library switcher -->
+      <div class="folder-switch-row">
+        <button class="folder-switch-btn" id="folder-switch-btn" title="Bibliothek / Ordner wechseln">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="folder-switch-name">Hauptbibliothek</span>
+          <svg class="folder-switch-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+
       <div class="setlist-bar" id="setlist-bar"></div>
 
       <div class="selection-bar" id="selection-bar" style="display:none;">
@@ -2685,6 +2753,22 @@
   </div>
 </div>
 
+<!-- Folder switcher modal -->
+<div class="modal-backdrop" id="folder-modal">
+  <div class="modal modal-large">
+    <h3>📁 Bibliotheken / Ordner</h3>
+    <p style="color:var(--text-1); margin-bottom:14px;">Wähle eine Bibliothek oder erstelle einen neuen Ordner. Jeder Ordner hat eigene Songs und Setlists.</p>
+    <div class="folder-list" id="folder-list"></div>
+    <div class="folder-new-row">
+      <input class="field-input" id="folder-new-name" placeholder="Neuer Ordner-Name" maxlength="40" autocomplete="off">
+      <button class="btn btn-primary" id="folder-new-btn">Erstellen</button>
+    </div>
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="folder-close">Schliessen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Cloud sync modal -->
 <div class="modal-backdrop" id="cloud-modal">
   <div class="modal modal-large">
@@ -2783,9 +2867,15 @@
 //                   IndexedDB
 // =====================================================
 const DB_NAME = 'LyricsViewerDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = 'songs';
 const SETLIST_STORE = 'setlists';
+const FOLDER_STORE = 'folders';
+
+// The default folder every existing song/setlist (and anything without a
+// folderId) belongs to. It is virtual — always present, can't be deleted.
+const MAIN_FOLDER_ID = 'main';
+const MAIN_FOLDER_NAME = 'Hauptbibliothek';
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -2797,6 +2887,9 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains(SETLIST_STORE)) {
         db.createObjectStore(SETLIST_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(FOLDER_STORE)) {
+        db.createObjectStore(FOLDER_STORE, { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -2854,6 +2947,21 @@ const setlistGet = (id) => storeGet(SETLIST_STORE, id);
 const setlistPut = (sl) => storePut(SETLIST_STORE, sl);
 const setlistDelete = (id) => storeDelete(SETLIST_STORE, id);
 
+// Folder CRUD. The MAIN folder is virtual (not stored) and always exists.
+const folderAll = () => storeAll(FOLDER_STORE);
+const folderPut = (f) => storePut(FOLDER_STORE, f);
+const folderDelete = (id) => storeDelete(FOLDER_STORE, id);
+// Returns the full folder list including the always-present main folder first.
+async function foldersWithMain() {
+  const stored = await folderAll();
+  stored.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  return [{ id: MAIN_FOLDER_ID, name: MAIN_FOLDER_NAME, createdAt: 0 }, ...stored];
+}
+// A song/setlist with no folderId (legacy data) belongs to the main folder.
+function effectiveFolderId(item) {
+  return (item && item.folderId) ? item.folderId : MAIN_FOLDER_ID;
+}
+
 async function dbGet(id) {
   const db = await openDB();
   return new Promise((res, rej) => {
@@ -2906,9 +3014,11 @@ async function dbAll() {
 const state = {
   view: 'library',
   currentSong: null,
-  songs: [],
-  setlists: [],
-  currentSetlistId: null, // null = "Alle Songs"
+  songs: [],          // ALL songs across every folder (filtered per folder in the UI)
+  setlists: [],       // ALL setlists across every folder
+  folders: [],        // folder list incl. virtual main, from foldersWithMain()
+  currentFolderId: MAIN_FOLDER_ID, // which folder/library is currently shown
+  currentSetlistId: null, // null = "Alle Songs" (within the current folder)
   transpose: 0, // semitones the current performance is shifted up/down (-11..+11)
 };
 
@@ -3465,6 +3575,13 @@ const selection = {
 async function loadSongs() {
   state.songs = await dbAll();
   state.setlists = await setlistAll();
+  state.folders = await foldersWithMain();
+  // If the currently selected folder no longer exists (deleted elsewhere),
+  // fall back to the main library.
+  if (!state.folders.some(f => f.id === state.currentFolderId)) {
+    state.currentFolderId = MAIN_FOLDER_ID;
+    state.currentSetlistId = null;
+  }
   // Cleanup: drop setlist references to songs that are TRULY gone (deleted via
   // tombstone), NOT songs that merely aren't in state.songs yet (which can
   // happen mid-sync and used to wipe a freshly-added song out of its setlist).
@@ -3482,21 +3599,32 @@ async function loadSongs() {
   }
 }
 
+// Songs / setlists that belong to the currently-shown folder.
+function songsInCurrentFolder() {
+  return state.songs.filter(s => effectiveFolderId(s) === state.currentFolderId);
+}
+function setlistsInCurrentFolder() {
+  return state.setlists.filter(sl => effectiveFolderId(sl) === state.currentFolderId);
+}
+
 function getFilteredSongs() {
   let result;
   let preserveOrder = false;
 
+  // Everything is scoped to the current folder first.
+  const folderSongs = songsInCurrentFolder();
+
   if (state.currentSetlistId) {
     const setlist = state.setlists.find(s => s.id === state.currentSetlistId);
     if (setlist) {
-      const songMap = new Map(state.songs.map(s => [s.id, s]));
+      const songMap = new Map(folderSongs.map(s => [s.id, s]));
       result = (setlist.songIds || []).map(id => songMap.get(id)).filter(Boolean);
       preserveOrder = true;
     } else {
       result = [];
     }
   } else {
-    result = [...state.songs];
+    result = [...folderSongs];
   }
 
   const q = filterState.search.trim().toLowerCase();
@@ -3529,7 +3657,7 @@ function getFilteredSongs() {
 
 function getUniqueArtists() {
   const set = new Set();
-  for (const s of state.songs) {
+  for (const s of songsInCurrentFolder()) {
     const a = (s.artist || '').trim();
     if (a) set.add(a);
   }
@@ -4337,22 +4465,20 @@ document.getElementById('select-delete-btn').addEventListener('click', async () 
 function renderSetlistBar() {
   const bar = document.getElementById('setlist-bar');
   if (!bar) return;
-  if (state.songs.length === 0) {
-    bar.style.display = 'none';
-    return;
-  }
+  const folderSongs = songsInCurrentFolder();
+  const folderSetlists = setlistsInCurrentFolder();
   bar.style.display = 'flex';
 
   const allActive = state.currentSetlistId === null ? 'active' : '';
-  const totalCount = state.songs.length;
+  const totalCount = folderSongs.length;
   let html = `<button class="setlist-pill ${allActive}" data-id="">Alle Songs <span class="setlist-pill-count">${totalCount}</span></button>`;
-  for (const sl of state.setlists) {
+  for (const sl of folderSetlists) {
     const count = (sl.songIds || []).length;
     const isActive = state.currentSetlistId === sl.id ? 'active' : '';
     html += `<button class="setlist-pill ${isActive}" data-id="${sl.id}">${escapeHtml(sl.name)} <span class="setlist-pill-count">${count}</span></button>`;
   }
   html += `<button class="setlist-pill setlist-pill-add" id="setlist-add-pill" title="Neue Setlist erstellen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Neu</button>`;
-  if (state.setlists.length > 0) {
+  if (folderSetlists.length > 0) {
     html += `<button class="setlist-pill setlist-manage-pill" id="setlist-manage-pill" title="Setlists verwalten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
   }
   bar.innerHTML = html;
@@ -4379,6 +4505,7 @@ async function createNewSetlistInline() {
     id: 'setlist_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
     name: name.trim(),
     songIds: [],
+    folderId: state.currentFolderId === MAIN_FOLDER_ID ? undefined : state.currentFolderId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -4405,13 +4532,20 @@ async function renderLibrary() {
   const countEl = document.getElementById('results-count');
   const setlistBar = document.getElementById('setlist-bar');
 
-  if (state.songs.length === 0) {
+  // The folder switcher is always shown so the user can move between (even
+  // empty) folders. Songs/filters are scoped to the current folder.
+  renderFolderSwitcher();
+  const folderSongCount = songsInCurrentFolder().length;
+
+  if (folderSongCount === 0) {
     list.innerHTML = '';
     countEl.textContent = '';
     empty.style.display = 'block';
     filterBar.style.display = 'none';
     alphaBar.style.display = 'none';
-    if (setlistBar) setlistBar.style.display = 'none';
+    // Still show the setlist bar (so "+ Neu" works) when there are folders to
+    // populate, but hide it in a truly empty main library to keep it clean.
+    renderSetlistBar();
     document.getElementById('no-results').style.display = 'none';
     return;
   }
@@ -4425,6 +4559,150 @@ async function renderLibrary() {
   updateSelectionBarButtons();
   renderSongList();
 }
+
+// ===== Folder switcher =====
+function renderFolderSwitcher() {
+  const nameEl = document.getElementById('folder-switch-name');
+  if (!nameEl) return;
+  const cur = state.folders.find(f => f.id === state.currentFolderId);
+  nameEl.textContent = cur ? cur.name : MAIN_FOLDER_NAME;
+}
+
+function songCountForFolder(folderId) {
+  return state.songs.filter(s => effectiveFolderId(s) === folderId).length;
+}
+
+function renderFolderList() {
+  const listEl = document.getElementById('folder-list');
+  if (!listEl) return;
+  const editSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  const delSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>';
+  const folderSvg = '<svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+
+  listEl.innerHTML = state.folders.map(f => {
+    const active = f.id === state.currentFolderId ? ' active' : '';
+    const count = songCountForFolder(f.id);
+    const isMain = f.id === MAIN_FOLDER_ID;
+    const actions = isMain ? '' :
+      `<div class="folder-actions">
+         <button class="folder-act" data-act="rename" data-id="${escapeHtml(f.id)}" title="Umbenennen">${editSvg}</button>
+         <button class="folder-act" data-act="delete" data-id="${escapeHtml(f.id)}" title="Löschen">${delSvg}</button>
+       </div>`;
+    return `<div class="folder-item${active}" data-id="${escapeHtml(f.id)}">
+      ${folderSvg}
+      <span class="folder-name">${escapeHtml(f.name)}</span>
+      <span class="folder-meta">${count} Song${count === 1 ? '' : 's'}</span>
+      ${actions}
+    </div>`;
+  }).join('');
+
+  // Switch folder on row click (but not when clicking an action button).
+  listEl.querySelectorAll('.folder-item').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.folder-act')) return;
+      switchFolder(row.dataset.id);
+    });
+  });
+  listEl.querySelectorAll('.folder-act').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      if (btn.dataset.act === 'rename') await renameFolder(id);
+      else if (btn.dataset.act === 'delete') await deleteFolder(id);
+    });
+  });
+}
+
+function openFolderModal() {
+  renderFolderList();
+  document.getElementById('folder-modal').classList.add('show');
+}
+function closeFolderModal() {
+  document.getElementById('folder-modal').classList.remove('show');
+}
+
+function switchFolder(folderId) {
+  if (!folderId) folderId = MAIN_FOLDER_ID;
+  state.currentFolderId = folderId;
+  state.currentSetlistId = null; // reset to "Alle Songs" within the new folder
+  exitSelectionMode && exitSelectionMode();
+  closeFolderModal();
+  renderLibrary();
+}
+
+async function createFolder(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+  const folder = {
+    id: 'folder_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+    name: trimmed,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  await folderPut(folder);
+  state.folders = await foldersWithMain();
+  return folder;
+}
+
+async function renameFolder(id) {
+  const f = state.folders.find(x => x.id === id);
+  if (!f) return;
+  const name = prompt('Ordner umbenennen:', f.name);
+  if (!name || !name.trim()) return;
+  f.name = name.trim();
+  f.updatedAt = Date.now();
+  await folderPut(f);
+  state.folders = await foldersWithMain();
+  renderFolderList();
+  renderFolderSwitcher();
+}
+
+async function deleteFolder(id) {
+  const f = state.folders.find(x => x.id === id);
+  if (!f || id === MAIN_FOLDER_ID) return;
+  const count = songCountForFolder(id);
+  const ok = await confirmDialog(
+    `Ordner "${f.name}" löschen?`,
+    count > 0
+      ? `Der Ordner und seine ${count} Song${count === 1 ? '' : 's'} (+ Setlists) werden endgültig gelöscht.`
+      : `Der leere Ordner wird gelöscht.`
+  );
+  if (!ok) return;
+  // Delete the folder's songs + setlists, then the folder itself.
+  for (const s of state.songs.filter(s => effectiveFolderId(s) === id)) {
+    try { await dbDelete(s.id); } catch (e) {}
+  }
+  for (const sl of state.setlists.filter(sl => effectiveFolderId(sl) === id)) {
+    try { await setlistDelete(sl.id); } catch (e) {}
+  }
+  try { await folderDelete(id); } catch (e) {}
+  if (typeof addTombstone === 'function') addTombstone('folders', id);
+  if (state.currentFolderId === id) {
+    state.currentFolderId = MAIN_FOLDER_ID;
+    state.currentSetlistId = null;
+  }
+  state.folders = await foldersWithMain();
+  closeFolderModal();
+  await renderLibrary();
+  showToast(`Ordner "${f.name}" gelöscht`, 'success');
+}
+
+document.getElementById('folder-switch-btn').addEventListener('click', openFolderModal);
+document.getElementById('folder-close').addEventListener('click', closeFolderModal);
+document.getElementById('folder-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'folder-modal') closeFolderModal();
+});
+document.getElementById('folder-new-btn').addEventListener('click', async () => {
+  const input = document.getElementById('folder-new-name');
+  const folder = await createFolder(input.value);
+  if (!folder) { input.focus(); return; }
+  input.value = '';
+  switchFolder(folder.id); // jump into the new folder
+  showToast(`Ordner "${folder.name}" erstellt`, 'success');
+});
+document.getElementById('folder-new-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('folder-new-btn').click(); }
+});
 
 // Filter event listeners
 document.getElementById('search-input').addEventListener('input', (e) => {
@@ -4466,6 +4744,8 @@ function openEditor(song) {
       artist: '',
       versions: [v],
       activeVersionId: v.id,
+      // New songs land in the folder the user is currently viewing.
+      folderId: state.currentFolderId === MAIN_FOLDER_ID ? undefined : state.currentFolderId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
