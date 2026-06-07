@@ -7479,6 +7479,22 @@ function clearTombstones() {
   localStorage.removeItem('lyrics-tombstones');
 }
 
+// Firestore rejects any `undefined` field value. Our model uses
+// `folderId: undefined` for the main library, which would crash docRef.set().
+// Deep-clone while dropping every undefined property (arrays + nested objects).
+function stripUndefinedDeep(value) {
+  if (Array.isArray(value)) return value.map(stripUndefinedDeep);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const k of Object.keys(value)) {
+      if (value[k] === undefined) continue;
+      out[k] = stripUndefinedDeep(value[k]);
+    }
+    return out;
+  }
+  return value;
+}
+
 function isAutoSyncOn() { return localStorage.getItem('lyrics-autosync') !== 'off'; }
 function setAutoSync(on) { localStorage.setItem('lyrics-autosync', on ? 'on' : 'off'); }
 
@@ -7963,12 +7979,12 @@ async function sendShareTo(toUid, toName) {
     return;
   }
   try {
-    const item = {
+    const item = stripUndefinedDeep({
       from: cloud.user.uid,
       fromName: cloud.username,
       at: Date.now(),
       ...payload,
-    };
+    });
     await cloud.db.collection('users').doc(toUid).collection('inbox').add(item);
     closeShareModal();
     showToast(`„${payload.title}“ an @${toName} gesendet`, 'success');
@@ -8239,14 +8255,16 @@ async function runSync(opts = {}) {
       tx.onerror = () => rej(tx.error);
     });
 
-    // 6. Write merged result back to REMOTE (with the unioned tombstones)
-    await docRef.set({
+    // 6. Write merged result back to REMOTE (with the unioned tombstones).
+    //    Strip undefined fields (e.g. folderId:undefined for the main library)
+    //    because Firestore rejects undefined values.
+    await docRef.set(stripUndefinedDeep({
       songs: mergedSongs,
       setlists: mergedSetlists,
       folders: mergedFolders,
       tombstones: { songs: [...delSongs], setlists: [...delSetlists], folders: [...delFolders] },
       updatedAt: Date.now(),
-    });
+    }));
 
     // 7. Local tombstones are now reflected remotely — clear them
     clearTombstones();
@@ -8285,7 +8303,7 @@ async function pushOverwriteCloud() {
     const setlists = await setlistAll();
     const folders = await folderAll();
     const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
-    await docRef.set({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, updatedAt: Date.now() });
+    await docRef.set(stripUndefinedDeep({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, updatedAt: Date.now() }));
     clearTombstones();
     localStorage.setItem('lyrics-last-sync', String(Date.now()));
     updateCloudUI();
