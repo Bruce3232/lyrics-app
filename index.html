@@ -5103,7 +5103,10 @@ document.getElementById('artist-filter').addEventListener('change', (e) => {
 // =====================================================
 //                   Editor
 // =====================================================
-function openEditor(song) {
+async function openEditor(song) {
+  // Always load the CURRENT setlists/folders from the DB so the editor never
+  // shows a deleted (or stale) setlist in the "Zu Setlists" section.
+  await loadSongs();
   if (song) {
     state.currentSong = migrateSong({ ...song, versions: song.versions ? song.versions.map(v => ({ ...v })) : undefined });
   } else {
@@ -5137,7 +5140,8 @@ function openEditor(song) {
   document.getElementById('editor-title-display').textContent = state.currentSong.title || 'Neuer Song';
 
   // Pre-select setlists this song already belongs to so the picker reflects
-  // current membership; toggling chips updates it on save.
+  // current membership; toggling chips updates it on save. Only consider
+  // setlists that still exist (deleted ones won't be in state.setlists).
   state.currentSongSetlistIds = new Set();
   const sid = state.currentSong.id;
   for (const sl of state.setlists || []) {
@@ -5157,7 +5161,11 @@ function renderEditorSetlists() {
   const wrap = document.getElementById('ed-setlists-wrap');
   const chipsEl = document.getElementById('ed-setlist-chips');
   if (!wrap || !chipsEl) return;
-  const setlists = state.setlists || [];
+  // Only show setlists that belong to the SAME folder as the song being edited
+  // (setlists are folder-scoped). This also guarantees deleted setlists — which
+  // are no longer in state.setlists — never appear here.
+  const songFolderId = effectiveFolderId(state.currentSong || {});
+  const setlists = (state.setlists || []).filter(sl => effectiveFolderId(sl) === songFolderId);
   if (setlists.length === 0) {
     wrap.style.display = 'none';
     chipsEl.innerHTML = '';
