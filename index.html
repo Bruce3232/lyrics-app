@@ -6014,11 +6014,13 @@ function updatePlayIcon(playing) {
   }
 }
 
+const FONT_MIN = 14, FONT_MAX = 80;
+
 function changeFontSize(delta) {
   const ver = currentVersion();
   if (!ver) return;
   const cur = ver.fontSize || 30;
-  const next = Math.max(14, Math.min(80, cur + delta));
+  const next = Math.max(FONT_MIN, Math.min(FONT_MAX, cur + delta));
   ver.fontSize = next;
   document.getElementById('lyrics-track').style.fontSize = next + 'px';
   document.getElementById('perf-font-value').textContent = next;
@@ -6029,6 +6031,20 @@ function changeFontSize(delta) {
     applyScroll();
   }, 50);
   saveCurrentFontSize();
+}
+
+// Live font-size apply during a pinch — lightweight (no debounce/save, no
+// scroll re-clamp every frame) so it stays smooth. Persist + re-measure on
+// pinch end. Accepts a fractional px and clamps to the same limits as +/-.
+function applyFontSizeLive(px) {
+  const ver = currentVersion();
+  if (!ver) return;
+  const next = Math.max(FONT_MIN, Math.min(FONT_MAX, Math.round(px)));
+  if (next === ver.fontSize) return;
+  ver.fontSize = next;
+  document.getElementById('lyrics-track').style.fontSize = next + 'px';
+  document.getElementById('perf-font-value').textContent = next;
+  adjustChordOverlaps();
 }
 
 let fontSaveDebounce = null;
@@ -6073,6 +6089,20 @@ function saveCurrentSpeed() {
 // the user controls visibility via tap only.
 document.getElementById('lyrics-stage').addEventListener('wheel', (e) => {
   e.preventDefault();
+  // Trackpad pinch arrives as a wheel event with ctrlKey set → zoom font.
+  if (e.ctrlKey) {
+    const ver = currentVersion();
+    const cur = (ver && ver.fontSize) || 30;
+    applyFontSizeLive(cur - e.deltaY * 0.25);
+    clearTimeout(window.__wheelZoomSave);
+    window.__wheelZoomSave = setTimeout(() => {
+      measureMaxScroll();
+      perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
+      applyScroll();
+      saveCurrentFontSize();
+    }, 200);
+    return;
+  }
   measureMaxScroll();
   perfScrollPos = Math.max(0, Math.min(perfMaxScroll, perfScrollPos + e.deltaY));
   applyScroll();
@@ -6081,23 +6111,71 @@ document.getElementById('lyrics-stage').addEventListener('wheel', (e) => {
 // Touch drag (mobile)
 let touchStartY = 0;
 let touchStartScroll = 0;
+// Pinch-to-zoom font size. Two fingers control the SAME fontSize as the +/-
+// buttons; one finger scrolls as before. lyrics-stage has touch-action:none,
+// so the browser won't hijack the gesture — we drive it fully.
+let pinchActive = false;
+let pinchStartDist = 0;
+let pinchStartFont = 30;
+
+function twoTouchDist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+
 document.getElementById('lyrics-stage').addEventListener('touchstart', (e) => {
-  if (e.touches.length === 1) {
+  if (e.touches.length === 2) {
+    // Begin pinch: remember finger spread + current font.
+    pinchActive = true;
+    pinchStartDist = twoTouchDist(e.touches);
+    pinchStartFont = (currentVersion() && currentVersion().fontSize) || 30;
+    e.preventDefault();
+  } else if (e.touches.length === 1) {
     touchStartY = e.touches[0].clientY;
     touchStartScroll = perfScrollPos;
     measureMaxScroll();
   }
-}, { passive: true });
+}, { passive: false });
 // preventDefault on touchmove stops Safari's native rubber-band on iPad,
 // so the lyrics actually stay where the user dragged them.
 document.getElementById('lyrics-stage').addEventListener('touchmove', (e) => {
-  if (e.touches.length === 1) {
+  if (e.touches.length === 2 && pinchActive) {
+    // Pinch outward (fingers apart) → larger font; inward → smaller.
+    e.preventDefault();
+    const dist = twoTouchDist(e.touches);
+    if (pinchStartDist > 0) {
+      const ratio = dist / pinchStartDist;
+      applyFontSizeLive(pinchStartFont * ratio);
+    }
+    return;
+  }
+  if (e.touches.length === 1 && !pinchActive) {
     e.preventDefault();
     const dy = touchStartY - e.touches[0].clientY;
     perfScrollPos = Math.max(0, Math.min(perfMaxScroll, touchStartScroll + dy));
     applyScroll();
   }
 }, { passive: false });
+function endPinchIfNeeded(e) {
+  if (!pinchActive) return;
+  // Pinch is over once fewer than two fingers remain.
+  if (!e.touches || e.touches.length < 2) {
+    pinchActive = false;
+    // Persist the new size and re-measure scroll bounds for the new layout.
+    measureMaxScroll();
+    perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
+    applyScroll();
+    saveCurrentFontSize();
+    // If one finger is still down, re-baseline scrolling so it doesn't jump.
+    if (e.touches && e.touches.length === 1) {
+      touchStartY = e.touches[0].clientY;
+      touchStartScroll = perfScrollPos;
+    }
+  }
+}
+document.getElementById('lyrics-stage').addEventListener('touchend', endPinchIfNeeded, { passive: true });
+document.getElementById('lyrics-stage').addEventListener('touchcancel', endPinchIfNeeded, { passive: true });
 
 // UI visibility is controlled purely by tap. No auto-hide.
 function resetControlsTimer() {
