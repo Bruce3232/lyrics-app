@@ -195,9 +195,12 @@
   }
   .view.active { display: flex; flex-direction: column; }
 
+  /* Opacity-only fade: avoids leaving a transform on .view, which would make it
+     a containing block for position:fixed (breaking the floating Edit-list) and
+     offset the sticky header. */
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   @keyframes spin {
@@ -220,6 +223,41 @@
   body.light-mode .topbar {
     background: rgba(255, 255, 255, 0.85);
     border-bottom-color: rgba(20, 20, 30, 0.08);
+  }
+  /* Library header sticks to the top: at the top it looks normal, but once you
+     scroll down it goes transparent so Profile + New song just float along the
+     top-right (no panel), like the performance controls. */
+  #library-view .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    transition: background 0.25s var(--ease), backdrop-filter 0.25s var(--ease),
+                border-color 0.25s var(--ease);
+  }
+  #library-view.scrolled .topbar {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom-color: transparent;
+  }
+  /* Logo/title only matters at the top — fade it while scrolling so the focus
+     is the floating Profile + New song on the right. */
+  #library-view .brand { transition: opacity 0.25s var(--ease); }
+  #library-view.scrolled .brand { opacity: 0; pointer-events: none; }
+
+  /* "Edit list" follows along on the top-right once its row scrolls out of
+     reach, so it (and "Done") is always one tap away deep in the list. */
+  #library-view.editfloat #list-edit-btn {
+    position: fixed;
+    top: calc(var(--lib-topbar-h, 64px) + 10px);
+    right: 16px;
+    z-index: 39;
+    background: var(--surface-strong);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-md);
+    animation: fadeIn 0.2s var(--ease);
   }
   .brand {
     display: flex;
@@ -3082,12 +3120,6 @@
   <div class="modal modal-large">
     <h3>☁️ Cloud & Einstellungen</h3>
 
-    <!-- Always available: appearance/personalize -->
-    <button class="import-option" id="cloud-open-personalize" type="button" style="margin-bottom:16px;">
-      <div class="import-option-title">🎨 Personalisieren</div>
-      <div class="import-option-desc">Akzentfarbe, Hintergrund und Aussehen anpassen.</div>
-    </button>
-
     <!-- Logged OUT state -->
     <div id="cloud-logged-out">
       <p style="color:var(--text-1); margin-bottom:18px;">
@@ -3965,12 +3997,7 @@ function renderBgSwatches() {
   });
 }
 
-// Personalize is reached from the Cloud & Settings modal (it was removed from
-// the header to make room for the Friends button).
-document.getElementById('cloud-open-personalize').addEventListener('click', () => {
-  document.getElementById('cloud-modal').classList.remove('show');
-  openPersonalize();
-});
+// Personalize lives in the profile menu now (removed from the Cloud modal).
 document.getElementById('pers-cancel').addEventListener('click', closePersonalize);
 document.getElementById('personalize-modal').addEventListener('click', (e) => {
   if (e.target.id === 'personalize-modal') closePersonalize();
@@ -4522,9 +4549,34 @@ function updateProfileUI() {
     if (v !== null) { try { localStorage.setItem(DISPLAY_NAME_KEY, v.trim()); } catch (e) {} updateProfileUI(); }
     closeMenu();
   });
-  // Personalize now lives in this menu (still reachable from the Cloud modal too).
+  // Personalize now lives in this menu.
   const persItem = document.getElementById('menu-personalize');
   if (persItem) persItem.addEventListener('click', openPersonalize);
+})();
+
+// =====================================================
+//   Sticky / floating library header on scroll
+//   At the top the header is normal. Once scrolling, the header goes
+//   transparent (Profile + New song float top-right), and the "Edit list"
+//   button detaches and follows on the top-right once its row is out of reach.
+// =====================================================
+(function setupStickyHeader() {
+  const lv = document.getElementById('library-view');
+  if (!lv) return;
+  const topbar = lv.querySelector('.topbar');
+  function measure() {
+    if (topbar) lv.style.setProperty('--lib-topbar-h', topbar.offsetHeight + 'px');
+  }
+  function onScroll() {
+    lv.classList.toggle('scrolled', lv.scrollTop > 8);
+    const fb = lv.querySelector('.filter-bar');
+    const h = topbar ? topbar.offsetHeight : 64;
+    if (fb) lv.classList.toggle('editfloat', fb.getBoundingClientRect().bottom < h + 6);
+  }
+  lv.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', () => { measure(); onScroll(); });
+  measure();
+  onScroll();
 })();
 
 // =====================================================
