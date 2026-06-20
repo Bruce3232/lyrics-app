@@ -2161,6 +2161,102 @@
   }
   #friends-btn { position: relative; }
   #friends-btn .friends-badge { position: absolute; top: 4px; right: 4px; margin: 0; }
+
+  /* ---- Profile avatar + dropdown menu (ChatGPT-style) ---- */
+  .profile-menu-wrap { position: relative; flex-shrink: 0; }
+  .profile-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    position: relative;
+    flex-shrink: 0;
+    box-shadow: 0 2px 10px var(--accent-glow);
+    transition: transform 0.12s var(--ease), box-shadow 0.15s var(--ease);
+    text-transform: uppercase;
+  }
+  .profile-avatar:hover { transform: scale(1.05); box-shadow: 0 4px 16px var(--accent-glow); }
+  .profile-avatar:active { transform: scale(0.96); }
+  .profile-avatar.sm { width: 38px; height: 38px; font-size: 14px; box-shadow: none; }
+  .profile-avatar .friends-badge { position: absolute; top: -3px; right: -3px; margin: 0; }
+
+  .profile-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 240px;
+    background: var(--surface-strong);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 8px;
+    z-index: 60;
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+    transform-origin: top right;
+    pointer-events: none;
+    transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+  }
+  .profile-dropdown.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+  .profile-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 10px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-0);
+    transition: background 0.12s var(--ease);
+  }
+  .profile-head:hover { background: rgba(255,255,255,0.06); }
+  body.light-mode .profile-head:hover { background: rgba(0,0,0,0.04); }
+  .profile-head-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .profile-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .profile-sub { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .profile-head-edit { width: 16px; height: 16px; color: var(--text-2); flex-shrink: 0; }
+  .profile-divider { height: 1px; background: var(--border); margin: 8px 4px; }
+  .profile-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-0);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    transition: background 0.12s var(--ease);
+  }
+  .profile-item:hover { background: rgba(255,255,255,0.06); }
+  body.light-mode .profile-item:hover { background: rgba(0,0,0,0.04); }
+  .profile-item svg { width: 19px; height: 19px; flex-shrink: 0; color: var(--text-1); }
+  .profile-item-label { flex: 1; }
+  @media (max-width: 560px) {
+    .profile-dropdown { min-width: 220px; }
+  }
   .friends-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
   .friends-tab {
     padding: 10px 14px; background: transparent; border: none;
@@ -2516,27 +2612,49 @@
         <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       </button>
-      <button class="btn btn-ghost" id="select-btn" title="Mehrere Songs auswählen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        <span class="btn-label">Auswählen</span>
-      </button>
-      <button class="btn btn-ghost" id="import-btn" title="Songs aus JSON importieren">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <span class="btn-label">Import</span>
-      </button>
-      <button class="btn btn-ghost" id="export-btn" title="Alle Songs exportieren">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span class="btn-label">Export</span>
-      </button>
-      <button class="btn btn-ghost" id="cloud-btn" title="Einstellungen, Cloud-Sync & Profil">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span class="btn-label" id="cloud-btn-label">Einstellung</span>
-      </button>
-      <button class="btn btn-ghost" id="friends-btn" title="Freunde & Songs teilen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span class="btn-label">Freunde</span>
-        <span class="friends-badge" id="friends-badge" style="display:none;">0</span>
-      </button>
+      <div class="profile-menu-wrap">
+        <button class="profile-avatar" id="profile-btn" title="Profil & Menü" aria-haspopup="true" aria-expanded="false" data-no-i18n>
+          <span class="profile-initials" id="profile-initials">♪</span>
+          <span class="friends-badge" id="friends-badge" style="display:none;">0</span>
+        </button>
+        <div class="profile-dropdown" id="profile-dropdown">
+          <button class="profile-head" id="profile-head" type="button" title="Namen ändern">
+            <span class="profile-avatar sm" data-no-i18n><span class="profile-initials" id="profile-initials-2">♪</span></span>
+            <span class="profile-head-text">
+              <span class="profile-name" id="profile-name" data-no-i18n>Profil</span>
+              <span class="profile-sub" id="profile-sub">Nicht angemeldet</span>
+            </span>
+            <svg class="profile-head-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <div class="profile-divider"></div>
+          <button class="profile-item" id="cloud-btn" title="Einstellungen, Cloud-Sync & Profil">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span class="profile-item-label">Einstellungen</span>
+            <span id="cloud-btn-label" hidden></span>
+          </button>
+          <button class="profile-item" id="menu-personalize" title="Personalisieren">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 0 0 0 20 1.5 1.5 0 0 0 1.06-2.56 1.5 1.5 0 0 1 1.06-2.56h1.56A4.26 4.26 0 0 0 22 12.31 10 10 0 0 0 12 2z"/></svg>
+            <span class="profile-item-label">Personalisieren</span>
+          </button>
+          <button class="profile-item" id="friends-btn" title="Freunde & Songs teilen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span class="profile-item-label">Freunde</span>
+          </button>
+          <div class="profile-divider"></div>
+          <button class="profile-item" id="select-btn" title="Mehrere Songs auswählen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span class="profile-item-label">Songs auswählen</span>
+          </button>
+          <button class="profile-item" id="export-btn" title="Alle Songs exportieren">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="profile-item-label">Exportieren</span>
+          </button>
+          <button class="profile-item" id="import-btn" title="Songs aus JSON importieren">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span class="profile-item-label">Importieren</span>
+          </button>
+        </div>
+      </div>
       <button class="btn btn-primary" id="new-song-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span class="btn-label-newsong">Neuer Song</span>
@@ -4216,7 +4334,15 @@ const I18N = {
     "Konto erstellt — synchronisiere…": "Account created — syncing…",
     "Abgemeldet": "Signed out",
     "Bitte zuerst anmelden.": "Please sign in first.",
-    "Benutzername geändert: @{x}": "Username changed: @{x}"
+    "Benutzername geändert: @{x}": "Username changed: @{x}",
+    "Einstellungen": "Settings",
+    "Songs auswählen": "Select songs",
+    "Exportieren": "Export",
+    "Importieren": "Import",
+    "Profil": "Profile",
+    "Nicht angemeldet": "Not signed in",
+    "Namen ändern": "Change name",
+    "Dein Name (für die Initialen):": "Your name (for the initials):"
   }
 };
 let currentLang = 'de';
@@ -4333,6 +4459,73 @@ document.addEventListener('click', (e) => {
   const btn = e.target.closest && e.target.closest('.lang-btn');
   if (btn && btn.dataset.lang) applyLanguage(btn.dataset.lang);
 });
+
+// =====================================================
+//                   Profile menu (avatar + dropdown)
+//   A round avatar shows the user's initials (ChatGPT-style). Tapping it opens
+//   a dropdown with all the app tools. The name is taken from a custom display
+//   name, then the cloud username, then the e-mail; it can be edited from the
+//   menu header. The name itself is never translated (data-no-i18n).
+// =====================================================
+const DISPLAY_NAME_KEY = 'lyrics-display-name';
+
+function getProfileName() {
+  try { const n = localStorage.getItem(DISPLAY_NAME_KEY); if (n && n.trim()) return n.trim(); } catch (e) {}
+  if (typeof cloud !== 'undefined' && cloud) {
+    if (cloud.username) return cloud.username;
+    if (cloud.user && cloud.user.email) return cloud.user.email.split('@')[0];
+  }
+  return '';
+}
+function initialsFrom(name) {
+  if (!name) return '';
+  const parts = name.replace(/[._\-]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+function updateProfileUI() {
+  const name = getProfileName();
+  const ini = initialsFrom(name) || '♪';
+  document.querySelectorAll('.profile-initials').forEach(el => { el.textContent = ini; });
+  const nameEl = document.getElementById('profile-name');
+  if (nameEl) nameEl.textContent = name || T('Profil');
+  const subEl = document.getElementById('profile-sub');
+  if (subEl) {
+    if (typeof cloud !== 'undefined' && cloud && cloud.user && cloud.user.email) subEl.textContent = cloud.user.email;
+    else subEl.textContent = T('Nicht angemeldet');
+  }
+}
+
+(function setupProfileMenu() {
+  const btn = document.getElementById('profile-btn');
+  const dd = document.getElementById('profile-dropdown');
+  if (!btn || !dd) return;
+  function closeMenu() { dd.classList.remove('show'); btn.setAttribute('aria-expanded', 'false'); }
+  function toggleMenu() {
+    const open = !dd.classList.contains('show');
+    if (open) updateProfileUI();
+    dd.classList.toggle('show', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  btn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.profile-menu-wrap')) closeMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+  // Any tool in the menu closes it (the item's own handler still runs).
+  dd.addEventListener('click', (e) => { if (e.target.closest('.profile-item')) closeMenu(); });
+  // Edit the display name (used for the initials) from the header row.
+  const head = document.getElementById('profile-head');
+  if (head) head.addEventListener('click', () => {
+    let cur = '';
+    try { cur = localStorage.getItem(DISPLAY_NAME_KEY) || ''; } catch (e) {}
+    const v = prompt(T('Dein Name (für die Initialen):'), cur);
+    if (v !== null) { try { localStorage.setItem(DISPLAY_NAME_KEY, v.trim()); } catch (e) {} updateProfileUI(); }
+    closeMenu();
+  });
+  // Personalize now lives in this menu (still reachable from the Cloud modal too).
+  const persItem = document.getElementById('menu-personalize');
+  if (persItem) persItem.addEventListener('click', openPersonalize);
+})();
 
 // =====================================================
 //                   Routing
@@ -8283,6 +8476,7 @@ function updateCloudUI() {
     if (btn) btn.classList.remove('synced');
     if (label) label.textContent = 'Einstellung';
   }
+  updateProfileUI();
 }
 
 function cloudError(msg) {
@@ -9140,6 +9334,7 @@ if ('serviceWorker' in navigator) {
 // =====================================================
 renderLibrary();
 initI18n();
+updateProfileUI();
 </script>
 </body>
 </html>
