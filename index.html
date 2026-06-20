@@ -1797,6 +1797,11 @@
     transform: translateY(-50%) translateX(125%);
     pointer-events: none;
   }
+  /* Idle auto-hide glides the bars out slowly; a tap-dismiss stays quick. */
+  .perf-overlay.slow-hide,
+  .perf-controls.slow-hide {
+    transition-duration: 1.2s;
+  }
   body.light-mode .perf-controls {
     background: none;
     border-top-color: transparent;
@@ -6263,7 +6268,7 @@ document.getElementById('lyrics-stage').addEventListener('touchcancel', endPinch
 //   them visible and restarts the countdown; while a finger is held down on
 //   the controls the countdown is paused so nothing vanishes mid-interaction.
 // =====================================================
-const CONTROLS_IDLE_MS = 3000;
+const CONTROLS_IDLE_MS = 6000;
 let controlsHideTimer = null;
 let controlsInteracting = false;
 
@@ -6280,16 +6285,24 @@ function remeasureAfterUiToggle() {
   });
 }
 function showControlsUI() {
-  document.getElementById('perf-overlay').classList.remove('hidden');
-  document.getElementById('perf-controls').classList.remove('hidden');
+  // Showing is always snappy — drop the slow-hide modifier so a tap brings the
+  // controls back quickly.
+  document.getElementById('perf-overlay').classList.remove('slow-hide', 'hidden');
+  document.getElementById('perf-controls').classList.remove('slow-hide', 'hidden');
   document.getElementById('performance-view').classList.remove('ui-hidden');
   remeasureAfterUiToggle();
 }
-function hideControlsUI() {
+function hideControlsUI(slow) {
   clearTimeout(controlsHideTimer);
   controlsHideTimer = null;
-  document.getElementById('perf-overlay').classList.add('hidden');
-  document.getElementById('perf-controls').classList.add('hidden');
+  const ov = document.getElementById('perf-overlay');
+  const ct = document.getElementById('perf-controls');
+  // slow=true  → long, gentle slide-out used by the idle auto-hide.
+  // slow=false → quick hide used when the user taps the lyrics to dismiss.
+  ov.classList.toggle('slow-hide', !!slow);
+  ct.classList.toggle('slow-hide', !!slow);
+  ov.classList.add('hidden');
+  ct.classList.add('hidden');
   document.getElementById('performance-view').classList.add('ui-hidden');
   remeasureAfterUiToggle();
 }
@@ -6304,7 +6317,7 @@ function scheduleControlsHide() {
   controlsHideTimer = setTimeout(() => {
     if (state.view !== 'performance') return;
     if (controlsInteracting || quickSongsOpen()) return;
-    hideControlsUI();
+    hideControlsUI(true);
   }, CONTROLS_IDLE_MS);
 }
 // Show the UI (if hidden) and (re)start the idle countdown. Existing call sites
@@ -6315,7 +6328,7 @@ function resetControlsTimer() {
 }
 function toggleControlsUI() {
   if (controlsAreHidden()) { showControlsUI(); scheduleControlsHide(); }
-  else { hideControlsUI(); }
+  else { hideControlsUI(false); }
 }
 
 // Keep the UI alive while the user is touching/using the controls, and restart
