@@ -2250,6 +2250,24 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
+  .lang-options { display: flex; gap: 10px; flex-wrap: wrap; }
+  .lang-btn {
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text-0);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+  }
+  .lang-btn:hover { border-color: var(--accent); }
+  .lang-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
   .pers-swatches {
     display: flex;
     gap: 10px;
@@ -2876,6 +2894,14 @@
     <div class="pers-section">
       <div class="pers-label">Hintergrund-Stil (Dark Mode)</div>
       <div class="pers-swatches" id="pers-bg-swatches"></div>
+    </div>
+
+    <div class="pers-section">
+      <div class="pers-label" data-no-i18n>Sprache · Language</div>
+      <div class="lang-options" id="lang-options">
+        <button type="button" class="lang-btn" data-lang="de" data-no-i18n>Deutsch</button>
+        <button type="button" class="lang-btn" data-lang="en" data-no-i18n>English</button>
+      </div>
     </div>
 
     <div class="modal-actions" style="margin-top:24px;">
@@ -3848,6 +3874,464 @@ document.getElementById('pers-reset').addEventListener('click', () => {
   renderPersSwatches();
   renderBgSwatches();
   document.getElementById('pers-custom-color').value = '#ff8c1a';
+});
+
+// =====================================================
+//                   Language / i18n  (de <-> en)
+//   German is the SOURCE language. Only the app's own interface is
+//   translated — song titles, artists and lyrics (user content) are never
+//   touched (the lyrics/preview/textarea areas are skipped and user text
+//   simply isn't in the dictionary).
+//   To add a language later, add another table to I18N.
+//   IMPORTANT: whenever UI text is added or changed, add it here in BOTH
+//   German (the source string) and English.
+// =====================================================
+const LANG_KEY = 'lyrics-lang';
+const I18N = {
+  en: {
+    "Hell/Dunkel umschalten": "Toggle light/dark",
+    "Mehrere Songs auswählen": "Select multiple songs",
+    "Auswählen": "Select",
+    "Songs aus JSON importieren": "Import songs from JSON",
+    "Alle Songs exportieren": "Export all songs",
+    "Einstellungen, Cloud-Sync & Profil": "Settings, cloud sync & profile",
+    "Einstellung": "Settings",
+    "Freunde & Songs teilen": "Share friends & songs",
+    "Freunde": "Friends",
+    "Neuer Song": "New song",
+    "Deine Songs": "Your songs",
+    "Klicke einen Song zum Spielen, oder erstelle einen neuen.": "Click a song to play, or create a new one.",
+    "Bibliothek / Ordner wechseln": "Switch library / folder",
+    "Hauptbibliothek": "Main library",
+    "0 ausgewählt": "0 selected",
+    "Alle": "All",
+    "Keine": "None",
+    "Zu Setlist": "To setlist",
+    "Ausgewählte Songs an einen Freund senden": "Send selected songs to a friend",
+    "Teilen": "Share",
+    "Aus Setlist": "Remove from setlist",
+    "In einen anderen Ordner verschieben oder kopieren": "Move or copy to another folder",
+    "In Ordner": "To folder",
+    "Löschen": "Delete",
+    "Abbrechen": "Cancel",
+    "Suche nach Titel oder Künstler...": "Search by title or artist...",
+    "Alle Künstler": "All artists",
+    "Songs per Drag and Drop sortieren": "Drag and drop to reorder songs",
+    "Liste bearbeiten": "Edit list",
+    "Keine Songs gefunden.": "No songs found.",
+    "Noch keine Songs": "No songs yet",
+    "Erstelle deinen ersten Song für deinen Auftritt - oder lade die Live-Setlist mit 10 vorbereiteten Songs.": "Create your first song for your gig - or load the live setlist with 10 ready-made songs.",
+    "Live-Setlist laden (10 Songs)": "Load live setlist (10 songs)",
+    "Zurück (Esc)": "Back (Esc)",
+    "Song bearbeiten": "Edit song",
+    "Performance": "Performance",
+    "Titel": "Title",
+    "Song-Titel": "Song title",
+    "Künstler": "Artist",
+    "Künstler / Band": "Artist / band",
+    "In Setlists einsortieren": "Add to setlists",
+    "Scroll-Geschwindigkeit": "Scroll speed",
+    "30 px/s": "30 px/s",
+    "Lyrics & Akkorde": "Lyrics & chords",
+    "Song speichern": "Save song",
+    "Speichern": "Save",
+    "Song performen": "Perform song",
+    "Live-Vorschau": "Live preview",
+    "Vorschau erscheint hier sobald du tippst.": "Preview appears here as you type.",
+    "Cursor in den Lyrics-Text setzen, dann Akkord klicken — er erscheint genau darüber": "Place the cursor in the lyrics, then click a chord — it appears right above",
+    "Beispiel-Format in die Lyrics einfügen": "Insert example format into the lyrics",
+    "Beispiel laden": "Load example",
+    "Eigener Akkord (z.B. Bm7b5, C7#9, Gmaj9)": "Custom chord (e.g. Bm7b5, C7#9, Gmaj9)",
+    "Einfügen": "Insert",
+    "So funktioniert's:": "How it works:",
+    "Schreibe die Lyrics ganz normal als Text. Setze den Cursor in ein Wort und klicke einen Akkord aus der Palette — er erscheint automatisch in einer Akkord-Zeile direkt darüber.": "Write the lyrics as plain text. Place your cursor in a word and click a chord from the palette — it appears automatically in a chord line right above it.",
+    "Sektionen:": "Sections:",
+    "Auch unterstützt:": "Also supported:",
+    "Inline-Format": "Inline format",
+    "falls du es lieber so schreibst.": "if you prefer to write it that way.",
+    "Transponieren: alle Akkorde in Halbtönen verschieben": "Transpose: shift all chords by semitones",
+    "Tiefer (−1 Halbton)": "Down (−1 semitone)",
+    "Höher (+1 Halbton)": "Up (+1 semitone)",
+    "Akkord-Chip-Grösse": "Chord chip size",
+    "Kleiner": "Smaller",
+    "Grösser": "Larger",
+    "Schriftgrösse": "Font size",
+    "Schrift": "Font",
+    "Kleiner (←)": "Smaller (←)",
+    "Grösser (→)": "Larger (→)",
+    "Bearbeiten": "Edit",
+    "Tastatur-Kürzel": "Keyboard shortcuts",
+    "Setlist (Schnell-Wechsel)": "Setlist (quick switch)",
+    "Geschwindigkeit": "Speed",
+    "Neustart von oben": "Restart from top",
+    "Vollbild": "Fullscreen",
+    "Zurück": "Back",
+    "Keine Lyrics vorhanden": "No lyrics yet",
+    "Bearbeite den Song und füge Lyrics hinzu.": "Edit the song to add lyrics.",
+    "Vollbild (F)": "Fullscreen (F)",
+    "Vorheriger Song": "Previous song",
+    "Play/Pause (Space)": "Play/Pause (Space)",
+    "Nächster Song": "Next song",
+    "Schneller (↑)": "Faster (↑)",
+    "Langsamer (↓)": "Slower (↓)",
+    "Neu starten / Zurück (R)": "Restart / Back (R)",
+    "Setlist": "Setlist",
+    "Schliessen": "Close",
+    "Zu Setlist hinzufügen": "Add to setlist",
+    "0 Songs werden hinzugefügt": "0 songs will be added",
+    "+ Neue Setlist erstellen...": "+ Create new setlist...",
+    "Erstellen": "Create",
+    "Setlists verwalten": "Manage setlists",
+    "Umbenennen, löschen oder neue Setlists erstellen.": "Rename, delete, or create setlists.",
+    "Name der neuen Setlist...": "New setlist name...",
+    "+ Neu": "+ New",
+    "Fertig": "Done",
+    "Personalisieren": "Personalize",
+    "Gestalte die App nach deinem Geschmack.": "Make the app your own.",
+    "Akzentfarbe": "Accent color",
+    "Eigene Farbe": "Custom color",
+    "Beliebige Farbe wählen": "Pick any color",
+    "Hintergrund-Stil (Dark Mode)": "Background style (Dark Mode)",
+    "Zurücksetzen": "Reset",
+    "Sicher?": "Sure?",
+    "Diese Aktion kann nicht rückgängig gemacht werden.": "This action can't be undone.",
+    "Bestätigen": "Confirm",
+    "📁 Bibliotheken / Ordner": "📁 Libraries / Folders",
+    "Wähle eine Bibliothek oder erstelle einen neuen Ordner. Jeder Ordner hat eigene Songs und Setlists.": "Pick a library or create a new folder. Each folder has its own songs and setlists.",
+    "Neuer Ordner-Name": "New folder name",
+    "Wähle den Zielordner.": "Choose the target folder.",
+    "…oder neuen Ordner erstellen": "…or create a new folder",
+    "Kopieren": "Copy",
+    "Verschieben": "Move",
+    "☁️ Cloud & Einstellungen": "☁️ Cloud & Settings",
+    "🎨 Personalisieren": "🎨 Personalize",
+    "Akzentfarbe, Hintergrund und Aussehen anpassen.": "Customize accent color, background, and appearance.",
+    "Melde dich an, damit deine Songs automatisch zwischen PC und iPad synchronisiert werden. Import/Export per JSON bleibt weiterhin verfügbar.": "Sign in to sync your songs automatically between PC and iPad. JSON import/export is still available.",
+    "E-Mail": "Email",
+    "du@beispiel.de": "you@example.com",
+    "Passwort": "Password",
+    "Mindestens 6 Zeichen": "At least 6 characters",
+    "Registrieren": "Sign up",
+    "Anmelden": "Sign in",
+    "Angemeldet als": "Signed in as",
+    "Öffentlicher Benutzername (für Freunde)": "Public username (for friends)",
+    "z.B. bruce_piano": "e.g. bruce_piano",
+    "Damit können dich Freunde finden und dir Songs schicken. Du kannst ihn jederzeit ändern.": "This lets friends find you and send you songs. You can change it anytime.",
+    "Auto-Sync": "Auto-sync",
+    "Wenn an, werden Änderungen automatisch hochgeladen und beim Öffnen heruntergeladen.": "When on, changes upload automatically and download when you open the app.",
+    "Zuletzt synchronisiert:": "Last synced:",
+    "noch nie": "never",
+    "Abmelden": "Sign out",
+    "Jetzt synchronisieren": "Sync now",
+    "👥 Freunde": "👥 Friends",
+    "Melde dich zuerst über den Cloud-Button an, um Freunde hinzuzufügen und Songs zu teilen.": "Sign in via the Cloud button first to add friends and share songs.",
+    "Lege einen öffentlichen Benutzernamen fest, damit Freunde dich finden können.": "Set a public username so friends can find you.",
+    "Benutzername": "Username",
+    "Dein Benutzername:": "Your username:",
+    "📥 Posteingang": "📥 Inbox",
+    "Anfragen": "Requests",
+    "Hinzufügen": "Add",
+    "Benutzername suchen…": "Search username…",
+    "Suchen": "Search",
+    "Mit Freund teilen": "Share with friend",
+    "Wähle einen Freund.": "Choose a friend.",
+    "Songs übernehmen": "Import songs",
+    "Wohin speichern?": "Save where?",
+    "Name des neuen Ordners": "New folder name",
+    "Nur neue hinzufügen": "Add new only",
+    "Songs importieren": "Import songs",
+    "📁 Ordnerstruktur übernehmen": "📁 Keep folder structure",
+    "Die Datei enthält eigene Ordner — diese werden 1:1 wiederhergestellt (jeder Song landet in seinem ursprünglichen Ordner).": "The file contains its own folders — these are restored exactly (each song goes back into its original folder).",
+    "Importziel (Ordner)": "Import to (folder)",
+    "Wie sollen die Songs importiert werden?": "How should the songs be imported?",
+    "➕ Nur neue Songs hinzufügen": "➕ Add new songs only",
+    "Vorhandene Songs im Ziel-Ordner bleiben unverändert (Speed, Akkorde, Transponierung, Schrift, Setlists). Nur Songs die noch nicht existieren werden ergänzt.": "Existing songs in the target folder stay unchanged (speed, chords, transpose, font, setlists). Only songs that don't exist yet are added.",
+    "♻️ Ordner-Inhalt ersetzen": "♻️ Replace folder contents",
+    "Löscht alle Songs + Setlists im Ziel-Ordner und ersetzt sie durch die Datei. Andere Ordner bleiben unberührt.": "Deletes all songs and setlists in the target folder and replaces them with the file. Other folders are left untouched.",
+    "Gespeichert": "Saved",
+    "{x} Song{x}": "{x} song{x}",
+    "{x} von {x} Songs": "{x} of {x} songs",
+    "Ohne Titel": "Untitled",
+    "{x} VERSIONEN": "{x} VERSIONS",
+    "Kein Künstler": "No artist",
+    "Ziehen zum Verschieben": "Drag to move",
+    "{x} Zeilen, {x} px/s": "{x} lines, {x} px/s",
+    "{x} Versionen": "{x} versions",
+    "Aus Setlist entfernen?": "Remove from setlist?",
+    "\"{x}\" wird aus \"{x}\" entfernt. Der Song bleibt in deiner Bibliothek.": "\"{x}\" will be removed from \"{x}\". The song stays in your library.",
+    "Aus \"{x}\" entfernt": "Removed from \"{x}\"",
+    "Song löschen?": "Delete song?",
+    "\"{x}\" wird endgültig aus deiner Bibliothek entfernt.": "\"{x}\" will be permanently removed from your library.",
+    "Gelöscht": "Deleted",
+    "{x} ausgewählt": "{x} selected",
+    "{x} Song{x} hinzufügen zu:": "Add {x} song{x} to:",
+    "Noch keine Setlists erstellt": "No setlists yet",
+    "({x}/{x} drin)": "({x}/{x} in)",
+    "{x} Song{x} zu \"{x}\" hinzugefügt": "Added {x} song{x} to \"{x}\"",
+    "Bereits alle in \"{x}\"": "All already in \"{x}\"",
+    "Setlist \"{x}\" mit {x} Song{x} erstellt": "Created setlist \"{x}\" with {x} song{x}",
+    "Noch keine Setlists in diesem Ordner": "No setlists in this folder yet",
+    "{x} Songs": "{x} songs",
+    "Setlist an Freund senden": "Send setlist to a friend",
+    "Setlist löschen": "Delete setlist",
+    "Ohne Namen": "Unnamed",
+    "Setlist \"{x}\" löschen?": "Delete setlist \"{x}\"?",
+    "Die Songs bleiben erhalten - nur die Setlist selbst wird gelöscht.": "The songs are kept - only the setlist itself is deleted.",
+    "Setlist gelöscht": "Setlist deleted",
+    "Setlist \"{x}\" erstellt": "Created setlist \"{x}\"",
+    "Keine Songs ausgewählt": "No songs selected",
+    "{x} Song{x} aus \"{x}\" entfernen?": "Remove {x} song{x} from \"{x}\"?",
+    "Die Songs bleiben in deiner Bibliothek - nur aus dieser Setlist werden sie entfernt.": "The songs stay in your library - they're only removed from this setlist.",
+    "{x} Song{x} entfernt": "Removed {x} song{x}",
+    "{x} Song{x} löschen?": "Delete {x} song{x}?",
+    "Diese Aktion ist nicht rückgängig zu machen. {x} endgültig entfernt.": "This action can't be undone. {x} permanently removed.",
+    "Der Song wird": "The song will be",
+    "Die {x} Songs werden": "The {x} songs will be",
+    "{x} Song{x} gelöscht": "Deleted {x} song{x}",
+    "Alle Songs": "All songs",
+    "Neue Setlist erstellen": "Create new setlist",
+    "Neu": "New",
+    "Name der neuen Setlist:": "New setlist name:",
+    "Bibliothek an Freund senden": "Send library to a friend",
+    "Umbenennen": "Rename",
+    "Ordner umbenennen:": "Rename folder:",
+    "Ordner \"{x}\" löschen?": "Delete folder \"{x}\"?",
+    "Der Ordner und seine {x} Song{x} (+ Setlists) werden endgültig gelöscht.": "The folder and its {x} song{x} (+ setlists) will be permanently deleted.",
+    "Der leere Ordner wird gelöscht.": "The empty folder will be deleted.",
+    "Ordner \"{x}\" gelöscht": "Folder \"{x}\" deleted",
+    "Ordner \"{x}\" erstellt": "Folder \"{x}\" created",
+    "{x} Song{x} verschieben oder kopieren in:": "Move or copy {x} song{x} to:",
+    "(aktuell)": "(current)",
+    "Bitte einen Zielordner wählen": "Please choose a target folder",
+    "{x} Song{x} nach „{x}“ verschoben": "{x} song{x} moved to \"{x}\"",
+    "{x} Song{x} nach „{x}“ kopiert": "{x} song{x} copied to \"{x}\"",
+    "Aktive Version löschen": "Delete active version",
+    "Version löschen": "Delete version",
+    "Neue Version anlegen": "Create new version",
+    "Neue Version": "New version",
+    "Version \"{x}\" erstellt": "Version \"{x}\" created",
+    "Name der neuen Version (z.B. \"Capo 3\", \"Akustisch\", \"Tieferer Key\"):": "New version name (e.g. \"Capo 3\", \"Acoustic\", \"Lower key\"):",
+    "Version umbenennen:": "Rename version:",
+    "Umbenannt": "Renamed",
+    "Mindestens eine Version muss bleiben": "At least one version must remain",
+    "Version \"{x}\" löschen?": "Delete version \"{x}\"?",
+    "Diese Version mit allen Akkorden und Lyrics wird endgültig entfernt. Andere Versionen bleiben erhalten.": "This version with all its chords and lyrics will be permanently removed. Other versions are kept.",
+    "Version \"{x}\" gelöscht": "Version \"{x}\" deleted",
+    "Beispiel laden?": "Load example?",
+    "Der aktuelle Lyrics-Text wird ersetzt.": "The current lyrics will be replaced.",
+    "Beispiel geladen": "Example loaded",
+    "\"{x}\" wird endgültig entfernt.": "\"{x}\" will be permanently removed.",
+    "Setlist: {x}": "Setlist: {x}",
+    "Original": "Original",
+    "Keine Songs in dieser Setlist": "No songs in this setlist",
+    "Keine Songs zum Exportieren": "No songs to export",
+    "{x} Song{x} + {x} Setlist{x} exportiert": "{x} song{x} + {x} setlist{x} exported",
+    "exportiert": "exported",
+    "+ Neuen Ordner erstellen…": "+ Create new folder…",
+    "Ungültiges Format": "Invalid format",
+    "Datei enthält {x} Song{x}": "File contains {x} song{x}",
+    "+ {x} Setlist{x}": "+ {x} setlist{x}",
+    "Ziel-Ordner „{x}“: {x} Song{x} vorhanden": "Target folder \"{x}\": {x} song{x} already there",
+    "Davon neu: {x} · Duplikate (übersprungen): {x}": "New: {x} · Duplicates (skipped): {x}",
+    "neuer Ordner": "new folder",
+    "Bitte Ordnernamen eingeben": "Please enter a folder name",
+    "Die Datei enthält eigene Ordner ({x}) — diese werden 1:1 wiederhergestellt; jeder Song landet in seinem ursprünglichen Ordner. Vorhandene Daten bleiben erhalten.": "The file contains its own folders ({x}) — these are restored exactly; each song lands in its original folder. Existing data is kept.",
+    "inkl. Hauptbibliothek": "incl. main library",
+    "Import fehlgeschlagen: {x}": "Import failed: {x}",
+    "Ordner": "Folder",
+    "Ordnerstruktur importiert · {x} neu, {x} übersprungen": "Folder structure imported · {x} new, {x} skipped",
+    "{x} neu hinzugefügt · {x} übersprungen": "{x} newly added · {x} skipped",
+    "Ordner „{x}“ ersetzen?": "Replace folder “{x}”?",
+    "Alle Songs ({x}) und Setlists ({x}) im Ordner „{x}“ werden gelöscht und durch die Datei ersetzt. Andere Ordner bleiben unberührt.": "All songs ({x}) and setlists ({x}) in folder “{x}” will be deleted and replaced by the file. Other folders stay untouched.",
+    "{x} Setlist{x}": "{x} setlist{x}",
+    "{x} importiert (Ordner „{x}“ ersetzt)": "{x} imported (folder “{x}” replaced)",
+    "{x} Song{x} geladen{x}": "{x} song{x} loaded{x}",
+    "( bereits vorhanden)": "( already exists)",
+    "Alle {x} Songs sind bereits vorhanden": "All {x} songs already exist",
+    "(angemeldet)": "(signed in)",
+    "Ungültige E-Mail-Adresse.": "Invalid email address.",
+    "Kein Konto mit dieser E-Mail. Bitte registrieren.": "No account with this email. Please sign up.",
+    "Falsches Passwort.": "Wrong password.",
+    "Diese E-Mail ist schon registriert. Bitte anmelden.": "This email is already registered. Please sign in.",
+    "Passwort zu schwach (mindestens 6 Zeichen).": "Password too weak (at least 6 characters).",
+    "Keine Internetverbindung.": "No internet connection.",
+    "Fehler bei der Anmeldung.": "Sign-in failed.",
+    "Mindestens 3 Zeichen (a–z, 0–9, _).": "At least 3 characters (a–z, 0–9, _).",
+    "Höchstens 20 Zeichen.": "At most 20 characters.",
+    "Benutzername bereits vergeben.": "Username already taken.",
+    "Noch keine Freunde. Füge welche über „Hinzufügen“ hinzu.": "No friends yet. Add some via “Add”.",
+    "Senden": "Send",
+    "Entfernen": "Remove",
+    "Eingehend": "Incoming",
+    "Keine eingehenden Anfragen.": "No incoming requests.",
+    "Annehmen": "Accept",
+    "Ablehnen": "Decline",
+    "Gesendet": "Sent",
+    "· wartet": "· pending",
+    "Zurückziehen": "Withdraw",
+    "@{x} ist jetzt dein Freund": "@{x} is now your friend",
+    "Freund entfernen?": "Remove friend?",
+    "@{x} aus deiner Freundesliste entfernen?": "Remove @{x} from your friends list?",
+    "Fehler: {x}": "Error: {x}",
+    "Gib einen Benutzernamen ein.": "Enter a username.",
+    "Suche…": "Search…",
+    "Kein Benutzer „@{x}“ gefunden.": "No user “@{x}” found.",
+    "Das bist du selbst.": "That’s you.",
+    "Bereits Freund": "Already friends",
+    "Anfrage gesendet": "Request sent",
+    "Anfrage senden": "Send request",
+    "Suche fehlgeschlagen: {x}": "Search failed: {x}",
+    "Benutzername gespeichert: @{x}": "Username saved: @{x}",
+    "Bibliothek: {x}": "Library: {x}",
+    "Bitte zuerst über Cloud anmelden": "Please sign in via Cloud first",
+    "Bitte zuerst einen Benutzernamen festlegen (Cloud)": "Please set a username first (Cloud)",
+    "Wähle einen Song/eine Bibliothek zum Senden": "Choose a song/library to send",
+    "„{x}“ senden an:": "Send “{x}” to:",
+    "Du hast noch keine Freunde. Füge zuerst welche über „Freunde“ hinzu.": "You don’t have any friends yet. Add some via “Friends” first.",
+    "Nichts zu senden": "Nothing to send",
+    "Zu groß zum Senden (max ~1MB). Teile weniger Songs auf einmal.": "Too large to send (max ~1MB). Share fewer songs at once.",
+    "„{x}“ an @{x} gesendet": "Sent \"{x}\" to @{x}",
+    "Senden fehlgeschlagen: {x}": "Send failed: {x}",
+    "📥 @{x} hat dir „{x}“ gesendet": "📥 @{x} sent you \"{x}\"",
+    "Jemand": "Someone",
+    "etwas": "something",
+    "Keine neuen Sendungen.": "No new shares.",
+    "Bibliothek": "Library",
+    "Song": "Song",
+    "Songs": "Songs",
+    "Übernehmen": "Import",
+    "Bibliothek übernehmen": "Import library",
+    "Setlist übernehmen": "Import setlist",
+    "Von @{x}": "From @{x}",
+    "(als Setlist „{x}“)": "(as setlist \"{x}\")",
+    "Übernommen · {x} neu, {x} Duplikate übersprungen": "Imported · {x} new, {x} duplicates skipped",
+    "Übernehmen fehlgeschlagen: {x}": "Import failed: {x}",
+    "Synchronisiert · {x} Songs": "Synced · {x} songs",
+    "Sync fehlgeschlagen: {x}": "Sync failed: {x}",
+    "Cloud-Sync noch nicht eingerichtet (Firebase-Config fehlt)": "Cloud sync not set up yet (Firebase config missing)",
+    "Bitte E-Mail und Passwort eingeben.": "Please enter email and password.",
+    "Firebase nicht verfügbar.": "Firebase unavailable.",
+    "Angemeldet — synchronisiere…": "Signed in — syncing…",
+    "Passwort braucht mindestens 6 Zeichen.": "Password needs at least 6 characters.",
+    "Konto erstellt — synchronisiere…": "Account created — syncing…",
+    "Abgemeldet": "Signed out",
+    "Bitte zuerst anmelden.": "Please sign in first.",
+    "Benutzername geändert: @{x}": "Username changed: @{x}"
+  }
+};
+let currentLang = 'de';
+let i18nPatterns = null;
+
+function detectLang() {
+  try { const s = localStorage.getItem(LANG_KEY); if (s === 'de' || s === 'en') return s; } catch (e) {}
+  const nav = (navigator.language || navigator.userLanguage || '').toLowerCase();
+  return nav.startsWith('en') ? 'en' : 'de';
+}
+function escapeI18nRx(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function buildI18nPatterns(table) {
+  const pats = [];
+  for (const de in table) {
+    if (de.indexOf('{x}') === -1) continue;
+    const parts = de.split('{x}');
+    const rx = new RegExp('^' + parts.map(escapeI18nRx).join('([\\s\\S]*?)') + '$');
+    pats.push({ rx, en: table[de], lit: parts.reduce((a, p) => a + p.length, 0) });
+  }
+  pats.sort((a, b) => b.lit - a.lit);   // most specific (most literal text) first
+  return pats;
+}
+// Translate one UI string for the current language. German is the source, so
+// 'de' returns the input unchanged; 'en' looks it up (exact, then interpolated).
+function T(raw) {
+  if (raw == null || currentLang === 'de') return raw;
+  const table = I18N[currentLang];
+  if (!table) return raw;
+  const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(String(raw));
+  const core = m[2];
+  if (!core) return raw;
+  if (Object.prototype.hasOwnProperty.call(table, core)) return m[1] + table[core] + m[3];
+  if (!i18nPatterns) i18nPatterns = buildI18nPatterns(table);
+  for (const p of i18nPatterns) {
+    const mm = p.rx.exec(core);
+    if (mm) { let i = 1; return m[1] + p.en.replace(/\{x\}/g, () => mm[i++] ?? '') + m[3]; }
+  }
+  return raw;
+}
+
+// Subtrees that hold USER content (or non-text) — never translated.
+const I18N_SKIP = '#lyrics-track, .lyrics-track, #perf-title, #perf-artist, .editor-preview, #ed-preview, textarea, script, style, [data-no-i18n]';
+const I18N_ATTRS = ['placeholder', 'title', 'aria-label'];
+const i18nTextOrig = new WeakMap();   // text node -> original German
+const i18nAttrOrig = new WeakMap();   // element -> { attr: original German }
+
+function localizeTextNode(n) {
+  const p = n.parentElement;
+  if (!p || (p.closest && p.closest(I18N_SKIP))) return;
+  let orig = i18nTextOrig.get(n);
+  if (orig === undefined) {
+    if (!n.nodeValue || !n.nodeValue.trim()) return;
+    orig = n.nodeValue; i18nTextOrig.set(n, orig);
+  }
+  const next = T(orig);
+  if (n.nodeValue !== next) n.nodeValue = next;
+}
+function localizeAttrs(el) {
+  if (!el.closest || el.closest(I18N_SKIP)) return;
+  let store = i18nAttrOrig.get(el);
+  for (const attr of I18N_ATTRS) {
+    if (!el.hasAttribute(attr)) continue;
+    if (!store) { store = {}; i18nAttrOrig.set(el, store); }
+    if (store[attr] === undefined) store[attr] = el.getAttribute(attr);
+    el.setAttribute(attr, T(store[attr]));
+  }
+}
+function localize(root) {
+  if (!root) return;
+  if (root.nodeType === Node.TEXT_NODE) { localizeTextNode(root); return; }
+  if (root.nodeType !== Node.ELEMENT_NODE) return;
+  if (root.closest && root.closest(I18N_SKIP)) return;
+  if (root.matches && root.matches('[placeholder],[title],[aria-label]')) localizeAttrs(root);
+  if (root.querySelectorAll) root.querySelectorAll('[placeholder],[title],[aria-label]').forEach(localizeAttrs);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      const pe = n.parentElement;
+      if (!pe || (pe.closest && pe.closest(I18N_SKIP))) return NodeFilter.FILTER_REJECT;
+      if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  let n; while ((n = walker.nextNode())) nodes.push(n);
+  nodes.forEach(localizeTextNode);
+}
+
+let i18nObserver = null;
+function applyLanguage(lang) {
+  currentLang = (lang === 'en') ? 'en' : 'de';
+  try { localStorage.setItem(LANG_KEY, currentLang); } catch (e) {}
+  document.documentElement.lang = currentLang;
+  localize(document.body);
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === currentLang));
+}
+function initI18n() {
+  applyLanguage(detectLang());
+  if (!i18nObserver && 'MutationObserver' in window) {
+    i18nObserver = new MutationObserver((muts) => {
+      if (currentLang === 'de') return;   // nothing to translate from the source language
+      for (const mut of muts) {
+        if (mut.type !== 'childList') continue;
+        mut.addedNodes.forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) localizeTextNode(node);
+          else if (node.nodeType === Node.ELEMENT_NODE) localize(node);
+        });
+      }
+    });
+    i18nObserver.observe(document.body, { childList: true, subtree: true });
+  }
+}
+// Language picker lives in the Personalize modal; applies immediately + persists.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('.lang-btn');
+  if (btn && btn.dataset.lang) applyLanguage(btn.dataset.lang);
 });
 
 // =====================================================
@@ -8655,6 +9139,7 @@ if ('serviceWorker' in navigator) {
 //                   Init
 // =====================================================
 renderLibrary();
+initI18n();
 </script>
 </body>
 </html>
