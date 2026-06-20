@@ -1427,16 +1427,28 @@
     left: 0;
     right: 0;
     z-index: 10;
-    padding: 18px 28px;
+    padding: 16px 22px;
+    padding-top: max(16px, env(safe-area-inset-top));
     display: flex;
     align-items: center;
-    gap: 16px;
-    background: rgba(8,8,12,0.92);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease), border-color 0.35s var(--ease);
+    gap: 12px;
+    /* Transparent and integrated into the lyrics screen — no panel, no blur,
+       no separating line. Buttons/text carry their own shadow for contrast. */
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: none;
+    transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
   }
+  /* Top-bar icon buttons sit directly on the lyrics: transparent with a
+     drop-shadow so they read on any background. */
+  .perf-overlay .icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-0);
+  }
+  .perf-overlay .icon-btn svg { filter: drop-shadow(0 1px 4px rgba(0,0,0,0.55)); }
+  .perf-overlay .icon-btn:hover { background: rgba(255,255,255,0.14); }
   .perf-overlay.hidden {
     opacity: 0;
     transform: translateY(-100%);
@@ -1444,13 +1456,14 @@
     pointer-events: none;
   }
   body.light-mode .perf-overlay {
-    background: rgba(245,245,247,0.95);
-    border-bottom-color: rgba(20,20,30,0.08);
+    background: none;
+    border-bottom-color: transparent;
   }
   .perf-title-block { flex: 1; min-width: 0; }
-  /* Tr / Ak groups in the top overlay sit between the title and the icon buttons */
+  /* Tr / Ak / Schrift groups in the top overlay sit between the title and the icon buttons */
   .perf-overlay .perf-transpose-group,
-  .perf-overlay .perf-chord-size-group {
+  .perf-overlay .perf-chord-size-group,
+  .perf-overlay .perf-font-size-group {
     flex-shrink: 0;
     margin: 0 4px;
   }
@@ -1460,8 +1473,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.45);
   }
-  .perf-artist { font-size: 13px; color: var(--text-1); }
+  .perf-artist { font-size: 13px; color: var(--text-1); text-shadow: 0 1px 6px rgba(0,0,0,0.4); }
 
   .lyrics-stage {
     position: absolute;
@@ -1698,19 +1712,27 @@
      it does not push or pull the lyrics-stage. */
   .perf-controls {
     position: absolute;
-    left: 0;
     right: 0;
-    bottom: 0;
-    padding: 14px 20px;
-    background: rgba(8,8,12,0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
+    left: auto;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    padding: 10px 14px 10px 10px;
+    padding-right: max(14px, env(safe-area-inset-right));
+    /* Transparent vertical stack pinned to the right edge — no bar, no blur,
+       no separating line. Sits directly on the lyrics screen. */
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-top: none;
     z-index: 10;
-    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease), border-color 0.35s var(--ease);
+    transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 16px;
+    justify-content: center;
+    gap: 12px;
+    max-height: 100%;
   }
   .perf-controls-side {
     flex: 1;
@@ -1722,25 +1744,31 @@
   .perf-controls-left { justify-content: flex-end; }
   .perf-controls-right { justify-content: flex-start; }
   .perf-icon-btn {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    color: var(--text-0);
+    /* Subtle glass — transparent enough to feel integrated, opaque enough to
+       stay legible over any background. */
+    background: rgba(20,20,28,0.42);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #fff;
     cursor: pointer;
     transition: all 0.15s var(--ease);
     flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
   }
   .perf-icon-btn:hover {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
   }
-  .perf-icon-btn svg { width: 18px; height: 18px; }
+  .perf-icon-btn:active { transform: scale(0.94); }
+  .perf-icon-btn svg { width: 20px; height: 20px; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.5)); }
   .perf-transport {
     display: flex;
     align-items: center;
@@ -1761,19 +1789,40 @@
     .perf-controls-side { gap: 8px; }
     .perf-control-group { gap: 6px; padding: 4px 10px; }
     .perf-control-group .label { font-size: 10px; letter-spacing: 0.05em; }
-    .perf-speed-slider { display: none; }
     .perf-transport { gap: 6px; }
     .perf-icon-btn { width: 40px; height: 40px; }
   }
   .perf-controls.hidden {
     opacity: 0;
-    transform: translateY(100%);
-    border-top-color: transparent;
+    transform: translateY(-50%) translateX(125%);
     pointer-events: none;
   }
   body.light-mode .perf-controls {
-    background: rgba(245,245,247,0.98);
-    border-top-color: rgba(20,20,30,0.08);
+    background: none;
+    border-top-color: transparent;
+  }
+  /* Light mode: dark icons on a faint light glass so controls stay legible on
+     the light background (dark mode keeps white icons on dark glass). */
+  body.light-mode .perf-icon-btn,
+  body.light-mode .perf-font-btn {
+    background: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.14);
+    color: var(--text-0);
+    text-shadow: none;
+  }
+  body.light-mode .perf-icon-btn svg { filter: drop-shadow(0 1px 2px rgba(255,255,255,0.7)); }
+  body.light-mode .perf-overlay .icon-btn svg { filter: drop-shadow(0 1px 2px rgba(255,255,255,0.7)); }
+  body.light-mode .perf-speed-cluster .value { color: var(--text-0); text-shadow: none; }
+  body.light-mode .perf-title,
+  body.light-mode .perf-artist { text-shadow: 0 1px 6px rgba(255,255,255,0.6); }
+  body.light-mode .perf-icon-btn:hover,
+  body.light-mode .perf-font-btn:hover { color: #fff; }
+  /* When the setlist (top menu) opens, slide the right-side controls off the
+     screen until it is closed again. */
+  #performance-view.quick-songs-open .perf-controls {
+    opacity: 0;
+    transform: translateY(-50%) translateX(125%);
+    pointer-events: none;
   }
 
   .perf-play-btn {
@@ -1798,13 +1847,14 @@
   .perf-control-group {
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: var(--surface-strong);
-    border: 1px solid var(--border);
-    border-radius: 100px;
-    padding: 6px 16px 6px 14px;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    gap: 8px;
+    /* No pill / box — transparent and integrated. */
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .perf-control-group .label {
     font-size: 11px;
@@ -1812,6 +1862,7 @@
     color: var(--text-1);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
   .perf-control-group .value {
     font-family: var(--font-mono);
@@ -1820,23 +1871,53 @@
     color: var(--accent-soft);
     min-width: 36px;
     text-align: right;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
+  /* Speed cluster in the right-side stack: value, +, vertical slider, − */
+  .perf-speed-cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .perf-speed-cluster .value {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 12px;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    text-align: center;
+    min-width: 0;
+  }
+  /* Vertical speed slider — works alongside the +/- buttons. Up = faster. */
   .perf-speed-slider {
-    width: 160px;
+    flex: none;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 6px;
+    height: 96px;
+    margin: 2px 0;
+    background: rgba(255,255,255,0.22);
   }
   .perf-font-btn {
-    width: 32px; height: 32px;
+    width: 36px; height: 36px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.08);
-    color: var(--text-0);
+    background: rgba(20,20,28,0.42);
+    border: 1px solid rgba(255,255,255,0.16);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s var(--ease);
     font-weight: 700;
-    font-size: 16px;
+    font-size: 18px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    -webkit-tap-highlight-color: transparent;
   }
-  .perf-font-btn:hover { background: rgba(255,140,26,0.2); }
+  .perf-font-btn:hover { background: rgba(255,140,26,0.85); border-color: var(--accent); }
+  .perf-font-btn:active { transform: scale(0.94); }
 
   .perf-controls .right-group {
     margin-left: auto;
@@ -2262,8 +2343,8 @@
   @media (max-width: 768px) {
     .lyrics-track { font-size: 22px; padding: 40vh 20px 50vh; }
     .library-title { font-size: 28px; }
-    .perf-controls { padding: 14px 16px 18px; }
-    .perf-speed-slider { width: 100px; }
+    .perf-controls { padding: 10px 12px; }
+    .perf-speed-slider { width: 8px; height: 90px; }
     .perf-control-group { padding: 4px 12px 4px 12px; }
   }
 
@@ -2325,11 +2406,11 @@
     .song-row-action { width: 44px; height: 44px; }
     .song-row-actions { opacity: 1; }
     .alpha-btn { width: 36px; height: 36px; font-size: 14px; }
-    .perf-font-btn { width: 40px; height: 40px; font-size: 20px; }
+    .perf-font-btn { width: 44px; height: 44px; font-size: 20px; }
     .perf-play-btn { width: 64px; height: 64px; }
     .perf-play-btn svg { width: 26px; height: 26px; }
-    .perf-controls { padding: 18px 20px 22px; }
-    .perf-speed-slider { width: 140px; }
+    .perf-controls { gap: 14px; }
+    .perf-speed-slider { width: 8px; height: 110px; }
     .range-slider::-webkit-slider-thumb { width: 28px; height: 28px; }
     .filter-select { padding: 14px 40px 14px 16px; min-width: 200px; }
     .search-input { padding: 14px 38px 14px 42px; }
@@ -2353,8 +2434,13 @@
      starts near the top. Controls bar gets compact too. */
   @media (max-height: 500px) {
     .lyrics-track { padding-top: 20vh; padding-bottom: 25vh; font-size: 22px; }
-    .perf-controls { padding: 6px 10px; gap: 6px; }
-    .perf-controls-side { gap: 6px; }
+    /* Phone landscape is short — shrink the right-side stack so it never
+       overflows the viewport height. */
+    .perf-controls { padding: 4px 8px; gap: 6px; }
+    .perf-controls .perf-icon-btn { width: 38px; height: 38px; }
+    .perf-controls .perf-play-btn { width: 46px; height: 46px; }
+    .perf-controls .perf-font-btn { width: 30px; height: 30px; font-size: 15px; }
+    .perf-controls .perf-speed-slider { height: 56px; }
     .perf-control-group { padding: 3px 8px; gap: 4px; }
     .perf-control-group .label { font-size: 9px; letter-spacing: 0.04em; }
     .perf-icon-btn { width: 36px; height: 36px; }
@@ -2651,6 +2737,12 @@
         <span class="value" id="perf-chord-value">100%</span>
         <button class="perf-font-btn" id="perf-chord-up" title="Grösser">+</button>
       </div>
+      <div class="perf-control-group perf-font-size-group" title="Schriftgrösse">
+        <span class="label">Schrift</span>
+        <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
+        <span class="value" id="perf-font-value">30</span>
+        <button class="perf-font-btn" id="perf-font-up" title="Grösser (→)">+</button>
+      </div>
       <button class="icon-btn" id="perf-edit" title="Bearbeiten">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
@@ -2663,9 +2755,6 @@
       </button>
       <button class="icon-btn" id="perf-quick-songs" title="Setlist (Schnell-Wechsel)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-      </button>
-      <button class="icon-btn" id="perf-fullscreen" title="Vollbild (F)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
       </button>
     </div>
 
@@ -2690,42 +2779,27 @@
     </div>
 
     <div class="perf-controls" id="perf-controls">
-      <div class="perf-controls-side perf-controls-left">
-        <button class="perf-icon-btn" id="perf-restart" title="Neu starten (R)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-        </button>
-        <div class="perf-control-group">
-          <span class="label">Speed</span>
-          <button class="perf-font-btn" id="perf-speed-down" title="Langsamer (↓)">−</button>
-          <input type="range" class="range-slider perf-speed-slider" id="perf-speed" min="5" max="40" step="1" value="20">
-          <button class="perf-font-btn" id="perf-speed-up" title="Schneller (↑)">+</button>
-          <span class="value" id="perf-speed-value">30</span>
-        </div>
+      <button class="perf-icon-btn" id="perf-fullscreen-2" title="Vollbild (F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
+      <button class="perf-icon-btn" id="perf-prev-song" title="Vorheriger Song">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2" height="16"/></svg>
+      </button>
+      <button class="perf-play-btn" id="perf-play-btn" title="Play/Pause (Space)">
+        <svg id="perf-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      </button>
+      <button class="perf-icon-btn" id="perf-next-song" title="Nächster Song">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="17" y="4" width="2" height="16"/></svg>
+      </button>
+      <div class="perf-speed-cluster" title="Geschwindigkeit">
+        <span class="value" id="perf-speed-value">30</span>
+        <button class="perf-font-btn" id="perf-speed-up" title="Schneller (↑)">+</button>
+        <input type="range" class="range-slider perf-speed-slider" id="perf-speed" min="5" max="40" step="1" value="20" title="Geschwindigkeit">
+        <button class="perf-font-btn" id="perf-speed-down" title="Langsamer (↓)">−</button>
       </div>
-
-      <div class="perf-transport">
-        <button class="perf-icon-btn" id="perf-prev-song" title="Vorheriger Song">
-          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2" height="16"/></svg>
-        </button>
-        <button class="perf-play-btn" id="perf-play-btn" title="Play/Pause (Space)">
-          <svg id="perf-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-        </button>
-        <button class="perf-icon-btn" id="perf-next-song" title="Nächster Song">
-          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="17" y="4" width="2" height="16"/></svg>
-        </button>
-      </div>
-
-      <div class="perf-controls-side perf-controls-right">
-        <div class="perf-control-group perf-font-size-group">
-          <span class="label">Schrift</span>
-          <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
-          <span class="value" id="perf-font-value">30</span>
-          <button class="perf-font-btn" id="perf-font-up" title="Grösser (→)">+</button>
-        </div>
-        <button class="perf-icon-btn" id="perf-fullscreen-2" title="Vollbild (F)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-        </button>
-      </div>
+      <button class="perf-icon-btn" id="perf-restart" title="Neu starten / Zurück (R)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
     </div>
   </div>
 
@@ -6181,13 +6255,88 @@ function endPinchIfNeeded(e) {
 document.getElementById('lyrics-stage').addEventListener('touchend', endPinchIfNeeded, { passive: true });
 document.getElementById('lyrics-stage').addEventListener('touchcancel', endPinchIfNeeded, { passive: true });
 
-// UI visibility is controlled purely by tap. No auto-hide.
-function resetControlsTimer() {
-  // Kept as a no-arg shim so existing call sites still "show the UI".
+// =====================================================
+//   UI auto-hide
+//   The top bar + right-side controls slide away after a few seconds of no
+//   interaction, and a single tap on the lyrics toggles them instantly. ANY
+//   interaction with the controls (button tap, slider drag, keyboard) keeps
+//   them visible and restarts the countdown; while a finger is held down on
+//   the controls the countdown is paused so nothing vanishes mid-interaction.
+// =====================================================
+const CONTROLS_IDLE_MS = 3000;
+let controlsHideTimer = null;
+let controlsInteracting = false;
+
+function controlsAreHidden() {
+  return document.getElementById('perf-overlay').classList.contains('hidden');
+}
+function remeasureAfterUiToggle() {
+  // ui-hidden changes the lyric track padding, so the scroll bound shifts.
+  requestAnimationFrame(() => {
+    if (state.view !== 'performance') return;
+    measureMaxScroll();
+    perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
+    applyScroll();
+  });
+}
+function showControlsUI() {
   document.getElementById('perf-overlay').classList.remove('hidden');
   document.getElementById('perf-controls').classList.remove('hidden');
   document.getElementById('performance-view').classList.remove('ui-hidden');
+  remeasureAfterUiToggle();
 }
+function hideControlsUI() {
+  clearTimeout(controlsHideTimer);
+  controlsHideTimer = null;
+  document.getElementById('perf-overlay').classList.add('hidden');
+  document.getElementById('perf-controls').classList.add('hidden');
+  document.getElementById('performance-view').classList.add('ui-hidden');
+  remeasureAfterUiToggle();
+}
+function quickSongsOpen() {
+  return document.getElementById('performance-view').classList.contains('quick-songs-open');
+}
+function scheduleControlsHide() {
+  clearTimeout(controlsHideTimer);
+  controlsHideTimer = null;
+  if (controlsInteracting) return;          // finger still down on a control
+  if (quickSongsOpen()) return;             // never auto-hide while setlist is open
+  controlsHideTimer = setTimeout(() => {
+    if (state.view !== 'performance') return;
+    if (controlsInteracting || quickSongsOpen()) return;
+    hideControlsUI();
+  }, CONTROLS_IDLE_MS);
+}
+// Show the UI (if hidden) and (re)start the idle countdown. Existing call sites
+// — openPerformance, play/pause, restart, keyboard — use this to "wake" the UI.
+function resetControlsTimer() {
+  if (controlsAreHidden()) showControlsUI();
+  scheduleControlsHide();
+}
+function toggleControlsUI() {
+  if (controlsAreHidden()) { showControlsUI(); scheduleControlsHide(); }
+  else { hideControlsUI(); }
+}
+
+// Keep the UI alive while the user is touching/using the controls, and restart
+// the countdown the instant they let go.
+['perf-overlay', 'perf-controls'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('pointerdown', () => {
+    controlsInteracting = true;
+    clearTimeout(controlsHideTimer);
+    controlsHideTimer = null;
+  });
+  el.addEventListener('click', () => { if (!controlsInteracting) scheduleControlsHide(); });
+  el.addEventListener('input', () => { clearTimeout(controlsHideTimer); controlsHideTimer = null; });
+});
+document.addEventListener('pointerup', () => {
+  if (controlsInteracting) { controlsInteracting = false; scheduleControlsHide(); }
+});
+document.addEventListener('pointercancel', () => {
+  if (controlsInteracting) { controlsInteracting = false; scheduleControlsHide(); }
+});
 
 // =====================================================
 //                   Event Listeners
@@ -6233,7 +6382,6 @@ document.getElementById('perf-edit').addEventListener('click', () => {
 document.getElementById('perf-edit-empty').addEventListener('click', () => {
   openEditor(state.currentSong);
 });
-document.getElementById('perf-fullscreen').addEventListener('click', toggleFullscreen);
 
 // Quick Songs Panel
 async function openQuickSongs() {
@@ -6243,6 +6391,10 @@ async function openQuickSongs() {
   document.getElementById('quick-songs-panel').classList.add('show');
   document.getElementById('quick-songs-backdrop').classList.add('show');
   document.getElementById('performance-view').classList.add('quick-songs-open');
+  // Pause auto-hide while the setlist is open; the right controls slide away
+  // (handled by CSS) until it is closed again.
+  clearTimeout(controlsHideTimer);
+  controlsHideTimer = null;
   remeasureAfterPanelShift();
 }
 
@@ -6250,6 +6402,8 @@ function closeQuickSongs() {
   document.getElementById('quick-songs-panel').classList.remove('show');
   document.getElementById('quick-songs-backdrop').classList.remove('show');
   document.getElementById('performance-view').classList.remove('quick-songs-open');
+  // Bring the controls back and restart the idle countdown.
+  resetControlsTimer();
   remeasureAfterPanelShift();
 }
 
@@ -6558,27 +6712,10 @@ function toggleFullscreen() {
 
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
-  // Tap toggles the UI visibility. Tapping the lyrics never starts or
-  // stops the song — only the play/stop button does that.
-  const view = document.getElementById('performance-view');
-  const isHidden = document.getElementById('perf-overlay').classList.contains('hidden');
-  if (isHidden) {
-    document.getElementById('perf-overlay').classList.remove('hidden');
-    document.getElementById('perf-controls').classList.remove('hidden');
-    view.classList.remove('ui-hidden');
-  } else {
-    document.getElementById('perf-overlay').classList.add('hidden');
-    document.getElementById('perf-controls').classList.add('hidden');
-    view.classList.add('ui-hidden');
-  }
-  // The track's padding-bottom changes with ui-hidden, so the max scroll
-  // bound shifts. Re-measure and clamp so the text doesn't end up past
-  // the new bottom of scrollable content.
-  requestAnimationFrame(() => {
-    measureMaxScroll();
-    perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
-    applyScroll();
-  });
+  // A single tap on the lyrics toggles the UI instantly (show if hidden, hide
+  // if shown). Tapping the lyrics never starts or stops the song — only the
+  // play/stop button does that.
+  toggleControlsUI();
 });
 
 // Keyboard shortcuts
