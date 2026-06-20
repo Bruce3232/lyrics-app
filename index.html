@@ -2335,6 +2335,10 @@
     .search-input { padding: 14px 38px 14px 42px; }
     .field-input { padding: 14px 16px; }
     .field-textarea { font-size: 15px; padding: 16px; }
+
+    /* Touch devices have pinch-to-zoom for the lyric font size, so the manual
+       "Schrift" +/− buttons are redundant here — hide them (kept on desktop/PC). */
+    .perf-font-size-group { display: none; }
   }
 
   /* Pure iPad optimizations - landscape primary. Only kick the big 36px lyric
@@ -2712,7 +2716,7 @@
       </div>
 
       <div class="perf-controls-side perf-controls-right">
-        <div class="perf-control-group">
+        <div class="perf-control-group perf-font-size-group">
           <span class="label">Schrift</span>
           <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
           <span class="value" id="perf-font-value">30</span>
