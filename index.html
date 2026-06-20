@@ -2705,6 +2705,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span class="btn-label-newsong">Neuer Song</span>
       </button>
+      <button class="icon-btn" id="library-fullscreen-btn" title="Vollbild (F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
     </div>
 
     <div class="body">
@@ -7458,6 +7461,7 @@ function toggleFullscreen() {
     document.exitFullscreen?.();
   }
 }
+document.getElementById('library-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
 
 
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
