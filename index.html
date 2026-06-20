@@ -253,11 +253,19 @@
     right: 16px;
     z-index: 39;
     background: var(--surface-strong);
+    color: var(--text-0);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border: 1px solid var(--border-strong);
     box-shadow: var(--shadow-md);
     animation: fadeIn 0.2s var(--ease);
+  }
+  /* In edit mode the button turns into "Done" with white text, so the floating
+     version needs the accent background (otherwise it's white-on-white). */
+  #library-view.editfloat #list-edit-btn.btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+    border-color: var(--accent);
+    color: #fff;
   }
   .brand {
     display: flex;
