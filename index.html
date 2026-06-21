@@ -1893,9 +1893,12 @@
   }
   .perf-settings-pop.show { opacity: 1; transform: scale(1); pointer-events: auto; }
   .perf-settings-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin: 0 2px 10px; }
+  .perf-settings-group { margin-bottom: 10px; }
+  .perf-settings-group:last-child { margin-bottom: 0; }
+  .perf-settings-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin: 0 2px 6px; }
   .perf-settings-opts { display: flex; gap: 8px; }
-  .perf-layout-btn { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.12s var(--ease); white-space: nowrap; }
-  .perf-layout-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .perf-layout-btn, .perf-autohide-btn { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.12s var(--ease); white-space: nowrap; }
+  .perf-layout-btn.active, .perf-autohide-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   /* ===== Bottom layout: controls in a transparent row at the bottom ===== */
   #performance-view.layout-bottom .perf-controls {
@@ -3072,9 +3075,19 @@
         </button>
         <div class="perf-settings-pop" id="perf-settings-pop">
           <div class="perf-settings-title">Steuerung</div>
-          <div class="perf-settings-opts">
-            <button class="perf-layout-btn" data-layout="right">Rechts</button>
-            <button class="perf-layout-btn" data-layout="bottom">Unten</button>
+          <div class="perf-settings-group">
+            <div class="perf-settings-label">Layout</div>
+            <div class="perf-settings-opts">
+              <button class="perf-layout-btn" data-layout="right">Rechts</button>
+              <button class="perf-layout-btn" data-layout="bottom">Unten</button>
+            </div>
+          </div>
+          <div class="perf-settings-group">
+            <div class="perf-settings-label">Auto-Ausblenden</div>
+            <div class="perf-settings-opts">
+              <button class="perf-autohide-btn" data-autohide="on">An</button>
+              <button class="perf-autohide-btn" data-autohide="off">Aus</button>
+            </div>
           </div>
         </div>
       </div>
@@ -4490,7 +4503,11 @@ const I18N = {
     "Steuerung": "Controls",
     "Steuerung & Layout": "Controls & layout",
     "Rechts": "Right",
-    "Unten": "Bottom"
+    "Unten": "Bottom",
+    "Layout": "Layout",
+    "Auto-Ausblenden": "Auto-hide",
+    "An": "On",
+    "Aus": "Off"
   }
 };
 let currentLang = 'de';
@@ -7121,6 +7138,7 @@ document.getElementById('lyrics-stage').addEventListener('touchcancel', endPinch
 const CONTROLS_IDLE_MS = 6000;
 let controlsHideTimer = null;
 let controlsInteracting = false;
+let perfAutoHide = true;   // when false, controls never auto-hide — tap-only (set in perf Settings)
 
 function controlsAreHidden() {
   return document.getElementById('perf-overlay').classList.contains('hidden');
@@ -7162,6 +7180,7 @@ function quickSongsOpen() {
 function scheduleControlsHide() {
   clearTimeout(controlsHideTimer);
   controlsHideTimer = null;
+  if (!perfAutoHide) return;                // auto-hide turned off in Settings (tap-only)
   if (controlsInteracting) return;          // finger still down on a control
   if (quickSongsOpen()) return;             // never auto-hide while setlist is open
   controlsHideTimer = setTimeout(() => {
@@ -7438,6 +7457,20 @@ function applyPerfLayout(layout) {
 }
 applyPerfLayout(getPerfLayout());
 
+// Auto-hide toggle: ON = controls slide away after the idle delay (default);
+// OFF = controls stay until you tap the screen to dismiss them.
+const PERF_AUTOHIDE_KEY = 'lyrics-perf-autohide';
+function getPerfAutoHide() { try { return localStorage.getItem(PERF_AUTOHIDE_KEY) !== 'off'; } catch (e) { return true; } }
+function applyAutoHide(on) {
+  perfAutoHide = !!on;
+  try { localStorage.setItem(PERF_AUTOHIDE_KEY, on ? 'on' : 'off'); } catch (e) {}
+  document.querySelectorAll('.perf-autohide-btn').forEach(b => b.classList.toggle('active', (b.dataset.autohide === 'on') === perfAutoHide));
+  if (state.view !== 'performance') return;
+  if (perfAutoHide) scheduleControlsHide();
+  else { clearTimeout(controlsHideTimer); controlsHideTimer = null; if (controlsAreHidden()) showControlsUI(); }
+}
+applyAutoHide(getPerfAutoHide());
+
 (function setupPerfSettings() {
   const btn = document.getElementById('perf-settings-btn');
   const pop = document.getElementById('perf-settings-pop');
@@ -7445,8 +7478,10 @@ applyPerfLayout(getPerfLayout());
   btn.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.toggle('show'); });
   document.addEventListener('click', (e) => { if (!e.target.closest('.perf-settings-wrap')) pop.classList.remove('show'); });
   pop.addEventListener('click', (e) => {
-    const b = e.target.closest('.perf-layout-btn');
-    if (b) { applyPerfLayout(b.dataset.layout); pop.classList.remove('show'); }
+    const lay = e.target.closest('.perf-layout-btn');
+    if (lay) { applyPerfLayout(lay.dataset.layout); pop.classList.remove('show'); return; }
+    const ah = e.target.closest('.perf-autohide-btn');
+    if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); }   // keep popover open so the choice is visible
   });
 })();
 document.getElementById('perf-play-btn').addEventListener('click', togglePerfScroll);
