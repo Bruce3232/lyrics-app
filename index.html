@@ -7110,6 +7110,10 @@ function openPerformance(song) {
   setTimeout(() => {
     measureMaxScroll();
     adjustChordOverlaps();
+    // Now the view is laid out: (re)apply the custom layout so a layout that
+    // couldn't be measured at load (view was hidden) gets seeded/placed correctly
+    // instead of staying piled in the corner.
+    if (getPerfLayout() === 'custom') applyCustomLayout();
   }, 100);
   resetControlsTimer();
   requestWakeLock();
@@ -8066,15 +8070,22 @@ function measureLayout() {
   });
   return map;
 }
-function getDefaultLayout() {
-  if (defaultLayoutCache) return defaultLayoutCache;
-  // Measure the stock right-side layout without a visible flicker.
+// Measure the stock (right-side) layout positions WITHOUT re-applying custom.
+// Used to seed an empty custom map so controls never pile into the corner.
+// (Does NOT call applyCustomLayout — keeps it recursion-free.)
+function seedFromDefaultLayout() {
   const pv = document.getElementById('performance-view');
   const wasCustom = pv.classList.contains('layout-custom');
   pv.classList.remove('layout-custom');
   clearCustomInline();
-  defaultLayoutCache = measureLayout();
-  if (wasCustom) { pv.classList.add('layout-custom'); applyCustomLayout(); }
+  const seed = measureLayout();
+  if (wasCustom) pv.classList.add('layout-custom');
+  return seed;
+}
+function getDefaultLayout() {
+  if (defaultLayoutCache) return defaultLayoutCache;
+  defaultLayoutCache = seedFromDefaultLayout();
+  if (document.getElementById('performance-view').classList.contains('layout-custom')) applyCustomLayout();
   return defaultLayoutCache;
 }
 function measureOne(el) {
@@ -8122,14 +8133,25 @@ function applyElSize(el, c) {
 }
 function styleEl(el, c) { applyElPos(el, c); applyElSize(el, c); }
 function applyCustomLayout() {
-  const map = getCustomLayout();
+  let map = getCustomLayout();
+  // Self-heal: a 'custom' layout with NO saved positions must not pile every
+  // control into the top-left corner. Seed from the stock layout instead. If the
+  // view isn't laid out yet (hidden), defer — it's re-applied when performance
+  // opens (see openPerformance).
+  if (!Object.keys(map).length) {
+    const seed = seedFromDefaultLayout();
+    if (!Object.keys(seed).length) return;     // can't measure yet — try again later
+    map = seed;
+    if (!defaultLayoutCache) defaultLayoutCache = seed;
+    saveCustomLayout(map);
+  }
   let fallback = 0;
   perfEls().forEach(el => {
     const c = map[el.dataset.perfEl];
     if (c) { styleEl(el, c); }
     else {
-      // Unsaved (e.g. a control added in a later version) → drop it somewhere
-      // visible so the user can grab and place it.
+      // A single control with no entry (e.g. one added in a later version) →
+      // drop it somewhere visible so it can be grabbed and placed.
       styleEl(el, { x: 12 + (fallback % 4) * 8, y: 12 + Math.floor(fallback / 4) * 9 });
       fallback++;
     }
@@ -8182,14 +8204,12 @@ function currentSize(el) {
 
 function enterLayoutEdit() {
   const pv = document.getElementById('performance-view');
-  if (!pv.classList.contains('layout-custom')) {
-    // Seed from the current layout so the custom view starts identical, and
-    // cache it as the reset baseline (measured here while still non-custom).
-    const seed = measureLayout();
-    if (Object.keys(seed).length) {
-      defaultLayoutCache = seed;
-      if (!Object.keys(getCustomLayout()).length) saveCustomLayout(seed);
-    }
+  // Ensure we have real positions BEFORE switching to custom so nothing piles
+  // into the corner. Seed from the stock layout if the custom map is empty —
+  // this covers entering from right/bottom AND a stale empty 'custom' layout.
+  if (!Object.keys(getCustomLayout()).length) {
+    const seed = pv.classList.contains('layout-custom') ? seedFromDefaultLayout() : measureLayout();
+    if (Object.keys(seed).length) { defaultLayoutCache = seed; saveCustomLayout(seed); }
   }
   applyPerfLayout('custom');
   perfEditing = true;
