@@ -1969,6 +1969,16 @@
     pointer-events: auto;
     transform-origin: center center;
   }
+  /* A custom-placed control is centred on its left/top via translate(-50%,-50%).
+     Force that transform with !important so a sticky touch :hover/:active rule
+     (e.g. .perf-play-btn:hover { transform:none } under @media (hover:none))
+     can NEVER strip the centring — which made tapped controls (esp. Play) jump
+     down-right by half their size and stay there. Higher specificity than the
+     hover/active rules, so this always wins. */
+  #performance-view.layout-custom .perf-overlay > [data-perf-el],
+  #performance-view.layout-custom .perf-controls > [data-perf-el] {
+    transform: translate(-50%, -50%) !important;
+  }
   /* In custom layout hiding is opacity-only (the layer fills the screen, so a
      translate would just shove the whole thing off centre). */
   #performance-view.layout-custom .perf-overlay.hidden,
@@ -7922,9 +7932,9 @@ applyAutoHide(getPerfAutoHide());
   document.addEventListener('click', (e) => { if (!e.target.closest('.perf-settings-wrap')) pop.classList.remove('show'); });
   pop.addEventListener('click', (e) => {
     const lay = e.target.closest('.perf-layout-btn');
-    if (lay) { applyPerfLayout(lay.dataset.layout); markPerfSettingsChanged(); pop.classList.remove('show'); return; }
+    if (lay) { applyPerfLayout(lay.dataset.layout); pop.classList.remove('show'); return; }
     const ah = e.target.closest('.perf-autohide-btn');
-    if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); markPerfSettingsChanged(); return; }   // keep popover open so the choice is visible
+    if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); return; }   // keep popover open so the choice is visible
     const ed = e.target.closest('#perf-edit-layout-btn');
     if (ed) { pop.classList.remove('show'); enterLayoutEdit(); return; }
   });
@@ -7991,10 +8001,7 @@ function doRedo() {
 function loadEdPrefs() {
   try { const v = JSON.parse(localStorage.getItem(PERF_EDPREF_KEY)); if (v && typeof v === 'object') edPrefs = { ...edPrefs, ...v }; } catch (e) {}
 }
-function saveEdPrefs() {
-  try { localStorage.setItem(PERF_EDPREF_KEY, JSON.stringify(edPrefs)); } catch (e) {}
-  if (typeof markPerfSettingsChanged === 'function') markPerfSettingsChanged();
-}
+function saveEdPrefs() { try { localStorage.setItem(PERF_EDPREF_KEY, JSON.stringify(edPrefs)); } catch (e) {} }
 loadEdPrefs();
 
 // Localised display names for the list/handles (German source → T() → English).
@@ -8034,7 +8041,6 @@ function getCustomLayout() {
 }
 function saveCustomLayout(map) {
   try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(map)); } catch (e) {}
-  if (typeof markPerfSettingsChanged === 'function') markPerfSettingsChanged();
 }
 function perfEls() {
   return Array.from(document.querySelectorAll('#performance-view [data-perf-el]'));
@@ -8696,38 +8702,9 @@ applyPerfLayout(getPerfLayout());
   if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 })();
 
-// ===== Cross-device sync of the performance layout (PC ⇄ iPad over the account) =====
-// The layout/editor prefs live in localStorage; bundle them as one timestamped
-// blob and ride the existing library sync (last-writer-wins by timestamp).
-function markPerfSettingsChanged() {
-  try { localStorage.setItem('lyrics-perf-settings-ts', String(Date.now())); } catch (e) {}
-  if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
-}
-function getLocalPerfSettings() {
-  let perfCustom = {}, perfEditorPrefs = {};
-  try { perfCustom = JSON.parse(localStorage.getItem('lyrics-perf-custom') || '{}'); } catch (e) {}
-  try { perfEditorPrefs = JSON.parse(localStorage.getItem('lyrics-perf-editor-prefs') || '{}'); } catch (e) {}
-  return {
-    perfCustom, perfEditorPrefs,
-    perfLayout: localStorage.getItem('lyrics-perf-layout') || 'right',
-    perfAutohide: localStorage.getItem('lyrics-perf-autohide') || 'on',
-    updatedAt: +(localStorage.getItem('lyrics-perf-settings-ts') || 0)
-  };
-}
-function applyRemotePerfSettings(s) {
-  if (!s || typeof s !== 'object') return;
-  try {
-    if (s.perfCustom) localStorage.setItem('lyrics-perf-custom', JSON.stringify(s.perfCustom));
-    if (s.perfEditorPrefs) localStorage.setItem('lyrics-perf-editor-prefs', JSON.stringify(s.perfEditorPrefs));
-    if (s.perfLayout) localStorage.setItem('lyrics-perf-layout', s.perfLayout);
-    if (s.perfAutohide) localStorage.setItem('lyrics-perf-autohide', s.perfAutohide);
-    localStorage.setItem('lyrics-perf-settings-ts', String(s.updatedAt || Date.now()));
-  } catch (e) {}
-  if (perfEditing) return;   // don't yank the layout out from under an active editing session
-  try { if (typeof loadEdPrefs === 'function') loadEdPrefs(); } catch (e) {}
-  try { if (typeof applyAutoHide === 'function') applyAutoHide(getPerfAutoHide()); } catch (e) {}
-  try { if (typeof applyPerfLayout === 'function') applyPerfLayout(getPerfLayout()); } catch (e) {}
-}
+// NOTE: The performance layout is intentionally PER-DEVICE (not synced) — the
+// monitor and the iPad are different sizes, so a shared layout would misfit.
+// The custom layout + editor prefs stay in this device's localStorage only.
 
 document.getElementById('perf-play-btn').addEventListener('click', togglePerfScroll);
 document.getElementById('perf-restart').addEventListener('click', restartPerf);
@@ -10640,16 +10617,6 @@ async function runSync(opts = {}) {
     mergedSetlists = mergeById(freshSetlists, mergedSetlists, delSetlists);
     mergedFolders = mergeById(freshFolders, mergedFolders, delFolders);
 
-    // 4c. Performance layout + editor prefs — one timestamped blob, last-writer-wins.
-    //     If the remote copy is newer, apply it live on this device (PC ⇄ iPad).
-    const localPerf = getLocalPerfSettings();
-    const remotePerf = remote.settings || null;
-    let winPerf = localPerf;
-    if (remotePerf && (remotePerf.updatedAt || 0) > (localPerf.updatedAt || 0)) {
-      applyRemotePerfSettings(remotePerf);
-      winPerf = remotePerf;
-    }
-
     // 5. Write merged result back to LOCAL db
     //    (replace everything so deletions take effect)
     const db = await openDB();
@@ -10674,7 +10641,6 @@ async function runSync(opts = {}) {
       setlists: mergedSetlists,
       folders: mergedFolders,
       tombstones: { songs: [...delSongs], setlists: [...delSetlists], folders: [...delFolders] },
-      settings: winPerf,
       updatedAt: Date.now(),
     }));
 
@@ -10706,19 +10672,6 @@ function scheduleAutoSync() {
   autoSyncTimer = setTimeout(() => runSync({ silent: true }), 2500);
 }
 
-// Pull remote changes (e.g. a layout edited on the PC) whenever this device
-// comes back to the foreground — so picking up the iPad shows the latest.
-let lastFocusSync = 0;
-function maybeSyncOnForeground() {
-  if (!cloud.ready || !cloud.user || !isAutoSyncOn() || cloud.syncing) return;
-  const now = Date.now();
-  if (now - lastFocusSync < 4000) return;   // debounce rapid focus/visibility events
-  lastFocusSync = now;
-  runSync({ silent: true });
-}
-document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeSyncOnForeground(); });
-window.addEventListener('focus', maybeSyncOnForeground);
-
 // Force the cloud to exactly match the current local library (used after a JSON
 // import-replace, which is a deliberate "make everything look like this" op).
 async function pushOverwriteCloud() {
@@ -10728,7 +10681,7 @@ async function pushOverwriteCloud() {
     const setlists = await setlistAll();
     const folders = await folderAll();
     const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
-    await docRef.set(stripUndefinedDeep({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, settings: getLocalPerfSettings(), updatedAt: Date.now() }));
+    await docRef.set(stripUndefinedDeep({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, updatedAt: Date.now() }));
     clearTombstones();
     localStorage.setItem('lyrics-last-sync', String(Date.now()));
     updateCloudUI();
