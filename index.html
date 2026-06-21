@@ -1555,10 +1555,10 @@
     mask-image: none;
     -webkit-mask-image: none;
   }
-  /* Also kill the big 50vh padding at the bottom of the track while UI
-     is hidden — otherwise a huge empty white strip sits below the last
-     lyric line. The top stays at 50vh so the song still opens with the
-     first line near the middle of the screen. */
+  /* Also kill the big bottom padding of the track while UI is hidden —
+     otherwise a huge empty white strip sits below the last lyric line. The top
+     lead-in stays (from the base rule) so the song still opens with a calm
+     run-up before the first line. */
   #performance-view.ui-hidden .lyrics-track {
     padding-bottom: 20px;
   }
@@ -1567,10 +1567,12 @@
     width: 100%;
     max-width: 900px;
     margin: 0 auto;
-    /* Start the lyrics just below the top toolbar (small margin) instead of
-       mid-screen, so the first line is visible immediately. Bottom keeps a tall
-       runway so the last line can still scroll up during auto-scroll. */
-    padding: 90px 56px 50vh;
+    /* Start the lyrics about a third of the way down so there's a calm lead-in:
+       you can see/play the intro & chords before the text scrolls up, instead of
+       the first line sitting at the very top and disappearing immediately. Not a
+       full half-screen (that felt like a long wait). Bottom keeps a tall runway
+       so the last line can still scroll up during auto-scroll. */
+    padding: 30vh 56px 50vh;
     will-change: transform;
     font-family: var(--font-mono);
     font-weight: 500;
@@ -2889,7 +2891,7 @@
   }
 
   @media (max-width: 768px) {
-    .lyrics-track { font-size: 22px; padding: 80px 20px 50vh; }
+    .lyrics-track { font-size: 22px; padding: 30vh 20px 50vh; }
     .library-title { font-size: 28px; }
     .perf-controls { padding: 10px 12px; }
     .perf-speed-slider { width: 8px; height: 90px; }
@@ -2981,7 +2983,7 @@
      top padding ate most of the lyric area — reduce it so text actually
      starts near the top. Controls bar gets compact too. */
   @media (max-height: 500px) {
-    .lyrics-track { padding-top: 44px; padding-bottom: 25vh; font-size: 22px; }
+    .lyrics-track { padding-top: 18vh; padding-bottom: 25vh; font-size: 22px; }
     /* Phone landscape is short — shrink the right-side stack so it never
        overflows the viewport height. */
     .perf-controls { padding: 4px 8px; gap: 6px; }
