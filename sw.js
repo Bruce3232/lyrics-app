@@ -1,12 +1,13 @@
 // Service Worker for Lyrics & Chords Performance Viewer
-// Provides 100% offline functionality after first visit.
+// Provides offline functionality while always serving fresh app code when online.
 //
-// Strategy: Cache-First with background update.
-// On every fetch, we serve from cache instantly (offline-friendly),
-// and in the background try to refresh the cache from the network.
-// Next page load will pick up the new version automatically.
+// Strategy:
+//   - HTML / navigation  → NETWORK-FIRST (always get the latest index.html when
+//     online; fall back to cache offline). This guarantees edits/fixes show up
+//     immediately on every device instead of one load late.
+//   - Other assets       → CACHE-FIRST with background revalidation (fast + offline).
 
-const CACHE_VERSION = 'v89';
+const CACHE_VERSION = 'v90';
 const CACHE_NAME = `lyrics-app-${CACHE_VERSION}`;
 
 // Files that make up the app shell.
@@ -44,8 +45,14 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+function offlineFallback() {
+  return new Response(
+    '<html><body style="font-family:system-ui;padding:40px;text-align:center;background:#08080c;color:#fff;"><h1>Offline</h1><p>Diese Seite ist nicht im Cache verfügbar.</p></body></html>',
+    { status: 503, headers: { 'Content-Type': 'text/html' } }
+  );
+}
+
 // ===== FETCH =====
-// Cache-first with background revalidation.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
@@ -56,10 +63,34 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // Is this the app HTML (navigation or an .html / root request)?
+  const accept = req.headers.get('accept') || '';
+  const isHTML = req.mode === 'navigate' ||
+    accept.includes('text/html') ||
+    url.pathname === '/' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
+
+  if (isHTML) {
+    // NETWORK-FIRST: always try the network so the newest app loads immediately.
+    event.respondWith(
+      fetch(req).then((response) => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone).catch(() => {}));
+        }
+        return response;
+      }).catch(() =>
+        caches.match(req)
+          .then((c) => c || caches.match('./index.html'))
+          .then((c) => c || offlineFallback())
+      )
+    );
+    return;
+  }
+
+  // OTHER ASSETS: cache-first with background revalidation.
   event.respondWith(
     caches.match(req).then((cached) => {
       const networkFetch = fetch(req).then((response) => {
-        // Only cache successful responses
         if (response && response.status === 200 && response.type === 'basic') {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -69,20 +100,11 @@ self.addEventListener('fetch', (event) => {
         return response;
       }).catch(() => null);
 
-      // Return cached if available, else wait for network
       if (cached) {
-        // Fire-and-forget background update
         networkFetch.catch(() => {});
         return cached;
       }
-      return networkFetch.then((response) => {
-        if (response) return response;
-        // Truly offline and not in cache
-        return new Response(
-          '<html><body style="font-family:system-ui;padding:40px;text-align:center;background:#08080c;color:#fff;"><h1>Offline</h1><p>Diese Seite ist nicht im Cache verfügbar.</p></body></html>',
-          { status: 503, headers: { 'Content-Type': 'text/html' } }
-        );
-      });
+      return networkFetch.then((response) => response || offlineFallback());
     })
   );
 });

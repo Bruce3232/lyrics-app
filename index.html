@@ -1953,11 +1953,12 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     border: none;
-    transform: none;
-    /* Only fade opacity — never transition transform here, or the container
-       animates from the right-layout translateY(-50%) and gets stuck shifted,
-       which dragged every control (esp. Play) off its saved Y. */
-    transition: opacity 0.4s var(--ease);
+    /* Force NO transform on the container in custom layout — and never transition
+       it (only fade opacity). Otherwise it animates from the right-layout
+       translateY(-50%), gets stuck shifted, and drags every control (esp. Play)
+       off its saved Y. !important guards against any cascade/transition residue. */
+    transform: none !important;
+    transition: opacity 0.4s var(--ease) !important;
     max-height: none;
     pointer-events: none;           /* taps fall through to the lyrics (tap-to-hide) */
   }
@@ -7921,9 +7922,9 @@ applyAutoHide(getPerfAutoHide());
   document.addEventListener('click', (e) => { if (!e.target.closest('.perf-settings-wrap')) pop.classList.remove('show'); });
   pop.addEventListener('click', (e) => {
     const lay = e.target.closest('.perf-layout-btn');
-    if (lay) { applyPerfLayout(lay.dataset.layout); pop.classList.remove('show'); return; }
+    if (lay) { applyPerfLayout(lay.dataset.layout); markPerfSettingsChanged(); pop.classList.remove('show'); return; }
     const ah = e.target.closest('.perf-autohide-btn');
-    if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); return; }   // keep popover open so the choice is visible
+    if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); markPerfSettingsChanged(); return; }   // keep popover open so the choice is visible
     const ed = e.target.closest('#perf-edit-layout-btn');
     if (ed) { pop.classList.remove('show'); enterLayoutEdit(); return; }
   });
@@ -7990,7 +7991,10 @@ function doRedo() {
 function loadEdPrefs() {
   try { const v = JSON.parse(localStorage.getItem(PERF_EDPREF_KEY)); if (v && typeof v === 'object') edPrefs = { ...edPrefs, ...v }; } catch (e) {}
 }
-function saveEdPrefs() { try { localStorage.setItem(PERF_EDPREF_KEY, JSON.stringify(edPrefs)); } catch (e) {} }
+function saveEdPrefs() {
+  try { localStorage.setItem(PERF_EDPREF_KEY, JSON.stringify(edPrefs)); } catch (e) {}
+  if (typeof markPerfSettingsChanged === 'function') markPerfSettingsChanged();
+}
 loadEdPrefs();
 
 // Localised display names for the list/handles (German source → T() → English).
@@ -8030,6 +8034,7 @@ function getCustomLayout() {
 }
 function saveCustomLayout(map) {
   try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(map)); } catch (e) {}
+  if (typeof markPerfSettingsChanged === 'function') markPerfSettingsChanged();
 }
 function perfEls() {
   return Array.from(document.querySelectorAll('#performance-view [data-perf-el]'));
@@ -8445,16 +8450,20 @@ function onPerfPointerDown(e) {
   e.preventDefault();
   selectPerfEl(el);
   beginAction();
+  const pv = document.getElementById('performance-view');
+  const pvr = pv.getBoundingClientRect();
   const r = el.getBoundingClientRect();
-  // Store the grab offset (element centre minus finger, in viewport px). Every
-  // move re-derives the centre from the LIVE finger position, so the exact point
-  // first touched stays glued to the finger even if the viewport / safe area
-  // shifts mid-drag (fixes the iPad jump-to-corner bug).
+  const stored = getCustomLayout()[el.dataset.perfEl];
+  // Anchor on the element's STORED centre %, and move it ONLY by the finger
+  // delta (pointer-coords minus pointer-coords → same space). We never mix
+  // clientX with getBoundingClientRect for the anchor, which is what made the
+  // control jump off the finger on iPad (those two spaces diverge there).
   perfDrag = {
-    el,
+    el, k: el.dataset.perfEl,
+    startX: (stored && isFinite(stored.x)) ? stored.x : ((r.left + r.width / 2 - pvr.left) / pvr.width * 100),
+    startY: (stored && isFinite(stored.y)) ? stored.y : ((r.top + r.height / 2 - pvr.top) / pvr.height * 100),
+    sx: e.clientX, sy: e.clientY,
     halfW: r.width / 2, halfH: r.height / 2,
-    grabDX: (r.left + r.width / 2) - e.clientX,
-    grabDY: (r.top + r.height / 2) - e.clientY,
     moved: false
   };
 }
@@ -8462,26 +8471,31 @@ function moveSelected(e) {
   e.preventDefault();
   const d = perfDrag;
   const pv = document.getElementById('performance-view');
-  const pvr = pv.getBoundingClientRect();          // LIVE rect — robust to viewport shifts
+  const pvr = pv.getBoundingClientRect();          // LIVE rect
   if (!pvr.width || !pvr.height) return;
   d.moved = true;
-  const cx0 = (e.clientX + d.grabDX) - pvr.left;
-  const cy0 = (e.clientY + d.grabDY) - pvr.top;
-  let cx = cx0, cy = cy0, gX = null, gY = null, movedX = false, movedY = false;
+  // Finger delta as % of the live view, added to the stored anchor %. Because
+  // only the DELTA uses pointer coords, any absolute clientX↔rect offset cancels
+  // out, so the grabbed point stays exactly under the finger.
+  const dxPct = (e.clientX - d.sx) / pvr.width * 100;
+  const dyPct = (e.clientY - d.sy) / pvr.height * 100;
+  let cx = (d.startX + dxPct) / 100 * pvr.width;    // pv-relative px
+  let cy = (d.startY + dyPct) / 100 * pvr.height;
+  let gX = null, gY = null, movedX = false, movedY = false;
   const cands = collectSnaps(d.el, pvr);
   // Alignment matches drive both snapping (if Smart Snap on) and the temporary
   // guide lines (if Alignment Guides on) — the two toggle independently.
   if (edPrefs.smart || edPrefs.alignGuides) {
     const thr = edPrefs.snapDist || 10;
-    const sx = snapAxis(cx0, d.halfW, cands.X, thr);
+    const sx = snapAxis(cx, d.halfW, cands.X, thr);
     if (sx) { gX = sx.guide; if (edPrefs.smart) { cx = sx.c; movedX = true; } }
-    const sy = snapAxis(cy0, d.halfH, cands.Y, thr);
+    const sy = snapAxis(cy, d.halfH, cands.Y, thr);
     if (sy) { gY = sy.guide; if (edPrefs.smart) { cy = sy.c; movedY = true; } }
   }
   if (edPrefs.grid) {
     const g = edPrefs.gridSize || 20;
-    if (!movedX) cx = Math.round(cx0 / g) * g;
-    if (!movedY) cy = Math.round(cy0 / g) * g;
+    if (!movedX) cx = Math.round(cx / g) * g;
+    if (!movedY) cy = Math.round(cy / g) * g;
   }
   // clamp inside the safe area so nothing hides under a notch/edge
   cx = clampN(safeInsets.left + d.halfW, pvr.width - safeInsets.right - d.halfW, cx);
@@ -8664,6 +8678,57 @@ function applyEdPrefsUI() {
 })();
 // Now safe to apply the saved layout (incl. 'custom') — all consts are ready.
 applyPerfLayout(getPerfLayout());
+
+// Re-apply the custom layout when the viewport changes (orientation flip, Safari
+// toolbar collapse, window resize) so positions/rulers/selection stay correct.
+(function setupLayoutResize() {
+  let raf = null;
+  const reapply = () => {
+    raf = null;
+    const pv = document.getElementById('performance-view');
+    if (!pv || !pv.classList.contains('layout-custom')) return;
+    applyCustomLayout();
+    if (perfEditing) { positionSelBox(); buildRulers(); }
+  };
+  const onResize = () => { if (raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(reapply); };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
+})();
+
+// ===== Cross-device sync of the performance layout (PC ⇄ iPad over the account) =====
+// The layout/editor prefs live in localStorage; bundle them as one timestamped
+// blob and ride the existing library sync (last-writer-wins by timestamp).
+function markPerfSettingsChanged() {
+  try { localStorage.setItem('lyrics-perf-settings-ts', String(Date.now())); } catch (e) {}
+  if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+}
+function getLocalPerfSettings() {
+  let perfCustom = {}, perfEditorPrefs = {};
+  try { perfCustom = JSON.parse(localStorage.getItem('lyrics-perf-custom') || '{}'); } catch (e) {}
+  try { perfEditorPrefs = JSON.parse(localStorage.getItem('lyrics-perf-editor-prefs') || '{}'); } catch (e) {}
+  return {
+    perfCustom, perfEditorPrefs,
+    perfLayout: localStorage.getItem('lyrics-perf-layout') || 'right',
+    perfAutohide: localStorage.getItem('lyrics-perf-autohide') || 'on',
+    updatedAt: +(localStorage.getItem('lyrics-perf-settings-ts') || 0)
+  };
+}
+function applyRemotePerfSettings(s) {
+  if (!s || typeof s !== 'object') return;
+  try {
+    if (s.perfCustom) localStorage.setItem('lyrics-perf-custom', JSON.stringify(s.perfCustom));
+    if (s.perfEditorPrefs) localStorage.setItem('lyrics-perf-editor-prefs', JSON.stringify(s.perfEditorPrefs));
+    if (s.perfLayout) localStorage.setItem('lyrics-perf-layout', s.perfLayout);
+    if (s.perfAutohide) localStorage.setItem('lyrics-perf-autohide', s.perfAutohide);
+    localStorage.setItem('lyrics-perf-settings-ts', String(s.updatedAt || Date.now()));
+  } catch (e) {}
+  if (perfEditing) return;   // don't yank the layout out from under an active editing session
+  try { if (typeof loadEdPrefs === 'function') loadEdPrefs(); } catch (e) {}
+  try { if (typeof applyAutoHide === 'function') applyAutoHide(getPerfAutoHide()); } catch (e) {}
+  try { if (typeof applyPerfLayout === 'function') applyPerfLayout(getPerfLayout()); } catch (e) {}
+}
+
 document.getElementById('perf-play-btn').addEventListener('click', togglePerfScroll);
 document.getElementById('perf-restart').addEventListener('click', restartPerf);
 
@@ -10575,6 +10640,16 @@ async function runSync(opts = {}) {
     mergedSetlists = mergeById(freshSetlists, mergedSetlists, delSetlists);
     mergedFolders = mergeById(freshFolders, mergedFolders, delFolders);
 
+    // 4c. Performance layout + editor prefs — one timestamped blob, last-writer-wins.
+    //     If the remote copy is newer, apply it live on this device (PC ⇄ iPad).
+    const localPerf = getLocalPerfSettings();
+    const remotePerf = remote.settings || null;
+    let winPerf = localPerf;
+    if (remotePerf && (remotePerf.updatedAt || 0) > (localPerf.updatedAt || 0)) {
+      applyRemotePerfSettings(remotePerf);
+      winPerf = remotePerf;
+    }
+
     // 5. Write merged result back to LOCAL db
     //    (replace everything so deletions take effect)
     const db = await openDB();
@@ -10599,6 +10674,7 @@ async function runSync(opts = {}) {
       setlists: mergedSetlists,
       folders: mergedFolders,
       tombstones: { songs: [...delSongs], setlists: [...delSetlists], folders: [...delFolders] },
+      settings: winPerf,
       updatedAt: Date.now(),
     }));
 
@@ -10630,6 +10706,19 @@ function scheduleAutoSync() {
   autoSyncTimer = setTimeout(() => runSync({ silent: true }), 2500);
 }
 
+// Pull remote changes (e.g. a layout edited on the PC) whenever this device
+// comes back to the foreground — so picking up the iPad shows the latest.
+let lastFocusSync = 0;
+function maybeSyncOnForeground() {
+  if (!cloud.ready || !cloud.user || !isAutoSyncOn() || cloud.syncing) return;
+  const now = Date.now();
+  if (now - lastFocusSync < 4000) return;   // debounce rapid focus/visibility events
+  lastFocusSync = now;
+  runSync({ silent: true });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeSyncOnForeground(); });
+window.addEventListener('focus', maybeSyncOnForeground);
+
 // Force the cloud to exactly match the current local library (used after a JSON
 // import-replace, which is a deliberate "make everything look like this" op).
 async function pushOverwriteCloud() {
@@ -10639,7 +10728,7 @@ async function pushOverwriteCloud() {
     const setlists = await setlistAll();
     const folders = await folderAll();
     const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
-    await docRef.set(stripUndefinedDeep({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, updatedAt: Date.now() }));
+    await docRef.set(stripUndefinedDeep({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, settings: getLocalPerfSettings(), updatedAt: Date.now() }));
     clearTombstones();
     localStorage.setItem('lyrics-last-sync', String(Date.now()));
     updateCloudUI();
