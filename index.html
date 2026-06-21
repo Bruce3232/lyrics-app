@@ -2016,46 +2016,113 @@
   #perf-guide-v { top: 0; bottom: 0; width: 2px; transform: translateX(-1px); }
   #perf-guide-h { left: 0; right: 0; height: 2px; transform: translateY(-1px); }
 
-  /* Edit Layout toolbar — pinned bottom-centre, only visible while editing */
-  .perf-edit-bar {
-    position: absolute;
-    bottom: max(14px, env(safe-area-inset-bottom));
-    left: 50%;
-    transform: translateX(-50%) translateY(160%);
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    max-width: calc(100% - 24px);
-    padding: 10px 14px;
-    background: var(--surface-strong);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--border-strong);
-    border-radius: 16px;
-    box-shadow: var(--shadow-lg);
-    z-index: 90;
-    opacity: 0;
+  /* Grid overlay (Grid mode) */
+  .perf-grid {
+    position: absolute; inset: 0; pointer-events: none; z-index: 74;
+    opacity: 0; transition: opacity 0.15s var(--ease);
+    background-image:
+      linear-gradient(to right, rgba(255,140,26,0.22) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,140,26,0.22) 1px, transparent 1px);
+    background-size: var(--perf-grid, 20px) var(--perf-grid, 20px);
+  }
+  #performance-view.perf-editing.grid-on .perf-grid { opacity: 1; }
+
+  /* Slider thumb size is driven by a CSS var only in the custom layout (id
+     selector wins over the base/media .range-slider thumb rules). */
+  #performance-view.layout-custom .perf-speed-slider::-webkit-slider-thumb {
+    width: var(--perf-thumb, 22px); height: var(--perf-thumb, 22px);
+  }
+  #performance-view.layout-custom .perf-speed-slider::-moz-range-thumb {
+    width: var(--perf-thumb, 22px); height: var(--perf-thumb, 22px);
+  }
+
+  /* Selection box + resize handles around the selected control */
+  .perf-sel-box {
+    position: absolute; z-index: 78; display: none;
+    border: 1.5px solid var(--accent); border-radius: 8px;
     pointer-events: none;
-    transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+    box-shadow: 0 0 0 3px rgba(255,140,26,0.18);
   }
-  .perf-edit-bar.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
-  .perf-edit-title { font-weight: 800; font-size: 13px; color: var(--text-0); white-space: nowrap; }
-  .perf-edit-sel {
-    font-size: 12px; color: var(--text-1); min-width: 86px; text-align: center;
-    padding: 6px 12px; background: var(--surface); border: 1px solid var(--border-strong);
-    border-radius: 9px; white-space: nowrap;
+  #performance-view.perf-editing .perf-sel-box.show { display: block; }
+  .psb-corner {
+    position: absolute; width: 11px; height: 11px; background: #fff;
+    border: 2px solid var(--accent); border-radius: 50%;
   }
-  .perf-edit-size-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-1); }
-  .perf-edit-size-wrap input[type="range"] { width: 120px; }
-  .perf-edit-bar button {
-    padding: 8px 13px; border-radius: 10px; border: 1px solid var(--border-strong);
-    background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 12px;
-    cursor: pointer; white-space: nowrap; transition: filter 0.12s var(--ease);
+  .psb-corner.tl { top: -6px; left: -6px; }
+  .psb-corner.tr { top: -6px; right: -6px; }
+  .psb-corner.bl { bottom: -6px; left: -6px; }
+  .psb-corner.br { bottom: -6px; right: -6px; width: 16px; height: 16px; bottom: -8px; right: -8px;
+    pointer-events: auto; cursor: nwse-resize; touch-action: none; background: var(--accent); }
+
+  /* Floating, draggable Layout editor panel */
+  .perf-edit-panel {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 290px; max-width: calc(100% - 24px); max-height: calc(100% - 24px);
+    display: flex; flex-direction: column;
+    background: var(--surface-strong);
+    backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+    border: 1px solid var(--border-strong); border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    z-index: 95; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s var(--ease);
   }
-  .perf-edit-bar button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .perf-edit-bar button:disabled { opacity: 0.4; cursor: default; }
+  .perf-edit-panel.show { opacity: 1; pointer-events: auto; }
+  .pep-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 14px; cursor: grab; border-bottom: 1px solid var(--border-strong);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .pep-head:active { cursor: grabbing; }
+  .pep-title { font-weight: 800; font-size: 14px; color: var(--text-0); }
+  .pep-done {
+    padding: 7px 16px; border-radius: 9px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .pep-body { padding: 12px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .pep-sec { display: flex; flex-direction: column; gap: 7px; }
+  .pep-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); }
+  .pep-select {
+    width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-0); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  /* Precision nudge pad */
+  .pep-nudge {
+    display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
+    gap: 6px; width: 140px; margin: 0 auto;
+  }
+  .pep-arrow {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface);
+    color: var(--text-0); font-size: 18px; font-weight: 700; cursor: pointer; padding: 8px 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pep-arrow:active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pep-arrow.up { grid-column: 2; grid-row: 1; }
+  .pep-arrow.left { grid-column: 1; grid-row: 2; }
+  .pep-arrow.down { grid-column: 2; grid-row: 2; }
+  .pep-arrow.right { grid-column: 3; grid-row: 2; }
+  .pep-step { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: var(--text-1); }
+  .pep-step .pep-select { width: auto; }
+  /* Per-property size sliders */
+  .pep-size { display: flex; flex-direction: column; gap: 9px; }
+  .pep-pc-row { display: grid; grid-template-columns: 78px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-1); }
+  .pep-pc-row input[type="range"] { width: 100%; }
+  .pep-pc-row b { color: var(--text-0); text-align: right; font-variant-numeric: tabular-nums; }
+  .pep-size-empty { font-size: 12px; color: var(--text-2); font-style: italic; }
+  .pep-opts { display: flex; align-items: center; gap: 8px; }
+  .pep-toggle {
+    flex: 1; padding: 8px 6px; border-radius: 9px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 12px; cursor: pointer;
+    white-space: nowrap; transition: all 0.12s var(--ease);
+  }
+  .pep-toggle.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pep-gridsize { width: 64px; flex: none; }
+  .pep-resets { flex-direction: row; gap: 8px; }
+  .pep-resets button {
+    flex: 1; padding: 9px 8px; border-radius: 9px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 11px; cursor: pointer;
+  }
+  .pep-resets button:disabled { opacity: 0.4; cursor: default; }
 
   .perf-play-btn {
     width: 56px; height: 56px;
@@ -3244,17 +3311,69 @@
     <div class="perf-guide" id="perf-guide-v"></div>
     <div class="perf-guide" id="perf-guide-h"></div>
 
-    <!-- Layout edit toolbar (only visible in Edit Layout mode) -->
-    <div class="perf-edit-bar" id="perf-edit-bar">
-      <div class="perf-edit-title">Layout bearbeiten</div>
-      <div class="perf-edit-sel" id="perf-edit-sel">Element wählen…</div>
-      <div class="perf-edit-size-wrap" id="perf-edit-size-wrap">
-        <span>Grösse</span>
-        <input type="range" id="perf-edit-size" min="0.5" max="2.5" step="0.05" value="1" title="Grösse">
+    <!-- Grid overlay (Grid mode) -->
+    <div class="perf-grid" id="perf-grid"></div>
+
+    <!-- Selection box + resize handles around the selected control -->
+    <div class="perf-sel-box" id="perf-sel-box">
+      <span class="psb-corner tl"></span>
+      <span class="psb-corner tr"></span>
+      <span class="psb-corner bl"></span>
+      <span class="psb-corner br" id="perf-sel-handle" title="Grösse ziehen"></span>
+    </div>
+
+    <!-- Floating, draggable Layout editor panel (only visible in Edit Layout mode) -->
+    <div class="perf-edit-panel" id="perf-edit-panel">
+      <div class="pep-head" id="pep-head">
+        <span class="pep-title">Layout bearbeiten</span>
+        <button id="perf-edit-done" class="pep-done">Fertig</button>
       </div>
-      <button id="perf-edit-reset-sel">Auswahl zurücksetzen</button>
-      <button id="perf-edit-reset-all">Alles zurücksetzen</button>
-      <button id="perf-edit-done" class="primary">Fertig</button>
+      <div class="pep-body">
+        <div class="pep-sec">
+          <label class="pep-label">Element</label>
+          <select id="perf-edit-pick" class="pep-select"></select>
+        </div>
+        <div class="pep-sec">
+          <label class="pep-label">Bewegen</label>
+          <div class="pep-nudge">
+            <button class="pep-arrow up" data-nudge="up" title="Nach oben">↑</button>
+            <button class="pep-arrow left" data-nudge="left" title="Nach links">←</button>
+            <button class="pep-arrow right" data-nudge="right" title="Nach rechts">→</button>
+            <button class="pep-arrow down" data-nudge="down" title="Nach unten">↓</button>
+          </div>
+          <div class="pep-step">
+            <span>Schritt</span>
+            <select id="perf-edit-step" class="pep-select">
+              <option value="1">1</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+            </select>
+            <span>px</span>
+          </div>
+        </div>
+        <div class="pep-sec">
+          <label class="pep-label">Grösse</label>
+          <div id="perf-size-controls" class="pep-size"></div>
+        </div>
+        <div class="pep-sec">
+          <label class="pep-label">Hilfslinien</label>
+          <div class="pep-opts">
+            <button id="perf-grid-toggle" class="pep-toggle">Raster</button>
+            <select id="perf-grid-size" class="pep-select pep-gridsize">
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+            <button id="perf-smart-toggle" class="pep-toggle">Magnet</button>
+          </div>
+        </div>
+        <div class="pep-sec pep-resets">
+          <button id="perf-edit-reset-sel">Auswahl zurücksetzen</button>
+          <button id="perf-edit-reset-all">Alles zurücksetzen</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4668,7 +4787,23 @@ const I18N = {
     "Setlist": "Setlist",
     "Vorheriger": "Previous",
     "Nächster": "Next",
-    "Neustart": "Restart"
+    "Neustart": "Restart",
+    "Bewegen": "Move",
+    "Schritt": "Step",
+    "Hilfslinien": "Guides",
+    "Raster": "Grid",
+    "Magnet": "Snap",
+    "Breite": "Width",
+    "Höhe": "Height",
+    "Durchmesser": "Diameter",
+    "Länge": "Length",
+    "Dicke": "Thickness",
+    "Reglergrösse": "Handle size",
+    "Nach oben": "Up",
+    "Nach unten": "Down",
+    "Nach links": "Left",
+    "Nach rechts": "Right",
+    "Grösse ziehen": "Drag to resize"
   }
 };
 let currentLang = 'de';
@@ -7656,27 +7791,64 @@ applyAutoHide(getPerfAutoHide());
 })();
 
 // =====================================================
-//   Custom Performance Layout — drag & resize editor
-//   Any element tagged with data-perf-el is automatically movable, resizable,
-//   snappable and persisted. New controls inherit this for free: just add the
-//   attribute in the markup. Positions are stored as % of the performance view
-//   (anchored at each element's centre) so they hold up across screen sizes.
+//   Custom Performance Layout — professional drag/resize editor
+//   Any element tagged data-perf-el is automatically movable, resizable,
+//   snappable and persisted — new controls inherit this for free. Position is
+//   stored as % of the performance view (centre-anchored); size is stored per
+//   element in px, exposing only the properties that make sense for its type
+//   (button w/h, play diameter, text font-size, slider length/thickness/thumb).
 // =====================================================
 const PERF_CUSTOM_KEY = 'lyrics-perf-custom';
+const PERF_EDPREF_KEY = 'lyrics-perf-editor-prefs';
 let perfEditing = false;
 let selectedPerfEl = null;
-let perfDrag = null;
+let perfDrag = null;       // dragging a control
+let handleResize = null;   // dragging the corner resize handle
+let panelDrag = null;      // dragging the editor panel
 let defaultLayoutCache = null;
 let safeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
-const SNAP_PX = 11;
+const SNAP_PX = 9;
 
-// Localised display names for the toolbar (German source → T() handles English).
+// Editor preferences (grid / smart-snap / nudge step) — persisted apart from
+// the layout itself.
+let edPrefs = { grid: false, gridSize: 20, smart: true, step: 1 };
+function loadEdPrefs() {
+  try { const v = JSON.parse(localStorage.getItem(PERF_EDPREF_KEY)); if (v && typeof v === 'object') edPrefs = { ...edPrefs, ...v }; } catch (e) {}
+}
+function saveEdPrefs() { try { localStorage.setItem(PERF_EDPREF_KEY, JSON.stringify(edPrefs)); } catch (e) {} }
+loadEdPrefs();
+
+// Localised display names for the list/handles (German source → T() → English).
 const PERF_EL_NAMES = {
   back: 'Zurück', title: 'Titel', transpose: 'Transponieren', chord: 'Akkordgrösse',
   font: 'Schriftgrösse', edit: 'Bearbeiten', help: 'Hilfe', theme: 'Thema',
   songs: 'Setlist', settings: 'Einstellungen', prev: 'Vorheriger', play: 'Play',
   next: 'Nächster', speed: 'Geschwindigkeit', restart: 'Neustart'
 };
+// Which resize properties each element type exposes.
+const PERF_EL_TYPE = {
+  back: 'button', edit: 'button', help: 'button', theme: 'button', songs: 'button',
+  prev: 'button', next: 'button', restart: 'button', settings: 'button',
+  play: 'play', title: 'text', transpose: 'group', chord: 'group', font: 'group',
+  speed: 'slider'
+};
+// Per-property size sliders shown for each type: [key, label, min, max].
+const SIZE_DEFS = {
+  button: [['w', 'Breite', 24, 140], ['h', 'Höhe', 24, 140]],
+  group:  [['w', 'Breite', 40, 300], ['h', 'Höhe', 28, 150]],
+  play:   [['d', 'Durchmesser', 36, 170]],
+  text:   [['fs', 'Schriftgrösse', 12, 52]],
+  slider: [['len', 'Länge', 40, 340], ['thick', 'Dicke', 4, 30], ['thumb', 'Reglergrösse', 10, 46]]
+};
+const SIZE_CLAMP = { w: [20, 320], h: [20, 220], d: [30, 220], fs: [10, 64], len: [36, 380], thick: [3, 34], thumb: [8, 52] };
+function clampSize(key, v) { const r = SIZE_CLAMP[key]; v = Math.round(v); return r ? Math.max(r[0], Math.min(r[1], v)) : v; }
+
+function elType(el) { return PERF_EL_TYPE[el.dataset.perfEl] || 'button'; }
+function sizeTarget(el) {
+  if (el.dataset.perfEl === 'settings') return el.querySelector('#perf-settings-btn') || el;
+  return el;
+}
+function sliderEl(el) { return el.querySelector('.perf-speed-slider'); }
 
 function getCustomLayout() {
   try { return JSON.parse(localStorage.getItem(PERF_CUSTOM_KEY)) || {}; } catch (e) { return {}; }
@@ -7687,8 +7859,12 @@ function saveCustomLayout(map) {
 function perfEls() {
   return Array.from(document.querySelectorAll('#performance-view [data-perf-el]'));
 }
-// Measure every element's current centre (in its existing right/bottom layout)
-// and return a layout map — used to seed the custom layout 1:1 and for resets.
+function visiblePerfEls() {
+  return perfEls().filter(el => { const r = el.getBoundingClientRect(); return r.width && r.height; });
+}
+
+// Measure every element's current centre (in its existing right/bottom layout);
+// used to seed the custom layout 1:1 and for resets. Positions only.
 function measureLayout() {
   const pv = document.getElementById('performance-view');
   const pvr = pv.getBoundingClientRect();
@@ -7699,8 +7875,7 @@ function measureLayout() {
     if (!r.width || !r.height) return;     // hidden (e.g. font +/- on touch) — skip
     map[el.dataset.perfEl] = {
       x: +(((r.left + r.width / 2 - pvr.left) / pvr.width) * 100).toFixed(2),
-      y: +(((r.top + r.height / 2 - pvr.top) / pvr.height) * 100).toFixed(2),
-      s: 1
+      y: +(((r.top + r.height / 2 - pvr.top) / pvr.height) * 100).toFixed(2)
     };
   });
   return map;
@@ -7716,14 +7891,50 @@ function getDefaultLayout() {
   if (wasCustom) { pv.classList.add('layout-custom'); applyCustomLayout(); }
   return defaultLayoutCache;
 }
-function styleEl(el, c) {
-  if (!c || !isFinite(c.x) || !isFinite(c.y)) return;   // never write NaN positions
+function measureOne(el) {
+  const pv = document.getElementById('performance-view');
+  const pvr = pv.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  if (!pvr.width || !pvr.height) return { x: 50, y: 50 };
+  return {
+    x: +(((r.left + r.width / 2 - pvr.left) / pvr.width) * 100).toFixed(2),
+    y: +(((r.top + r.height / 2 - pvr.top) / pvr.height) * 100).toFixed(2)
+  };
+}
+function applyElPos(el, c) {
+  if (!c || !isFinite(c.x) || !isFinite(c.y)) return;
   el.style.left = c.x + '%';
   el.style.top = c.y + '%';
   el.style.right = 'auto';
   el.style.bottom = 'auto';
-  el.style.transform = 'translate(-50%, -50%) scale(' + (c.s || 1) + ')';
+  el.style.transform = 'translate(-50%, -50%)';
 }
+function applyElSize(el, c) {
+  if (!c) return;
+  const t = elType(el);
+  if (t === 'button' || t === 'group') {
+    const tg = sizeTarget(el);
+    if (isFinite(c.w)) tg.style.width = c.w + 'px';
+    if (isFinite(c.h)) tg.style.height = c.h + 'px';
+  } else if (t === 'play') {
+    const tg = sizeTarget(el);
+    if (isFinite(c.d)) { tg.style.width = c.d + 'px'; tg.style.height = c.d + 'px'; }
+  } else if (t === 'text') {
+    const title = el.querySelector('.perf-title'); const artist = el.querySelector('.perf-artist');
+    if (isFinite(c.fs)) {
+      if (title) title.style.fontSize = c.fs + 'px';
+      if (artist) artist.style.fontSize = Math.max(10, Math.round(c.fs * 0.45)) + 'px';
+    }
+  } else if (t === 'slider') {
+    const sl = sliderEl(el);
+    if (sl) {
+      if (isFinite(c.len)) sl.style.height = c.len + 'px';     // vertical slider: height = length
+      if (isFinite(c.thick)) sl.style.width = c.thick + 'px';
+      if (isFinite(c.thumb)) sl.style.setProperty('--perf-thumb', c.thumb + 'px');
+    }
+  }
+}
+function styleEl(el, c) { applyElPos(el, c); applyElSize(el, c); }
 function applyCustomLayout() {
   const map = getCustomLayout();
   let fallback = 0;
@@ -7733,16 +7944,19 @@ function applyCustomLayout() {
     else {
       // Unsaved (e.g. a control added in a later version) → drop it somewhere
       // visible so the user can grab and place it.
-      styleEl(el, { x: 12 + (fallback % 4) * 8, y: 12 + Math.floor(fallback / 4) * 9, s: 1 });
+      styleEl(el, { x: 12 + (fallback % 4) * 8, y: 12 + Math.floor(fallback / 4) * 9 });
       fallback++;
     }
   });
 }
-function clearCustomInline() {
-  perfEls().forEach(el => {
-    el.style.left = el.style.top = el.style.right = el.style.bottom = el.style.transform = '';
-  });
+function clearElInline(el) {
+  el.style.left = el.style.top = el.style.right = el.style.bottom = el.style.transform = '';
+  const tg = sizeTarget(el); tg.style.width = ''; tg.style.height = '';
+  const title = el.querySelector('.perf-title'); if (title) title.style.fontSize = '';
+  const artist = el.querySelector('.perf-artist'); if (artist) artist.style.fontSize = '';
+  const sl = sliderEl(el); if (sl) { sl.style.height = ''; sl.style.width = ''; sl.style.removeProperty('--perf-thumb'); }
 }
+function clearCustomInline() { perfEls().forEach(clearElInline); }
 function computeSafeInsets() {
   let probe;
   try {
@@ -7765,6 +7979,21 @@ function computeSafeInsets() {
   safeInsets.top += M; safeInsets.right += M; safeInsets.bottom += M; safeInsets.left += M;
 }
 
+// Current size of a control (stored override, else its live measurement).
+function currentSize(el) {
+  const c = getCustomLayout()[el.dataset.perfEl] || {};
+  const t = elType(el);
+  if (t === 'button' || t === 'group') { const r = sizeTarget(el).getBoundingClientRect(); return { w: clampSize('w', c.w != null ? c.w : r.width), h: clampSize('h', c.h != null ? c.h : r.height) }; }
+  if (t === 'play') { const r = sizeTarget(el).getBoundingClientRect(); return { d: clampSize('d', c.d != null ? c.d : r.width) }; }
+  if (t === 'text') { const title = el.querySelector('.perf-title'); const fs = parseFloat(title && getComputedStyle(title).fontSize) || 30; return { fs: clampSize('fs', c.fs != null ? c.fs : fs) }; }
+  if (t === 'slider') {
+    const sl = sliderEl(el); const r = sl ? sl.getBoundingClientRect() : { height: 96, width: 6 };
+    const thumb = parseFloat(sl && getComputedStyle(sl).getPropertyValue('--perf-thumb')) || 22;
+    return { len: clampSize('len', c.len != null ? c.len : r.height), thick: clampSize('thick', c.thick != null ? c.thick : r.width), thumb: clampSize('thumb', c.thumb != null ? c.thumb : thumb) };
+  }
+  return {};
+}
+
 function enterLayoutEdit() {
   const pv = document.getElementById('performance-view');
   if (!pv.classList.contains('layout-custom')) {
@@ -7783,36 +8012,128 @@ function enterLayoutEdit() {
   clearTimeout(controlsHideTimer);
   controlsHideTimer = null;
   computeSafeInsets();
+  applyEdPrefsUI();
+  buildPickList();
   selectPerfEl(null);
-  document.getElementById('perf-edit-bar').classList.add('show');
+  const panel = document.getElementById('perf-edit-panel');
+  panel.classList.add('show');
+  requestAnimationFrame(centerPanel);
 }
 function exitLayoutEdit() {
   perfEditing = false;
   document.getElementById('performance-view').classList.remove('perf-editing');
-  document.getElementById('perf-edit-bar').classList.remove('show');
+  document.getElementById('perf-edit-panel').classList.remove('show');
   selectPerfEl(null);
+  hideGuides();
   scheduleControlsHide();
 }
 function selectPerfEl(el) {
   perfEls().forEach(e => e.classList.remove('selected'));
   selectedPerfEl = el || null;
-  const nameEl = document.getElementById('perf-edit-sel');
-  const sizeWrap = document.getElementById('perf-edit-size-wrap');
+  const pick = document.getElementById('perf-edit-pick');
   const resetSel = document.getElementById('perf-edit-reset-sel');
+  const box = document.getElementById('perf-sel-box');
+  document.querySelectorAll('.pep-arrow').forEach(b => b.disabled = !el);
   if (el) {
     el.classList.add('selected');
-    if (nameEl) nameEl.textContent = T(PERF_EL_NAMES[el.dataset.perfEl] || el.dataset.perfEl);
-    const c = getCustomLayout()[el.dataset.perfEl];
-    const sizeInput = document.getElementById('perf-edit-size');
-    if (sizeInput) sizeInput.value = (c && c.s) || 1;
-    if (sizeWrap) sizeWrap.style.visibility = 'visible';
+    if (pick) pick.value = el.dataset.perfEl;
     if (resetSel) resetSel.disabled = false;
+    buildSizeControls(el);
+    positionSelBox();
+    avoidPanelOverlap(el);
   } else {
-    if (nameEl) nameEl.textContent = T('Element wählen…');
-    if (sizeWrap) sizeWrap.style.visibility = 'hidden';
+    if (pick) pick.value = '';
     if (resetSel) resetSel.disabled = true;
+    const host = document.getElementById('perf-size-controls');
+    if (host) host.innerHTML = '<div class="pep-size-empty">' + T('Element wählen…') + '</div>';
+    if (box) box.classList.remove('show');
   }
 }
+function buildPickList() {
+  const sel = document.getElementById('perf-edit-pick');
+  if (!sel) return;
+  sel.innerHTML = '';
+  const o0 = document.createElement('option'); o0.value = ''; o0.textContent = T('Element wählen…'); sel.appendChild(o0);
+  visiblePerfEls().forEach(el => {
+    const o = document.createElement('option');
+    o.value = el.dataset.perfEl;
+    o.textContent = T(PERF_EL_NAMES[el.dataset.perfEl] || el.dataset.perfEl);
+    sel.appendChild(o);
+  });
+}
+function buildSizeControls(el) {
+  const host = document.getElementById('perf-size-controls');
+  if (!host) return;
+  host.innerHTML = '';
+  const defs = SIZE_DEFS[elType(el)] || [];
+  const cur = currentSize(el);
+  defs.forEach(([key, label, min, max]) => {
+    const row = document.createElement('div'); row.className = 'pep-pc-row';
+    const span = document.createElement('span'); span.textContent = T(label);
+    const range = document.createElement('input'); range.type = 'range'; range.min = min; range.max = max; range.step = 1; range.value = cur[key];
+    const b = document.createElement('b'); b.textContent = cur[key];
+    range.addEventListener('input', () => {
+      const v = clampSize(key, parseFloat(range.value));
+      b.textContent = v;
+      const map = getCustomLayout(); const k = el.dataset.perfEl;
+      const c = map[k] || measureOne(el); c[key] = v; map[k] = c; saveCustomLayout(map);
+      applyElSize(el, c); positionSelBox();
+    });
+    row.appendChild(span); row.appendChild(range); row.appendChild(b);
+    host.appendChild(row);
+  });
+}
+function positionSelBox() {
+  const box = document.getElementById('perf-sel-box');
+  if (!box) return;
+  if (!selectedPerfEl) { box.classList.remove('show'); return; }
+  const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
+  const r = selectedPerfEl.getBoundingClientRect();
+  box.style.left = (r.left - pvr.left) + 'px';
+  box.style.top = (r.top - pvr.top) + 'px';
+  box.style.width = r.width + 'px';
+  box.style.height = r.height + 'px';
+  box.classList.add('show');
+}
+
+// --- Floating panel positioning ---
+function placePanel(left, top) {
+  const panel = document.getElementById('perf-edit-panel');
+  const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
+  const pr = panel.getBoundingClientRect();
+  const maxL = Math.max(8, pvr.width - pr.width - 8), maxT = Math.max(8, pvr.height - pr.height - 8);
+  left = Math.max(8, Math.min(maxL, left)); top = Math.max(8, Math.min(maxT, top));
+  panel.style.left = left + 'px'; panel.style.top = top + 'px'; panel.style.transform = 'none';
+}
+function centerPanel() {
+  const panel = document.getElementById('perf-edit-panel');
+  const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
+  const pr = panel.getBoundingClientRect();
+  placePanel((pvr.width - pr.width) / 2, (pvr.height - pr.height) / 2);
+}
+// Keep the panel from covering the selected control: if it overlaps, jump to
+// the first edge/corner slot that's clear.
+function avoidPanelOverlap(el) {
+  const panel = document.getElementById('perf-edit-panel');
+  const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
+  const pr = panel.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  const e = { l: er.left - pvr.left, t: er.top - pvr.top, r: er.right - pvr.left, b: er.bottom - pvr.top };
+  const W = pr.width, H = pr.height, M = 12;
+  const pl = parseFloat(panel.style.left); const pt = parseFloat(panel.style.top);
+  const curL = isFinite(pl) ? pl : (pvr.width - W) / 2;
+  const curT = isFinite(pt) ? pt : (pvr.height - H) / 2;
+  const hit = (l, t) => !(l + W < e.l || l > e.r || t + H < e.t || t > e.b);
+  if (!hit(curL, curT)) return;
+  const slots = [
+    [(pvr.width - W) / 2, M], [(pvr.width - W) / 2, pvr.height - H - M],
+    [M, (pvr.height - H) / 2], [pvr.width - W - M, (pvr.height - H) / 2],
+    [M, M], [pvr.width - W - M, M], [M, pvr.height - H - M], [pvr.width - W - M, pvr.height - H - M]
+  ];
+  const ok = slots.find(([l, t]) => !hit(l, t));
+  placePanel.apply(null, ok || slots[0]);
+}
+
 function showGuide(id, on, pos) {
   const g = document.getElementById(id);
   if (!g) return;
@@ -7820,6 +8141,31 @@ function showGuide(id, on, pos) {
   if (on && pos != null) { if (id === 'perf-guide-v') g.style.left = pos + 'px'; else g.style.top = pos + 'px'; }
 }
 function hideGuides() { showGuide('perf-guide-v', false); showGuide('perf-guide-h', false); }
+
+// Build the snap targets (screen edges/centre + every other control's
+// left/centre/right and top/middle/bottom) once, at drag start.
+function collectSnaps(movingEl, pvr) {
+  const X = [safeInsets.left, pvr.width / 2, pvr.width - safeInsets.right];
+  const Y = [safeInsets.top, pvr.height / 2, pvr.height - safeInsets.bottom];
+  perfEls().forEach(el => {
+    if (el === movingEl) return;
+    const r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
+    X.push(r.left - pvr.left, (r.left + r.right) / 2 - pvr.left, r.right - pvr.left);
+    Y.push(r.top - pvr.top, (r.top + r.bottom) / 2 - pvr.top, r.bottom - pvr.top);
+  });
+  return { X, Y };
+}
+function snapAxis(c, half, cands) {
+  let best = null;
+  const anchors = [-half, 0, half];   // align by left/centre/right (or top/middle/bottom)
+  for (const Tc of cands) {
+    for (const o of anchors) {
+      const dd = Math.abs((c + o) - Tc);
+      if (dd <= SNAP_PX && (!best || dd < best.dd)) best = { c: Tc - o, guide: Tc, dd };
+    }
+  }
+  return best;
+}
 
 function onPerfPointerDown(e) {
   if (!perfEditing) return;
@@ -7836,103 +8182,166 @@ function onPerfPointerDown(e) {
     cx: r.left + r.width / 2 - pvr.left,
     cy: r.top + r.height / 2 - pvr.top,
     sx: e.clientX, sy: e.clientY,
-    scale: (getCustomLayout()[el.dataset.perfEl] || {}).s || 1
+    cands: collectSnaps(el, pvr)
   };
 }
-function onPerfPointerMove(e) {
-  if (!perfDrag) return;
+function moveSelected(e) {
   e.preventDefault();
   const d = perfDrag;
-  let cx = d.cx + (e.clientX - d.sx);
-  let cy = d.cy + (e.clientY - d.sy);
-  // --- snapping (centre + safe edges) with alignment guides ---
-  let snapX = -1, snapY = -1;
-  if (Math.abs(cx - d.pvW / 2) < SNAP_PX) { cx = d.pvW / 2; snapX = cx; }
-  else if (Math.abs((cx - d.halfW) - safeInsets.left) < SNAP_PX) { cx = safeInsets.left + d.halfW; snapX = cx; }
-  else if (Math.abs((cx + d.halfW) - (d.pvW - safeInsets.right)) < SNAP_PX) { cx = d.pvW - safeInsets.right - d.halfW; snapX = cx; }
-  if (Math.abs(cy - d.pvH / 2) < SNAP_PX) { cy = d.pvH / 2; snapY = cy; }
-  else if (Math.abs((cy - d.halfH) - safeInsets.top) < SNAP_PX) { cy = safeInsets.top + d.halfH; snapY = cy; }
-  else if (Math.abs((cy + d.halfH) - (d.pvH - safeInsets.bottom)) < SNAP_PX) { cy = d.pvH - safeInsets.bottom - d.halfH; snapY = cy; }
-  showGuide('perf-guide-v', snapX >= 0, snapX);
-  showGuide('perf-guide-h', snapY >= 0, snapY);
-  // --- clamp inside the safe area so nothing hides under a notch/edge ---
+  const cx0 = d.cx + (e.clientX - d.sx);
+  const cy0 = d.cy + (e.clientY - d.sy);
+  let cx = cx0, cy = cy0, gX = null, gY = null;
+  if (edPrefs.smart) {
+    const sx = snapAxis(cx0, d.halfW, d.cands.X); if (sx) { cx = sx.c; gX = sx.guide; }
+    const sy = snapAxis(cy0, d.halfH, d.cands.Y); if (sy) { cy = sy.c; gY = sy.guide; }
+  }
+  if (edPrefs.grid) {
+    const g = edPrefs.gridSize || 20;
+    if (gX === null) cx = Math.round(cx0 / g) * g;
+    if (gY === null) cy = Math.round(cy0 / g) * g;
+  }
+  // clamp inside the safe area so nothing hides under a notch/edge
   cx = Math.max(safeInsets.left + d.halfW, Math.min(d.pvW - safeInsets.right - d.halfW, cx));
   cy = Math.max(safeInsets.top + d.halfH, Math.min(d.pvH - safeInsets.bottom - d.halfH, cy));
   d.lastX = cx; d.lastY = cy;
   d.el.style.left = (cx / d.pvW * 100) + '%';
   d.el.style.top = (cy / d.pvH * 100) + '%';
   d.el.style.right = 'auto'; d.el.style.bottom = 'auto';
-  d.el.style.transform = 'translate(-50%, -50%) scale(' + d.scale + ')';
+  d.el.style.transform = 'translate(-50%, -50%)';
+  showGuide('perf-guide-v', gX !== null, gX);
+  showGuide('perf-guide-h', gY !== null, gY);
+  positionSelBox();
 }
-function onPerfPointerUp() {
-  if (!perfDrag) return;
-  const d = perfDrag;
-  hideGuides();
-  const map = getCustomLayout();
-  const k = d.el.dataset.perfEl;
-  map[k] = {
-    x: +(((d.lastX != null ? d.lastX : d.cx) / d.pvW) * 100).toFixed(2),
-    y: +(((d.lastY != null ? d.lastY : d.cy) / d.pvH) * 100).toFixed(2),
-    s: d.scale
-  };
-  saveCustomLayout(map);
-  perfDrag = null;
+function resizeSelected(e) {
+  e.preventDefault();
+  const h = handleResize; const dx = e.clientX - h.sx, dy = e.clientY - h.sy;
+  const map = getCustomLayout(); const k = h.el.dataset.perfEl; const c = map[k] || measureOne(h.el);
+  if (h.t === 'button' || h.t === 'group') { c.w = clampSize('w', h.start.w + dx); c.h = clampSize('h', h.start.h + dy); }
+  else if (h.t === 'play') { c.d = clampSize('d', h.start.d + (dx + dy) / 2); }
+  else if (h.t === 'text') { c.fs = clampSize('fs', h.start.fs + dy * 0.3); }
+  else if (h.t === 'slider') { c.len = clampSize('len', h.start.len + dy); c.thick = clampSize('thick', h.start.thick + dx * 0.4); }
+  map[k] = c; saveCustomLayout(map); applyElSize(h.el, c); positionSelBox();
 }
+function movePanelDrag(e) {
+  e.preventDefault();
+  const d = panelDrag;
+  placePanel(d.l + (e.clientX - d.sx), d.t + (e.clientY - d.sy));
+}
+function onDocPointerMove(e) {
+  if (perfDrag) return moveSelected(e);
+  if (handleResize) return resizeSelected(e);
+  if (panelDrag) return movePanelDrag(e);
+}
+function onDocPointerUp() {
+  if (perfDrag) {
+    const d = perfDrag; hideGuides();
+    const map = getCustomLayout(); const k = d.el.dataset.perfEl;
+    const c = map[k] || {};
+    c.x = +(((d.lastX != null ? d.lastX : d.cx) / d.pvW) * 100).toFixed(2);
+    c.y = +(((d.lastY != null ? d.lastY : d.cy) / d.pvH) * 100).toFixed(2);
+    map[k] = c; saveCustomLayout(map);
+    perfDrag = null; positionSelBox();
+  }
+  if (handleResize) { const el = handleResize.el; handleResize = null; if (el === selectedPerfEl) buildSizeControls(el); }
+  if (panelDrag) panelDrag = null;
+}
+function startHandleResize(e) {
+  if (!selectedPerfEl) return;
+  e.preventDefault(); e.stopPropagation();
+  handleResize = { el: selectedPerfEl, t: elType(selectedPerfEl), sx: e.clientX, sy: e.clientY, start: currentSize(selectedPerfEl) };
+}
+// Precision nudge (arrow buttons) by the chosen pixel step.
+function nudge(dir) {
+  if (!selectedPerfEl) return;
+  const step = edPrefs.step || 1;
+  const dx = dir === 'left' ? -step : dir === 'right' ? step : 0;
+  const dy = dir === 'up' ? -step : dir === 'down' ? step : 0;
+  const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
+  const r = selectedPerfEl.getBoundingClientRect();
+  const halfW = r.width / 2, halfH = r.height / 2;
+  let cx = r.left + r.width / 2 - pvr.left + dx;
+  let cy = r.top + r.height / 2 - pvr.top + dy;
+  cx = Math.max(safeInsets.left + halfW, Math.min(pvr.width - safeInsets.right - halfW, cx));
+  cy = Math.max(safeInsets.top + halfH, Math.min(pvr.height - safeInsets.bottom - halfH, cy));
+  const map = getCustomLayout(); const k = selectedPerfEl.dataset.perfEl;
+  const c = map[k] || {}; c.x = +((cx / pvr.width) * 100).toFixed(2); c.y = +((cy / pvr.height) * 100).toFixed(2);
+  map[k] = c; saveCustomLayout(map); applyElPos(selectedPerfEl, c); positionSelBox();
+}
+function applyEdPrefsUI() {
+  const pv = document.getElementById('performance-view');
+  pv.classList.toggle('grid-on', !!edPrefs.grid);
+  pv.style.setProperty('--perf-grid', (edPrefs.gridSize || 20) + 'px');
+  const gt = document.getElementById('perf-grid-toggle'); if (gt) gt.classList.toggle('active', !!edPrefs.grid);
+  const st = document.getElementById('perf-smart-toggle'); if (st) st.classList.toggle('active', !!edPrefs.smart);
+  const gs = document.getElementById('perf-grid-size'); if (gs) gs.value = String(edPrefs.gridSize || 20);
+  const step = document.getElementById('perf-edit-step'); if (step) step.value = String(edPrefs.step || 1);
+}
+
 (function setupLayoutEditor() {
   const pv = document.getElementById('performance-view');
   if (!pv) return;
   pv.addEventListener('pointerdown', onPerfPointerDown);
-  document.addEventListener('pointermove', onPerfPointerMove);
-  document.addEventListener('pointerup', onPerfPointerUp);
-  document.addEventListener('pointercancel', onPerfPointerUp);
-  // Swallow control clicks while editing so dragging the Play button doesn't
-  // start the song, Back doesn't leave, etc.
+  document.addEventListener('pointermove', onDocPointerMove);
+  document.addEventListener('pointerup', onDocPointerUp);
+  document.addEventListener('pointercancel', onDocPointerUp);
+  // Swallow control clicks while editing so dragging Play doesn't start the
+  // song, Back doesn't leave, etc.
   pv.addEventListener('click', (e) => {
     if (perfEditing && e.target.closest('[data-perf-el]')) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 
-  const sizeInput = document.getElementById('perf-edit-size');
-  if (sizeInput) sizeInput.addEventListener('input', (e) => {
-    if (!selectedPerfEl) return;
-    const s = parseFloat(e.target.value) || 1;
-    const map = getCustomLayout();
-    const k = selectedPerfEl.dataset.perfEl;
-    const c = map[k] || measureOne(selectedPerfEl);
-    c.s = s; map[k] = c;
-    saveCustomLayout(map);
-    styleEl(selectedPerfEl, c);
+  // Corner resize handle
+  const handle = document.getElementById('perf-sel-handle');
+  if (handle) handle.addEventListener('pointerdown', startHandleResize);
+
+  // Drag the panel by its header
+  const head = document.getElementById('pep-head');
+  if (head) head.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button')) return;   // let the Done button work
+    e.preventDefault();
+    const panel = document.getElementById('perf-edit-panel');
+    const pr = panel.getBoundingClientRect(); const pvr = pv.getBoundingClientRect();
+    panelDrag = { sx: e.clientX, sy: e.clientY, l: pr.left - pvr.left, t: pr.top - pvr.top };
   });
+
+  // Pick an element from the list
+  const pick = document.getElementById('perf-edit-pick');
+  if (pick) pick.addEventListener('change', () => {
+    if (!pick.value) { selectPerfEl(null); return; }
+    const el = pv.querySelector('[data-perf-el="' + pick.value + '"]'); if (el) selectPerfEl(el);
+  });
+
+  // Precision nudge arrows + step
+  document.querySelectorAll('.pep-arrow').forEach(b => b.addEventListener('click', () => nudge(b.dataset.nudge)));
+  const stepSel = document.getElementById('perf-edit-step');
+  if (stepSel) stepSel.addEventListener('change', () => { edPrefs.step = parseInt(stepSel.value, 10) || 1; saveEdPrefs(); });
+
+  // Grid + smart-snap toggles
+  const gt = document.getElementById('perf-grid-toggle');
+  if (gt) gt.addEventListener('click', () => { edPrefs.grid = !edPrefs.grid; saveEdPrefs(); applyEdPrefsUI(); });
+  const gs = document.getElementById('perf-grid-size');
+  if (gs) gs.addEventListener('change', () => { edPrefs.gridSize = parseInt(gs.value, 10) || 20; saveEdPrefs(); applyEdPrefsUI(); });
+  const st = document.getElementById('perf-smart-toggle');
+  if (st) st.addEventListener('click', () => { edPrefs.smart = !edPrefs.smart; saveEdPrefs(); applyEdPrefsUI(); });
+
+  // Done + resets
   const done = document.getElementById('perf-edit-done');
   if (done) done.addEventListener('click', exitLayoutEdit);
   const rSel = document.getElementById('perf-edit-reset-sel');
   if (rSel) rSel.addEventListener('click', () => {
     if (!selectedPerfEl) return;
-    const def = getDefaultLayout();
-    const map = getCustomLayout();
-    const k = selectedPerfEl.dataset.perfEl;
+    const def = getDefaultLayout(); const map = getCustomLayout(); const k = selectedPerfEl.dataset.perfEl;
     if (def[k]) map[k] = { ...def[k] }; else delete map[k];
     saveCustomLayout(map);
-    applyCustomLayout();
-    selectPerfEl(selectedPerfEl);
+    clearElInline(selectedPerfEl);
+    applyCustomLayout(); buildSizeControls(selectedPerfEl); positionSelBox();
   });
   const rAll = document.getElementById('perf-edit-reset-all');
   if (rAll) rAll.addEventListener('click', () => {
     saveCustomLayout({ ...getDefaultLayout() });
-    applyCustomLayout();
-    selectPerfEl(null);
+    clearCustomInline(); applyCustomLayout(); selectPerfEl(null);
   });
 })();
-function measureOne(el) {
-  const pv = document.getElementById('performance-view');
-  const pvr = pv.getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  if (!pvr.width || !pvr.height) return { x: 50, y: 50, s: 1 };
-  return {
-    x: +(((r.left + r.width / 2 - pvr.left) / pvr.width) * 100).toFixed(2),
-    y: +(((r.top + r.height / 2 - pvr.top) / pvr.height) * 100).toFixed(2),
-    s: 1
-  };
-}
 // Now safe to apply the saved layout (incl. 'custom') — all consts are ready.
 applyPerfLayout(getPerfLayout());
 document.getElementById('perf-play-btn').addEventListener('click', togglePerfScroll);
