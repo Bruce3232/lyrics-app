@@ -1895,17 +1895,19 @@
   .perf-play-btn:active { transform: scale(0.97); }
   .perf-play-btn svg { width: 22px; height: 22px; }
 
+  /* Tr / Ak (and Schrift on desktop) are filled pills with a subtle outline,
+     centered in the top bar (not transparent). */
   .perf-control-group {
     display: flex;
     align-items: center;
-    gap: 8px;
-    /* No pill / box — transparent and integrated. */
-    background: none;
-    border: none;
-    border-radius: 0;
-    padding: 0;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    gap: 4px;
+    background: var(--surface-strong);
+    border: 1px solid var(--border-strong);
+    border-radius: 100px;
+    padding: 4px 10px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
   }
   .perf-control-group .label {
     font-size: 11px;
@@ -1913,17 +1915,31 @@
     color: var(--text-1);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    margin-right: 2px;
   }
   .perf-control-group .value {
     font-family: var(--font-mono);
     font-weight: 700;
     font-size: 13px;
     color: var(--accent-soft);
-    min-width: 36px;
-    text-align: right;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    min-width: 30px;
+    text-align: center;
   }
+  /* The +/- inside the pills are plain (no dark glass like the right-side stack). */
+  .perf-control-group .perf-font-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: var(--text-1);
+    text-shadow: none;
+    font-size: 17px;
+  }
+  .perf-control-group .perf-font-btn:hover { background: rgba(127,127,127,0.18); color: var(--accent); }
+  /* Pushes the Tr/Ak pills to the centre of the top bar. */
+  .perf-overlay-spacer { flex: 1; }
   /* Speed cluster in the right-side stack: value, +, vertical slider, − */
   .perf-speed-cluster {
     display: flex;
@@ -2427,6 +2443,35 @@
     flex-shrink: 0;
   }
   .pers-swatch:hover { transform: scale(1.08); }
+
+  /* ===== Touch devices: no stuck "lit" buttons =====
+     iOS/iPadOS apply :hover on tap and keep it until you tap elsewhere, so
+     buttons look stuck highlighted. On touch we cancel the hover appearance so
+     the only press feedback is a brief :active flash that clears on release. */
+  @media (hover: none) {
+    .icon-btn:hover { background: transparent !important; color: var(--text-1) !important; border-color: transparent !important; }
+    .perf-overlay .icon-btn:hover { background: none !important; }
+    .btn:hover { background: rgba(255,255,255,0.04) !important; border-color: var(--border) !important; }
+    .btn-primary:hover { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%) !important; box-shadow: 0 4px 16px var(--accent-glow) !important; }
+    .btn-ghost:hover { background: transparent !important; color: var(--text-1) !important; }
+    .btn-danger:hover { background: transparent !important; }
+    .perf-icon-btn:hover { background: rgba(20,20,28,0.42) !important; border-color: rgba(255,255,255,0.16) !important; color: #fff !important; }
+    .perf-font-btn:hover { background: rgba(20,20,28,0.42) !important; border-color: rgba(255,255,255,0.16) !important; }
+    .perf-control-group .perf-font-btn:hover { background: transparent !important; color: var(--text-1) !important; }
+    .perf-play-btn:hover { transform: none !important; box-shadow: 0 4px 20px var(--accent-glow) !important; }
+    .profile-item:hover, .profile-head:hover { background: transparent !important; }
+    .profile-avatar:hover { transform: none !important; }
+    .lang-btn:hover { border-color: var(--border-strong) !important; }
+    .search-clear:hover { background: transparent !important; }
+    .quick-song-item:hover { background: transparent !important; }
+    .filter-select:hover { border-color: var(--border) !important; }
+
+    /* Brief press feedback (a quick flash that clears the moment you lift off). */
+    .perf-icon-btn:active { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+    .perf-font-btn:active { background: rgba(255,140,26,0.85) !important; }
+    .perf-control-group .perf-font-btn:active { background: rgba(127,127,127,0.22) !important; }
+    .btn:active { background: rgba(255,255,255,0.14) !important; }
+  }
   .pers-swatch.active {
     border-color: var(--text-0);
     transform: scale(1.08);
@@ -2933,6 +2978,7 @@
         <span class="value" id="perf-font-value">30</span>
         <button class="perf-font-btn" id="perf-font-up" title="Grösser (→)">+</button>
       </div>
+      <div class="perf-overlay-spacer"></div>
       <button class="icon-btn" id="perf-edit" title="Bearbeiten">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
