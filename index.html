@@ -1563,7 +1563,10 @@
     width: 100%;
     max-width: 900px;
     margin: 0 auto;
-    padding: 50vh 56px 50vh;
+    /* Start the lyrics just below the top toolbar (small margin) instead of
+       mid-screen, so the first line is visible immediately. Bottom keeps a tall
+       runway so the last line can still scroll up during auto-scroll. */
+    padding: 90px 56px 50vh;
     will-change: transform;
     font-family: var(--font-mono);
     font-weight: 500;
@@ -1760,7 +1763,7 @@
     position: absolute;
     right: 0;
     left: auto;
-    top: 50%;
+    top: 62%;
     bottom: auto;
     transform: translateY(-50%);
     padding: 10px 14px 10px 10px;
@@ -1876,6 +1879,65 @@
     pointer-events: none;
   }
 
+  /* ---- Perf Settings popover (choose Right-side / Bottom layout) ---- */
+  .perf-settings-wrap { position: relative; display: flex; }
+  .perf-settings-pop {
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 0;
+    min-width: 160px;
+    background: var(--surface-strong);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 12px;
+    z-index: 60;
+    opacity: 0;
+    transform: scale(0.96);
+    transform-origin: top right;
+    pointer-events: none;
+    transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+  }
+  .perf-settings-pop.show { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .perf-settings-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin: 0 2px 10px; }
+  .perf-settings-opts { display: flex; gap: 8px; }
+  .perf-layout-btn { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.12s var(--ease); white-space: nowrap; }
+  .perf-layout-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ===== Bottom layout: controls in a transparent row at the bottom ===== */
+  #performance-view.layout-bottom .perf-controls {
+    flex-direction: row;
+    top: auto;
+    right: auto;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    max-height: none;
+    gap: 14px;
+    padding: 10px 14px;
+  }
+  #performance-view.layout-bottom .perf-controls.hidden { transform: translateX(-50%) translateY(170%); }
+  #performance-view.layout-bottom.quick-songs-open .perf-controls { opacity: 0; transform: translateX(-50%) translateY(170%); }
+  #performance-view.layout-bottom .perf-speed-cluster { flex-direction: row; gap: 8px; }
+  #performance-view.layout-bottom .perf-speed-slider {
+    writing-mode: horizontal-tb;
+    direction: ltr;
+    width: 96px;
+    height: 6px;
+  }
+  /* When controls sit at the bottom, the Settings popover opens upward. */
+  #performance-view.layout-bottom .perf-settings-pop {
+    right: auto;
+    left: 50%;
+    top: auto;
+    bottom: calc(100% + 12px);
+    transform: translateX(-50%) scale(0.96);
+    transform-origin: bottom center;
+  }
+  #performance-view.layout-bottom .perf-settings-pop.show { transform: translateX(-50%) scale(1); }
+
   .perf-play-btn {
     width: 56px; height: 56px;
     border-radius: 50%;
@@ -1904,7 +1966,7 @@
     background: var(--surface-strong);
     border: 1px solid var(--border-strong);
     border-radius: 100px;
-    padding: 4px 10px;
+    padding: 6px 14px;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 1px 4px rgba(0,0,0,0.08);
@@ -1920,22 +1982,22 @@
   .perf-control-group .value {
     font-family: var(--font-mono);
     font-weight: 700;
-    font-size: 13px;
+    font-size: 15px;
     color: var(--accent-soft);
-    min-width: 30px;
+    min-width: 32px;
     text-align: center;
   }
   /* The +/- inside the pills are plain (no dark glass like the right-side stack). */
   .perf-control-group .perf-font-btn {
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
     background: transparent;
     border: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     color: var(--text-1);
     text-shadow: none;
-    font-size: 17px;
+    font-size: 19px;
   }
   .perf-control-group .perf-font-btn:hover { background: rgba(127,127,127,0.18); color: var(--accent); }
   /* Pushes the Tr/Ak pills to the centre of the top bar. */
@@ -2551,7 +2613,7 @@
   }
 
   @media (max-width: 768px) {
-    .lyrics-track { font-size: 22px; padding: 40vh 20px 50vh; }
+    .lyrics-track { font-size: 22px; padding: 80px 20px 50vh; }
     .library-title { font-size: 28px; }
     .perf-controls { padding: 10px 12px; }
     .perf-speed-slider { width: 8px; height: 90px; }
@@ -2643,7 +2705,7 @@
      top padding ate most of the lyric area — reduce it so text actually
      starts near the top. Controls bar gets compact too. */
   @media (max-height: 500px) {
-    .lyrics-track { padding-top: 20vh; padding-bottom: 25vh; font-size: 22px; }
+    .lyrics-track { padding-top: 44px; padding-bottom: 25vh; font-size: 22px; }
     /* Phone landscape is short — shrink the right-side stack so it never
        overflows the viewport height. */
     .perf-controls { padding: 4px 8px; gap: 6px; }
@@ -3015,9 +3077,18 @@
     </div>
 
     <div class="perf-controls" id="perf-controls">
-      <button class="perf-icon-btn" id="perf-fullscreen-2" title="Vollbild (F)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-      </button>
+      <div class="perf-settings-wrap">
+        <button class="perf-icon-btn" id="perf-settings-btn" title="Steuerung &amp; Layout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <div class="perf-settings-pop" id="perf-settings-pop">
+          <div class="perf-settings-title">Steuerung</div>
+          <div class="perf-settings-opts">
+            <button class="perf-layout-btn" data-layout="right">Rechts</button>
+            <button class="perf-layout-btn" data-layout="bottom">Unten</button>
+          </div>
+        </div>
+      </div>
       <button class="perf-icon-btn" id="perf-prev-song" title="Vorheriger Song">
         <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2" height="16"/></svg>
       </button>
@@ -4426,7 +4497,11 @@ const I18N = {
     "Profil": "Profile",
     "Nicht angemeldet": "Not signed in",
     "Namen ändern": "Change name",
-    "Dein Name (für die Initialen):": "Your name (for the initials):"
+    "Dein Name (für die Initialen):": "Your name (for the initials):",
+    "Steuerung": "Controls",
+    "Steuerung & Layout": "Controls & layout",
+    "Rechts": "Right",
+    "Unten": "Bottom"
   }
 };
 let currentLang = 'de';
@@ -7357,7 +7432,34 @@ async function flushPendingSaves() {
     }
   } catch (e) {}
 }
-document.getElementById('perf-fullscreen-2').addEventListener('click', toggleFullscreen);
+// Performance controls layout (right-side vs bottom), chosen in the perf Settings menu.
+const PERF_LAYOUT_KEY = 'lyrics-perf-layout';
+function getPerfLayout() {
+  try { const v = localStorage.getItem(PERF_LAYOUT_KEY); if (v === 'right' || v === 'bottom') return v; } catch (e) {}
+  return 'right';
+}
+function applyPerfLayout(layout) {
+  const lay = (layout === 'bottom') ? 'bottom' : 'right';
+  try { localStorage.setItem(PERF_LAYOUT_KEY, lay); } catch (e) {}
+  document.getElementById('performance-view').classList.toggle('layout-bottom', lay === 'bottom');
+  document.querySelectorAll('.perf-layout-btn').forEach(b => b.classList.toggle('active', b.dataset.layout === lay));
+  if (state.view === 'performance') {
+    requestAnimationFrame(() => { measureMaxScroll(); perfScrollPos = Math.min(perfScrollPos, perfMaxScroll); applyScroll(); });
+  }
+}
+applyPerfLayout(getPerfLayout());
+
+(function setupPerfSettings() {
+  const btn = document.getElementById('perf-settings-btn');
+  const pop = document.getElementById('perf-settings-pop');
+  if (!btn || !pop) return;
+  btn.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.toggle('show'); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.perf-settings-wrap')) pop.classList.remove('show'); });
+  pop.addEventListener('click', (e) => {
+    const b = e.target.closest('.perf-layout-btn');
+    if (b) { applyPerfLayout(b.dataset.layout); pop.classList.remove('show'); }
+  });
+})();
 document.getElementById('perf-play-btn').addEventListener('click', togglePerfScroll);
 document.getElementById('perf-restart').addEventListener('click', restartPerf);
 
