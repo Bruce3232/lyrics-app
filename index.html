@@ -2124,6 +2124,54 @@
   }
   .pep-resets button:disabled { opacity: 0.4; cursor: default; }
 
+  /* Multi-select chips */
+  .pep-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 104px; overflow-y: auto; }
+  .pep-chip {
+    padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-1); font-size: 11px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pep-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* Align / distribute */
+  .pep-align { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pep-align button {
+    padding: 9px 0; border-radius: 9px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-0); font-size: 16px; cursor: pointer;
+  }
+  .pep-align button:active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* Toggle grid + select row */
+  .pep-opts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pep-selrow { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-1); margin-top: 8px; }
+  .pep-mini { width: auto; flex: 1; padding: 6px 8px; min-width: 0; }
+
+  /* Persistent exact-centre cross */
+  .perf-center-line { position: absolute; pointer-events: none; z-index: 73; display: none; opacity: 0.65; }
+  #performance-view.perf-editing.center-on .perf-center-line { display: block; }
+  .perf-center-line.v { left: 50%; top: 0; bottom: 0; border-left: 1.5px dashed var(--accent); }
+  .perf-center-line.h { top: 50%; left: 0; right: 0; border-top: 1.5px dashed var(--accent); }
+
+  /* Pixel rulers */
+  .perf-ruler {
+    position: absolute; z-index: 79; display: none; overflow: hidden;
+    background: var(--surface-strong); color: var(--text-2); font-size: 9px;
+    pointer-events: none; font-variant-numeric: tabular-nums;
+  }
+  #performance-view.perf-editing.rulers-on .perf-ruler { display: block; }
+  .perf-ruler.top { top: 0; left: 0; right: 0; height: 15px; border-bottom: 1px solid var(--border-strong); }
+  .perf-ruler.left { top: 0; left: 0; bottom: 0; width: 26px; border-right: 1px solid var(--border-strong); }
+  .pr-tick { position: absolute; color: var(--text-2); }
+  .perf-ruler.top .pr-tick { top: 0; height: 15px; border-left: 1px solid var(--border-strong); padding-left: 2px; line-height: 15px; }
+  .perf-ruler.left .pr-tick { left: 0; width: 26px; border-top: 1px solid var(--border-strong); padding-left: 2px; }
+
+  /* Live distance readout */
+  .perf-dist {
+    position: absolute; z-index: 88; display: none;
+    grid-template-columns: auto auto; gap: 1px 12px;
+    background: var(--surface-strong); border: 1px solid var(--border-strong); border-radius: 9px;
+    padding: 7px 10px; font-size: 11px; font-weight: 700; color: var(--text-0);
+    pointer-events: none; box-shadow: var(--shadow-lg); white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+
   .perf-play-btn {
     width: 56px; height: 56px;
     border-radius: 50%;
@@ -3311,6 +3359,17 @@
     <div class="perf-guide" id="perf-guide-v"></div>
     <div class="perf-guide" id="perf-guide-h"></div>
 
+    <!-- Persistent exact-centre cross (Center Guides) -->
+    <div class="perf-center-line v" id="perf-center-v"></div>
+    <div class="perf-center-line h" id="perf-center-h"></div>
+
+    <!-- Optional pixel rulers (Top / Left) -->
+    <div class="perf-ruler top" id="perf-ruler-top"></div>
+    <div class="perf-ruler left" id="perf-ruler-left"></div>
+
+    <!-- Live distance readout while dragging -->
+    <div class="perf-dist" id="perf-dist"></div>
+
     <!-- Grid overlay (Grid mode) -->
     <div class="perf-grid" id="perf-grid"></div>
 
@@ -3331,7 +3390,20 @@
       <div class="pep-body">
         <div class="pep-sec">
           <label class="pep-label">Element</label>
-          <select id="perf-edit-pick" class="pep-select"></select>
+          <div id="perf-el-chips" class="pep-chips"></div>
+        </div>
+        <div class="pep-sec" id="pep-align-sec" style="display:none">
+          <label class="pep-label">Ausrichten</label>
+          <div class="pep-align">
+            <button data-align="left" title="Links ausrichten">⇤</button>
+            <button data-align="cx" title="Horizontal zentrieren">↔</button>
+            <button data-align="right" title="Rechts ausrichten">⇥</button>
+            <button data-align="top" title="Oben ausrichten">⤒</button>
+            <button data-align="cy" title="Vertikal zentrieren">↕</button>
+            <button data-align="bottom" title="Unten ausrichten">⤓</button>
+            <button data-align="disth" title="Horizontal verteilen">⇿</button>
+            <button data-align="distv" title="Vertikal verteilen">⇳</button>
+          </div>
         </div>
         <div class="pep-sec">
           <label class="pep-label">Bewegen</label>
@@ -3357,16 +3429,25 @@
           <div id="perf-size-controls" class="pep-size"></div>
         </div>
         <div class="pep-sec">
-          <label class="pep-label">Hilfslinien</label>
-          <div class="pep-opts">
+          <label class="pep-label">Anzeige</label>
+          <div class="pep-opts pep-opts-grid">
             <button id="perf-grid-toggle" class="pep-toggle">Raster</button>
-            <select id="perf-grid-size" class="pep-select pep-gridsize">
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
             <button id="perf-smart-toggle" class="pep-toggle">Magnet</button>
+            <button id="perf-center-toggle" class="pep-toggle">Mitte</button>
+            <button id="perf-rulers-toggle" class="pep-toggle">Lineale</button>
+            <button id="perf-guides-toggle" class="pep-toggle">Hilfslinien</button>
+            <button id="perf-dist-toggle" class="pep-toggle">Masse</button>
+          </div>
+          <div class="pep-selrow">
+            <span>Raster</span>
+            <select id="perf-grid-size" class="pep-select pep-mini">
+              <option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option>
+            </select>
+            <span>Magnet</span>
+            <select id="perf-snap-dist" class="pep-select pep-mini">
+              <option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="30">30</option>
+            </select>
+            <span>px</span>
           </div>
         </div>
         <div class="pep-sec pep-resets">
@@ -4803,7 +4884,22 @@ const I18N = {
     "Nach unten": "Down",
     "Nach links": "Left",
     "Nach rechts": "Right",
-    "Grösse ziehen": "Drag to resize"
+    "Grösse ziehen": "Drag to resize",
+    "Anzeige": "Display",
+    "Mitte": "Center",
+    "Lineale": "Rulers",
+    "Masse": "Distances",
+    "Ausrichten": "Align",
+    "Links": "Left",
+    "Oben": "Top",
+    "Links ausrichten": "Align left",
+    "Rechts ausrichten": "Align right",
+    "Oben ausrichten": "Align top",
+    "Unten ausrichten": "Align bottom",
+    "Horizontal zentrieren": "Align horizontal centers",
+    "Vertikal zentrieren": "Align vertical centers",
+    "Horizontal verteilen": "Distribute horizontally",
+    "Vertikal verteilen": "Distribute vertically"
   }
 };
 let currentLang = 'de';
@@ -7807,11 +7903,12 @@ let handleResize = null;   // dragging the corner resize handle
 let panelDrag = null;      // dragging the editor panel
 let defaultLayoutCache = null;
 let safeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
-const SNAP_PX = 9;
 
-// Editor preferences (grid / smart-snap / nudge step) — persisted apart from
-// the layout itself.
-let edPrefs = { grid: false, gridSize: 20, smart: true, step: 1 };
+// Editor preferences (grid / snap / guides / rulers / distances / step) —
+// persisted apart from the layout itself; each independently toggleable.
+let edPrefs = { grid: false, gridSize: 20, smart: true, snapDist: 10, centerGuides: true, rulers: false, alignGuides: true, distances: true, step: 1 };
+let selectedKeys = [];
+const clampN = (lo, hi, v) => Math.max(lo, Math.min(hi, v));
 function loadEdPrefs() {
   try { const v = JSON.parse(localStorage.getItem(PERF_EDPREF_KEY)); if (v && typeof v === 'object') edPrefs = { ...edPrefs, ...v }; } catch (e) {}
 }
@@ -8012,12 +8109,12 @@ function enterLayoutEdit() {
   clearTimeout(controlsHideTimer);
   controlsHideTimer = null;
   computeSafeInsets();
+  buildChips();
   applyEdPrefsUI();
-  buildPickList();
   selectPerfEl(null);
   const panel = document.getElementById('perf-edit-panel');
   panel.classList.add('show');
-  requestAnimationFrame(centerPanel);
+  requestAnimationFrame(() => { centerPanel(); buildRulers(); });
 }
 function exitLayoutEdit() {
   perfEditing = false;
@@ -8027,39 +8124,116 @@ function exitLayoutEdit() {
   hideGuides();
   scheduleControlsHide();
 }
-function selectPerfEl(el) {
-  perfEls().forEach(e => e.classList.remove('selected'));
-  selectedPerfEl = el || null;
-  const pick = document.getElementById('perf-edit-pick');
-  const resetSel = document.getElementById('perf-edit-reset-sel');
-  const box = document.getElementById('perf-sel-box');
-  document.querySelectorAll('.pep-arrow').forEach(b => b.disabled = !el);
-  if (el) {
-    el.classList.add('selected');
-    if (pick) pick.value = el.dataset.perfEl;
-    if (resetSel) resetSel.disabled = false;
-    buildSizeControls(el);
-    positionSelBox();
-    avoidPanelOverlap(el);
-  } else {
-    if (pick) pick.value = '';
-    if (resetSel) resetSel.disabled = true;
-    const host = document.getElementById('perf-size-controls');
-    if (host) host.innerHTML = '<div class="pep-size-empty">' + T('Element wählen…') + '</div>';
-    if (box) box.classList.remove('show');
-  }
+function elByKey(k) { return document.querySelector('#performance-view [data-perf-el="' + k + '"]'); }
+function selEls() { return selectedKeys.map(elByKey).filter(Boolean); }
+// The "primary" selection (drives size/handle/sel-box) is the most recently added.
+function setSelection(keys) {
+  selectedKeys = (keys || []).filter(Boolean);
+  selectedPerfEl = selectedKeys.length ? elByKey(selectedKeys[selectedKeys.length - 1]) : null;
+  perfEls().forEach(e => e.classList.toggle('selected', selectedKeys.includes(e.dataset.perfEl)));
+  updateSelectionUI();
 }
-function buildPickList() {
-  const sel = document.getElementById('perf-edit-pick');
-  if (!sel) return;
-  sel.innerHTML = '';
-  const o0 = document.createElement('option'); o0.value = ''; o0.textContent = T('Element wählen…'); sel.appendChild(o0);
+// Convenience single-select used by canvas taps and resets.
+function selectPerfEl(el) { setSelection(el ? [el.dataset.perfEl] : []); }
+function toggleSelection(key) {
+  const i = selectedKeys.indexOf(key);
+  if (i >= 0) selectedKeys.splice(i, 1); else selectedKeys.push(key);
+  setSelection([...selectedKeys]);
+}
+function updateSelectionUI() {
+  const resetSel = document.getElementById('perf-edit-reset-sel');
+  const alignSec = document.getElementById('pep-align-sec');
+  const box = document.getElementById('perf-sel-box');
+  document.querySelectorAll('.pep-arrow').forEach(b => b.disabled = !selectedKeys.length);
+  if (resetSel) resetSel.disabled = !selectedKeys.length;
+  if (alignSec) alignSec.style.display = (selectedKeys.length >= 2) ? '' : 'none';
+  document.querySelectorAll('#perf-el-chips .pep-chip').forEach(c => c.classList.toggle('active', selectedKeys.includes(c.dataset.key)));
+  const host = document.getElementById('perf-size-controls');
+  if (selectedPerfEl) buildSizeControls(selectedPerfEl);
+  else if (host) host.innerHTML = '<div class="pep-size-empty">' + T('Element wählen…') + '</div>';
+  if (selectedPerfEl) { positionSelBox(); avoidPanelOverlap(selectedPerfEl); }
+  else if (box) box.classList.remove('show');
+}
+function buildChips() {
+  const host = document.getElementById('perf-el-chips');
+  if (!host) return;
+  host.innerHTML = '';
   visiblePerfEls().forEach(el => {
-    const o = document.createElement('option');
-    o.value = el.dataset.perfEl;
-    o.textContent = T(PERF_EL_NAMES[el.dataset.perfEl] || el.dataset.perfEl);
-    sel.appendChild(o);
+    const c = document.createElement('button');
+    c.className = 'pep-chip'; c.dataset.key = el.dataset.perfEl;
+    c.textContent = T(PERF_EL_NAMES[el.dataset.perfEl] || el.dataset.perfEl);
+    c.addEventListener('click', () => toggleSelection(c.dataset.key));
+    if (selectedKeys.includes(el.dataset.perfEl)) c.classList.add('active');
+    host.appendChild(c);
   });
+}
+// Align / distribute the current multi-selection within the safe area.
+function alignSelected(mode) {
+  const els = selEls();
+  if (els.length < 2) return;
+  const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
+  const rects = els.map(el => {
+    const r = el.getBoundingClientRect();
+    return { el, l: r.left - pvr.left, t: r.top - pvr.top, w: r.width, h: r.height, cx: r.left + r.width / 2 - pvr.left, cy: r.top + r.height / 2 - pvr.top };
+  });
+  const minL = Math.min(...rects.map(r => r.l));
+  const maxR = Math.max(...rects.map(r => r.l + r.w));
+  const minT = Math.min(...rects.map(r => r.t));
+  const maxB = Math.max(...rects.map(r => r.t + r.h));
+  const bcx = (minL + maxR) / 2, bcy = (minT + maxB) / 2;
+  const map = getCustomLayout();
+  const setC = (r, cx, cy) => {
+    cx = clampN(safeInsets.left + r.w / 2, pvr.width - safeInsets.right - r.w / 2, cx);
+    cy = clampN(safeInsets.top + r.h / 2, pvr.height - safeInsets.bottom - r.h / 2, cy);
+    const k = r.el.dataset.perfEl; const c = map[k] || {};
+    c.x = +((cx / pvr.width) * 100).toFixed(2); c.y = +((cy / pvr.height) * 100).toFixed(2);
+    map[k] = c; applyElPos(r.el, c);
+  };
+  if (mode === 'left') rects.forEach(r => setC(r, minL + r.w / 2, r.cy));
+  else if (mode === 'right') rects.forEach(r => setC(r, maxR - r.w / 2, r.cy));
+  else if (mode === 'top') rects.forEach(r => setC(r, r.cx, minT + r.h / 2));
+  else if (mode === 'bottom') rects.forEach(r => setC(r, r.cx, maxB - r.h / 2));
+  else if (mode === 'cx') rects.forEach(r => setC(r, bcx, r.cy));
+  else if (mode === 'cy') rects.forEach(r => setC(r, r.cx, bcy));
+  else if (mode === 'disth') {
+    const s = [...rects].sort((a, b) => a.cx - b.cx);
+    const step = (s[s.length - 1].cx - s[0].cx) / (s.length - 1);
+    s.forEach((r, i) => setC(r, s[0].cx + step * i, r.cy));
+  } else if (mode === 'distv') {
+    const s = [...rects].sort((a, b) => a.cy - b.cy);
+    const step = (s[s.length - 1].cy - s[0].cy) / (s.length - 1);
+    s.forEach((r, i) => setC(r, r.cx, s[0].cy + step * i));
+  }
+  saveCustomLayout(map); positionSelBox();
+}
+function buildRulers() {
+  const top = document.getElementById('perf-ruler-top');
+  const left = document.getElementById('perf-ruler-left');
+  if (!top || !left) return;
+  const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
+  top.innerHTML = ''; left.innerHTML = '';
+  if (!pvr.width || !pvr.height) return;
+  for (let x = 0; x <= pvr.width; x += 100) { const s = document.createElement('span'); s.className = 'pr-tick'; s.style.left = x + 'px'; s.textContent = x; top.appendChild(s); }
+  for (let y = 0; y <= pvr.height; y += 100) { const s = document.createElement('span'); s.className = 'pr-tick'; s.style.top = y + 'px'; s.textContent = y; left.appendChild(s); }
+}
+function updateDist(d, cx, cy) {
+  const badge = document.getElementById('perf-dist');
+  if (!badge) return;
+  if (!edPrefs.distances) { badge.style.display = 'none'; return; }
+  const L = Math.round(cx - d.halfW), R = Math.round(d.pvW - (cx + d.halfW));
+  const Tp = Math.round(cy - d.halfH), B = Math.round(d.pvH - (cy + d.halfH));
+  const cX = Math.round(cx - d.pvW / 2), cY = Math.round(cy - d.pvH / 2);
+  const sgn = (n) => (n > 0 ? '+' : '') + n;
+  badge.innerHTML =
+    '<span>' + T('Links') + ' ' + L + '</span><span>' + T('Rechts') + ' ' + R + '</span>' +
+    '<span>' + T('Oben') + ' ' + Tp + '</span><span>' + T('Unten') + ' ' + B + '</span>' +
+    '<span>' + T('Mitte') + ' X ' + sgn(cX) + '</span><span>Y ' + sgn(cY) + '</span>';
+  badge.style.display = 'grid';
+  let bx = cx + d.halfW + 14;
+  if (bx + 160 > d.pvW) bx = cx - d.halfW - 14 - 160;
+  bx = clampN(4, Math.max(4, d.pvW - 164), bx);
+  let by = clampN(4, Math.max(4, d.pvH - 64), cy - d.halfH);
+  badge.style.left = bx + 'px'; badge.style.top = by + 'px';
 }
 function buildSizeControls(el) {
   const host = document.getElementById('perf-size-controls');
@@ -8140,31 +8314,44 @@ function showGuide(id, on, pos) {
   g.style.opacity = on ? '1' : '0';
   if (on && pos != null) { if (id === 'perf-guide-v') g.style.left = pos + 'px'; else g.style.top = pos + 'px'; }
 }
-function hideGuides() { showGuide('perf-guide-v', false); showGuide('perf-guide-h', false); }
+function hideGuides() {
+  showGuide('perf-guide-v', false); showGuide('perf-guide-h', false);
+  const badge = document.getElementById('perf-dist'); if (badge) badge.style.display = 'none';
+}
 
 // Build the snap targets (screen edges/centre + every other control's
 // left/centre/right and top/middle/bottom) once, at drag start.
 function collectSnaps(movingEl, pvr) {
-  const X = [safeInsets.left, pvr.width / 2, pvr.width - safeInsets.right];
-  const Y = [safeInsets.top, pvr.height / 2, pvr.height - safeInsets.bottom];
+  // Each target is typed: 'c' = a centre line, 'e' = an edge line. Centres only
+  // snap to centres and edges only to edges (so an element's edge never sticks
+  // to the screen-centre line, which felt wrong).
+  const X = [{ v: pvr.width / 2, k: 'c' }, { v: safeInsets.left, k: 'e' }, { v: pvr.width - safeInsets.right, k: 'e' }];
+  const Y = [{ v: pvr.height / 2, k: 'c' }, { v: safeInsets.top, k: 'e' }, { v: pvr.height - safeInsets.bottom, k: 'e' }];
   perfEls().forEach(el => {
     if (el === movingEl) return;
     const r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
-    X.push(r.left - pvr.left, (r.left + r.right) / 2 - pvr.left, r.right - pvr.left);
-    Y.push(r.top - pvr.top, (r.top + r.bottom) / 2 - pvr.top, r.bottom - pvr.top);
+    X.push({ v: r.left - pvr.left, k: 'e' }, { v: (r.left + r.right) / 2 - pvr.left, k: 'c' }, { v: r.right - pvr.left, k: 'e' });
+    Y.push({ v: r.top - pvr.top, k: 'e' }, { v: (r.top + r.bottom) / 2 - pvr.top, k: 'c' }, { v: r.bottom - pvr.top, k: 'e' });
   });
   return { X, Y };
 }
-function snapAxis(c, half, cands) {
-  let best = null;
-  const anchors = [-half, 0, half];   // align by left/centre/right (or top/middle/bottom)
-  for (const Tc of cands) {
-    for (const o of anchors) {
-      const dd = Math.abs((c + o) - Tc);
-      if (dd <= SNAP_PX && (!best || dd < best.dd)) best = { c: Tc - o, guide: Tc, dd };
+function snapAxis(c, half, cands, thr) {
+  // centre anchor matches centre lines; left/right edges match edge lines.
+  // Centre matches win when in range (so "snap to centre" is dependable even
+  // when an object edge happens to be slightly closer).
+  const anchors = [{ o: 0, k: 'c' }, { o: -half, k: 'e' }, { o: half, k: 'e' }];
+  let bestC = null, bestE = null;
+  for (const cand of cands) {
+    for (const a of anchors) {
+      if (a.k !== cand.k) continue;
+      const dd = Math.abs((c + a.o) - cand.v);
+      if (dd > thr) continue;
+      const hit = { c: cand.v - a.o, guide: cand.v, dd };
+      if (cand.k === 'c') { if (!bestC || dd < bestC.dd) bestC = hit; }
+      else if (!bestE || dd < bestE.dd) bestE = hit;
     }
   }
-  return best;
+  return bestC || bestE;
 }
 
 function onPerfPointerDown(e) {
@@ -8190,26 +8377,32 @@ function moveSelected(e) {
   const d = perfDrag;
   const cx0 = d.cx + (e.clientX - d.sx);
   const cy0 = d.cy + (e.clientY - d.sy);
-  let cx = cx0, cy = cy0, gX = null, gY = null;
-  if (edPrefs.smart) {
-    const sx = snapAxis(cx0, d.halfW, d.cands.X); if (sx) { cx = sx.c; gX = sx.guide; }
-    const sy = snapAxis(cy0, d.halfH, d.cands.Y); if (sy) { cy = sy.c; gY = sy.guide; }
+  let cx = cx0, cy = cy0, gX = null, gY = null, movedX = false, movedY = false;
+  // Alignment matches drive both snapping (if Smart Snap on) and the temporary
+  // guide lines (if Alignment Guides on) — the two toggle independently.
+  if (edPrefs.smart || edPrefs.alignGuides) {
+    const thr = edPrefs.snapDist || 10;
+    const sx = snapAxis(cx0, d.halfW, d.cands.X, thr);
+    if (sx) { gX = sx.guide; if (edPrefs.smart) { cx = sx.c; movedX = true; } }
+    const sy = snapAxis(cy0, d.halfH, d.cands.Y, thr);
+    if (sy) { gY = sy.guide; if (edPrefs.smart) { cy = sy.c; movedY = true; } }
   }
   if (edPrefs.grid) {
     const g = edPrefs.gridSize || 20;
-    if (gX === null) cx = Math.round(cx0 / g) * g;
-    if (gY === null) cy = Math.round(cy0 / g) * g;
+    if (!movedX) cx = Math.round(cx0 / g) * g;
+    if (!movedY) cy = Math.round(cy0 / g) * g;
   }
   // clamp inside the safe area so nothing hides under a notch/edge
-  cx = Math.max(safeInsets.left + d.halfW, Math.min(d.pvW - safeInsets.right - d.halfW, cx));
-  cy = Math.max(safeInsets.top + d.halfH, Math.min(d.pvH - safeInsets.bottom - d.halfH, cy));
+  cx = clampN(safeInsets.left + d.halfW, d.pvW - safeInsets.right - d.halfW, cx);
+  cy = clampN(safeInsets.top + d.halfH, d.pvH - safeInsets.bottom - d.halfH, cy);
   d.lastX = cx; d.lastY = cy;
   d.el.style.left = (cx / d.pvW * 100) + '%';
   d.el.style.top = (cy / d.pvH * 100) + '%';
   d.el.style.right = 'auto'; d.el.style.bottom = 'auto';
   d.el.style.transform = 'translate(-50%, -50%)';
-  showGuide('perf-guide-v', gX !== null, gX);
-  showGuide('perf-guide-h', gY !== null, gY);
+  showGuide('perf-guide-v', edPrefs.alignGuides && gX !== null, gX);
+  showGuide('perf-guide-h', edPrefs.alignGuides && gY !== null, gY);
+  updateDist(d, cx, cy);
   positionSelBox();
 }
 function resizeSelected(e) {
@@ -8252,29 +8445,42 @@ function startHandleResize(e) {
 }
 // Precision nudge (arrow buttons) by the chosen pixel step.
 function nudge(dir) {
-  if (!selectedPerfEl) return;
+  if (!selectedKeys.length) return;
   const step = edPrefs.step || 1;
   const dx = dir === 'left' ? -step : dir === 'right' ? step : 0;
   const dy = dir === 'up' ? -step : dir === 'down' ? step : 0;
   const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
-  const r = selectedPerfEl.getBoundingClientRect();
-  const halfW = r.width / 2, halfH = r.height / 2;
-  let cx = r.left + r.width / 2 - pvr.left + dx;
-  let cy = r.top + r.height / 2 - pvr.top + dy;
-  cx = Math.max(safeInsets.left + halfW, Math.min(pvr.width - safeInsets.right - halfW, cx));
-  cy = Math.max(safeInsets.top + halfH, Math.min(pvr.height - safeInsets.bottom - halfH, cy));
-  const map = getCustomLayout(); const k = selectedPerfEl.dataset.perfEl;
-  const c = map[k] || {}; c.x = +((cx / pvr.width) * 100).toFixed(2); c.y = +((cy / pvr.height) * 100).toFixed(2);
-  map[k] = c; saveCustomLayout(map); applyElPos(selectedPerfEl, c); positionSelBox();
+  const map = getCustomLayout();
+  selEls().forEach(el => {
+    const r = el.getBoundingClientRect();
+    const halfW = r.width / 2, halfH = r.height / 2;
+    let cx = r.left + r.width / 2 - pvr.left + dx;
+    let cy = r.top + r.height / 2 - pvr.top + dy;
+    cx = clampN(safeInsets.left + halfW, pvr.width - safeInsets.right - halfW, cx);
+    cy = clampN(safeInsets.top + halfH, pvr.height - safeInsets.bottom - halfH, cy);
+    const k = el.dataset.perfEl; const c = map[k] || {};
+    c.x = +((cx / pvr.width) * 100).toFixed(2); c.y = +((cy / pvr.height) * 100).toFixed(2);
+    map[k] = c; applyElPos(el, c);
+  });
+  saveCustomLayout(map); positionSelBox();
 }
 function applyEdPrefsUI() {
   const pv = document.getElementById('performance-view');
   pv.classList.toggle('grid-on', !!edPrefs.grid);
+  pv.classList.toggle('center-on', !!edPrefs.centerGuides);
+  pv.classList.toggle('rulers-on', !!edPrefs.rulers);
   pv.style.setProperty('--perf-grid', (edPrefs.gridSize || 20) + 'px');
-  const gt = document.getElementById('perf-grid-toggle'); if (gt) gt.classList.toggle('active', !!edPrefs.grid);
-  const st = document.getElementById('perf-smart-toggle'); if (st) st.classList.toggle('active', !!edPrefs.smart);
+  const set = (id, on) => { const b = document.getElementById(id); if (b) b.classList.toggle('active', !!on); };
+  set('perf-grid-toggle', edPrefs.grid);
+  set('perf-smart-toggle', edPrefs.smart);
+  set('perf-center-toggle', edPrefs.centerGuides);
+  set('perf-rulers-toggle', edPrefs.rulers);
+  set('perf-guides-toggle', edPrefs.alignGuides);
+  set('perf-dist-toggle', edPrefs.distances);
   const gs = document.getElementById('perf-grid-size'); if (gs) gs.value = String(edPrefs.gridSize || 20);
+  const sd = document.getElementById('perf-snap-dist'); if (sd) sd.value = String(edPrefs.snapDist || 10);
   const step = document.getElementById('perf-edit-step'); if (step) step.value = String(edPrefs.step || 1);
+  if (edPrefs.rulers) buildRulers();
 }
 
 (function setupLayoutEditor() {
@@ -8304,37 +8510,43 @@ function applyEdPrefsUI() {
     panelDrag = { sx: e.clientX, sy: e.clientY, l: pr.left - pvr.left, t: pr.top - pvr.top };
   });
 
-  // Pick an element from the list
-  const pick = document.getElementById('perf-edit-pick');
-  if (pick) pick.addEventListener('change', () => {
-    if (!pick.value) { selectPerfEl(null); return; }
-    const el = pv.querySelector('[data-perf-el="' + pick.value + '"]'); if (el) selectPerfEl(el);
-  });
-
-  // Precision nudge arrows + step
+  // Precision nudge arrows + step (moves all selected controls)
   document.querySelectorAll('.pep-arrow').forEach(b => b.addEventListener('click', () => nudge(b.dataset.nudge)));
   const stepSel = document.getElementById('perf-edit-step');
   if (stepSel) stepSel.addEventListener('change', () => { edPrefs.step = parseInt(stepSel.value, 10) || 1; saveEdPrefs(); });
 
-  // Grid + smart-snap toggles
-  const gt = document.getElementById('perf-grid-toggle');
-  if (gt) gt.addEventListener('click', () => { edPrefs.grid = !edPrefs.grid; saveEdPrefs(); applyEdPrefsUI(); });
+  // Align / distribute the multi-selection
+  document.querySelectorAll('.pep-align button').forEach(b => b.addEventListener('click', () => alignSelected(b.dataset.align)));
+
+  // Independent display toggles
+  const toggle = (id, key) => { const b = document.getElementById(id); if (b) b.addEventListener('click', () => { edPrefs[key] = !edPrefs[key]; saveEdPrefs(); applyEdPrefsUI(); }); };
+  toggle('perf-grid-toggle', 'grid');
+  toggle('perf-smart-toggle', 'smart');
+  toggle('perf-center-toggle', 'centerGuides');
+  toggle('perf-rulers-toggle', 'rulers');
+  toggle('perf-guides-toggle', 'alignGuides');
+  toggle('perf-dist-toggle', 'distances');
   const gs = document.getElementById('perf-grid-size');
   if (gs) gs.addEventListener('change', () => { edPrefs.gridSize = parseInt(gs.value, 10) || 20; saveEdPrefs(); applyEdPrefsUI(); });
-  const st = document.getElementById('perf-smart-toggle');
-  if (st) st.addEventListener('click', () => { edPrefs.smart = !edPrefs.smart; saveEdPrefs(); applyEdPrefsUI(); });
+  const sd = document.getElementById('perf-snap-dist');
+  if (sd) sd.addEventListener('change', () => { edPrefs.snapDist = parseInt(sd.value, 10) || 10; saveEdPrefs(); });
 
   // Done + resets
   const done = document.getElementById('perf-edit-done');
   if (done) done.addEventListener('click', exitLayoutEdit);
   const rSel = document.getElementById('perf-edit-reset-sel');
   if (rSel) rSel.addEventListener('click', () => {
-    if (!selectedPerfEl) return;
-    const def = getDefaultLayout(); const map = getCustomLayout(); const k = selectedPerfEl.dataset.perfEl;
-    if (def[k]) map[k] = { ...def[k] }; else delete map[k];
+    if (!selectedKeys.length) return;
+    const def = getDefaultLayout(); const map = getCustomLayout();
+    selEls().forEach(el => {
+      const k = el.dataset.perfEl;
+      if (def[k]) map[k] = { ...def[k] }; else delete map[k];
+      clearElInline(el);
+    });
     saveCustomLayout(map);
-    clearElInline(selectedPerfEl);
-    applyCustomLayout(); buildSizeControls(selectedPerfEl); positionSelBox();
+    applyCustomLayout();
+    if (selectedPerfEl) buildSizeControls(selectedPerfEl);
+    positionSelBox();
   });
   const rAll = document.getElementById('perf-edit-reset-all');
   if (rAll) rAll.addEventListener('click', () => {
