@@ -141,7 +141,11 @@
   /* When the user hid the UI in performance view, drop all safe-area
      padding so the lyrics fill the screen edge-to-edge with no top,
      bottom, or side borders — pure text only. */
-  body:has(#performance-view.ui-hidden) #app {
+  /* Drop safe-area padding when the UI is hidden so lyrics fill the screen —
+     but NOT in the custom layout, where it would resize #performance-view and
+     shift every percent-anchored control (e.g. the Play button jumping on
+     playback). Custom layouts keep stable geometry. */
+  body:has(#performance-view.ui-hidden:not(.layout-custom)) #app {
     padding: 0;
   }
 
@@ -1950,6 +1954,10 @@
     -webkit-backdrop-filter: none;
     border: none;
     transform: none;
+    /* Only fade opacity — never transition transform here, or the container
+       animates from the right-layout translateY(-50%) and gets stuck shifted,
+       which dragged every control (esp. Play) off its saved Y. */
+    transition: opacity 0.4s var(--ease);
     max-height: none;
     pointer-events: none;           /* taps fall through to the lyrics (tap-to-hide) */
   }
@@ -2057,29 +2065,48 @@
   /* Floating, draggable Layout editor panel */
   .perf-edit-panel {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 290px; max-width: calc(100% - 24px); max-height: calc(100% - 24px);
+    width: 248px; max-width: calc(100% - 20px); max-height: calc(100% - 20px);
     display: flex; flex-direction: column;
     background: var(--surface-strong);
     backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
-    border: 1px solid var(--border-strong); border-radius: 16px;
+    border: 1px solid var(--border-strong); border-radius: 14px;
     box-shadow: var(--shadow-lg);
     z-index: 95; opacity: 0; pointer-events: none;
     transition: opacity 0.2s var(--ease);
   }
   .perf-edit-panel.show { opacity: 1; pointer-events: auto; }
   .pep-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 12px 14px; cursor: grab; border-bottom: 1px solid var(--border-strong);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 9px 11px; cursor: grab; border-bottom: 1px solid var(--border-strong);
     touch-action: none; user-select: none; -webkit-user-select: none;
   }
   .pep-head:active { cursor: grabbing; }
-  .pep-title { font-weight: 800; font-size: 14px; color: var(--text-0); }
-  .pep-done {
-    padding: 7px 16px; border-radius: 9px; border: 1px solid var(--accent);
-    background: var(--accent); color: #fff; font-weight: 700; font-size: 13px; cursor: pointer;
+  .pep-title { font-weight: 800; font-size: 13px; color: var(--text-0); }
+  .pep-head-actions { display: flex; align-items: center; gap: 6px; }
+  .pep-iconbtn {
+    width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-0); font-size: 15px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
   }
-  .pep-body { padding: 12px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-  .pep-sec { display: flex; flex-direction: column; gap: 7px; }
+  .pep-iconbtn:disabled { opacity: 0.35; cursor: default; }
+  .pep-done {
+    padding: 6px 13px; border-radius: 8px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .pep-body { padding: 2px 12px 10px; overflow-y: auto; display: flex; flex-direction: column; }
+  /* Accordion sections */
+  .pep-sec { border-bottom: 1px solid var(--border-strong); }
+  .pep-sec:last-child { border-bottom: none; }
+  .pep-sec-head {
+    display: flex; align-items: center; justify-content: space-between; width: 100%;
+    background: none; border: none; cursor: pointer; padding: 10px 2px;
+    color: var(--text-2); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pep-chev::before { content: '▸'; display: inline-block; transition: transform 0.15s var(--ease); color: var(--text-2); }
+  .pep-sec.open .pep-chev::before { transform: rotate(90deg); }
+  .pep-sec-body { display: none; padding: 0 0 11px; }
+  .pep-sec.open > .pep-sec-body { display: flex; flex-direction: column; gap: 9px; }
   .pep-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); }
   .pep-select {
     width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border-strong);
@@ -2117,7 +2144,7 @@
   }
   .pep-toggle.active { background: var(--accent); border-color: var(--accent); color: #fff; }
   .pep-gridsize { width: 64px; flex: none; }
-  .pep-resets { flex-direction: row; gap: 8px; }
+  .pep-resets { display: flex; flex-direction: row; gap: 8px; padding-top: 10px; }
   .pep-resets button {
     flex: 1; padding: 9px 8px; border-radius: 9px; border: 1px solid var(--border-strong);
     background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 11px; cursor: pointer;
@@ -3384,73 +3411,87 @@
     <!-- Floating, draggable Layout editor panel (only visible in Edit Layout mode) -->
     <div class="perf-edit-panel" id="perf-edit-panel">
       <div class="pep-head" id="pep-head">
-        <span class="pep-title">Layout bearbeiten</span>
-        <button id="perf-edit-done" class="pep-done">Fertig</button>
+        <span class="pep-title">Layout</span>
+        <div class="pep-head-actions">
+          <button id="perf-undo" class="pep-iconbtn" title="Rückgängig" disabled>↶</button>
+          <button id="perf-redo" class="pep-iconbtn" title="Wiederherstellen" disabled>↷</button>
+          <button id="perf-edit-done" class="pep-done">Fertig</button>
+        </div>
       </div>
       <div class="pep-body">
-        <div class="pep-sec">
-          <label class="pep-label">Element</label>
-          <div id="perf-el-chips" class="pep-chips"></div>
-        </div>
-        <div class="pep-sec" id="pep-align-sec" style="display:none">
-          <label class="pep-label">Ausrichten</label>
-          <div class="pep-align">
-            <button data-align="left" title="Links ausrichten">⇤</button>
-            <button data-align="cx" title="Horizontal zentrieren">↔</button>
-            <button data-align="right" title="Rechts ausrichten">⇥</button>
-            <button data-align="top" title="Oben ausrichten">⤒</button>
-            <button data-align="cy" title="Vertikal zentrieren">↕</button>
-            <button data-align="bottom" title="Unten ausrichten">⤓</button>
-            <button data-align="disth" title="Horizontal verteilen">⇿</button>
-            <button data-align="distv" title="Vertikal verteilen">⇳</button>
+        <div class="pep-sec open" data-sec="el">
+          <button class="pep-sec-head"><span>Element</span><span class="pep-chev"></span></button>
+          <div class="pep-sec-body">
+            <div id="perf-el-chips" class="pep-chips"></div>
           </div>
         </div>
-        <div class="pep-sec">
-          <label class="pep-label">Bewegen</label>
-          <div class="pep-nudge">
-            <button class="pep-arrow up" data-nudge="up" title="Nach oben">↑</button>
-            <button class="pep-arrow left" data-nudge="left" title="Nach links">←</button>
-            <button class="pep-arrow right" data-nudge="right" title="Nach rechts">→</button>
-            <button class="pep-arrow down" data-nudge="down" title="Nach unten">↓</button>
-          </div>
-          <div class="pep-step">
-            <span>Schritt</span>
-            <select id="perf-edit-step" class="pep-select">
-              <option value="1">1</option>
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="20">20</option>
-            </select>
-            <span>px</span>
+        <div class="pep-sec open" id="pep-align-sec" data-sec="align" style="display:none">
+          <button class="pep-sec-head"><span>Ausrichten</span><span class="pep-chev"></span></button>
+          <div class="pep-sec-body">
+            <div class="pep-align">
+              <button data-align="left" title="Links ausrichten">⇤</button>
+              <button data-align="cx" title="Horizontal zentrieren">↔</button>
+              <button data-align="right" title="Rechts ausrichten">⇥</button>
+              <button data-align="top" title="Oben ausrichten">⤒</button>
+              <button data-align="cy" title="Vertikal zentrieren">↕</button>
+              <button data-align="bottom" title="Unten ausrichten">⤓</button>
+              <button data-align="disth" title="Horizontal verteilen">⇿</button>
+              <button data-align="distv" title="Vertikal verteilen">⇳</button>
+            </div>
           </div>
         </div>
-        <div class="pep-sec">
-          <label class="pep-label">Grösse</label>
-          <div id="perf-size-controls" class="pep-size"></div>
-        </div>
-        <div class="pep-sec">
-          <label class="pep-label">Anzeige</label>
-          <div class="pep-opts pep-opts-grid">
-            <button id="perf-grid-toggle" class="pep-toggle">Raster</button>
-            <button id="perf-smart-toggle" class="pep-toggle">Magnet</button>
-            <button id="perf-center-toggle" class="pep-toggle">Mitte</button>
-            <button id="perf-rulers-toggle" class="pep-toggle">Lineale</button>
-            <button id="perf-guides-toggle" class="pep-toggle">Hilfslinien</button>
-            <button id="perf-dist-toggle" class="pep-toggle">Masse</button>
-          </div>
-          <div class="pep-selrow">
-            <span>Raster</span>
-            <select id="perf-grid-size" class="pep-select pep-mini">
-              <option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option>
-            </select>
-            <span>Magnet</span>
-            <select id="perf-snap-dist" class="pep-select pep-mini">
-              <option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="30">30</option>
-            </select>
-            <span>px</span>
+        <div class="pep-sec open" data-sec="size">
+          <button class="pep-sec-head"><span>Grösse</span><span class="pep-chev"></span></button>
+          <div class="pep-sec-body">
+            <div id="perf-size-controls" class="pep-size"></div>
           </div>
         </div>
-        <div class="pep-sec pep-resets">
+        <div class="pep-sec" data-sec="move">
+          <button class="pep-sec-head"><span>Bewegen</span><span class="pep-chev"></span></button>
+          <div class="pep-sec-body">
+            <div class="pep-nudge">
+              <button class="pep-arrow up" data-nudge="up" title="Nach oben">↑</button>
+              <button class="pep-arrow left" data-nudge="left" title="Nach links">←</button>
+              <button class="pep-arrow right" data-nudge="right" title="Nach rechts">→</button>
+              <button class="pep-arrow down" data-nudge="down" title="Nach unten">↓</button>
+            </div>
+            <div class="pep-step">
+              <span>Schritt</span>
+              <select id="perf-edit-step" class="pep-select">
+                <option value="1">1</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+              </select>
+              <span>px</span>
+            </div>
+          </div>
+        </div>
+        <div class="pep-sec" data-sec="view">
+          <button class="pep-sec-head"><span>Anzeige</span><span class="pep-chev"></span></button>
+          <div class="pep-sec-body">
+            <div class="pep-opts pep-opts-grid">
+              <button id="perf-grid-toggle" class="pep-toggle">Raster</button>
+              <button id="perf-smart-toggle" class="pep-toggle">Magnet</button>
+              <button id="perf-center-toggle" class="pep-toggle">Mitte</button>
+              <button id="perf-rulers-toggle" class="pep-toggle">Lineale</button>
+              <button id="perf-guides-toggle" class="pep-toggle">Hilfslinien</button>
+              <button id="perf-dist-toggle" class="pep-toggle">Masse</button>
+            </div>
+            <div class="pep-selrow">
+              <span>Raster</span>
+              <select id="perf-grid-size" class="pep-select pep-mini">
+                <option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option>
+              </select>
+              <span>Magnet</span>
+              <select id="perf-snap-dist" class="pep-select pep-mini">
+                <option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="30">30</option>
+              </select>
+              <span>px</span>
+            </div>
+          </div>
+        </div>
+        <div class="pep-resets">
           <button id="perf-edit-reset-sel">Auswahl zurücksetzen</button>
           <button id="perf-edit-reset-all">Alles zurücksetzen</button>
         </div>
@@ -4899,7 +4940,9 @@ const I18N = {
     "Horizontal zentrieren": "Align horizontal centers",
     "Vertikal zentrieren": "Align vertical centers",
     "Horizontal verteilen": "Distribute horizontally",
-    "Vertikal verteilen": "Distribute vertically"
+    "Vertikal verteilen": "Distribute vertically",
+    "Rückgängig": "Undo",
+    "Wiederherstellen": "Redo"
   }
 };
 let currentLang = 'de';
@@ -7909,6 +7952,41 @@ let safeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 let edPrefs = { grid: false, gridSize: 20, smart: true, snapDist: 10, centerGuides: true, rulers: false, alignGuides: true, distances: true, step: 1 };
 let selectedKeys = [];
 const clampN = (lo, hi, v) => Math.max(lo, Math.min(hi, v));
+
+// ---- Undo / Redo (layout history) ----
+let undoStack = [], redoStack = [], _pendingUndo = null;
+function snapshotLayout() { return localStorage.getItem(PERF_CUSTOM_KEY) || '{}'; }
+function beginAction() { if (_pendingUndo == null) _pendingUndo = snapshotLayout(); }
+function endAction() {
+  if (_pendingUndo == null) return;
+  const now = snapshotLayout();
+  if (now !== _pendingUndo) { undoStack.push(_pendingUndo); if (undoStack.length > 60) undoStack.shift(); redoStack.length = 0; }
+  _pendingUndo = null;
+  updateUndoUI();
+}
+function updateUndoUI() {
+  const u = document.getElementById('perf-undo'), r = document.getElementById('perf-redo');
+  if (u) u.disabled = !undoStack.length;
+  if (r) r.disabled = !redoStack.length;
+}
+function restoreLayoutJSON(json) {
+  try { localStorage.setItem(PERF_CUSTOM_KEY, json); } catch (e) {}
+  clearCustomInline(); applyCustomLayout();
+  if (selectedPerfEl) buildSizeControls(selectedPerfEl);
+  positionSelBox();
+}
+function doUndo() {
+  if (!undoStack.length) return;
+  redoStack.push(snapshotLayout());
+  restoreLayoutJSON(undoStack.pop());
+  updateUndoUI();
+}
+function doRedo() {
+  if (!redoStack.length) return;
+  undoStack.push(snapshotLayout());
+  restoreLayoutJSON(redoStack.pop());
+  updateUndoUI();
+}
 function loadEdPrefs() {
   try { const v = JSON.parse(localStorage.getItem(PERF_EDPREF_KEY)); if (v && typeof v === 'object') edPrefs = { ...edPrefs, ...v }; } catch (e) {}
 }
@@ -8109,6 +8187,7 @@ function enterLayoutEdit() {
   clearTimeout(controlsHideTimer);
   controlsHideTimer = null;
   computeSafeInsets();
+  undoStack.length = 0; redoStack.length = 0; _pendingUndo = null; updateUndoUI();
   buildChips();
   applyEdPrefsUI();
   selectPerfEl(null);
@@ -8151,9 +8230,11 @@ function updateSelectionUI() {
   const host = document.getElementById('perf-size-controls');
   if (selectedPerfEl) buildSizeControls(selectedPerfEl);
   else if (host) host.innerHTML = '<div class="pep-size-empty">' + T('Element wählen…') + '</div>';
-  if (selectedPerfEl) { positionSelBox(); avoidPanelOverlap(selectedPerfEl); }
+  if (selectedPerfEl) { openSec('size'); positionSelBox(); avoidPanelOverlap(selectedPerfEl); }
   else if (box) box.classList.remove('show');
+  if (selectedKeys.length >= 2) openSec('align');
 }
+function openSec(name) { const s = document.querySelector('#perf-edit-panel .pep-sec[data-sec="' + name + '"]'); if (s) s.classList.add('open'); }
 function buildChips() {
   const host = document.getElementById('perf-el-chips');
   if (!host) return;
@@ -8171,6 +8252,7 @@ function buildChips() {
 function alignSelected(mode) {
   const els = selEls();
   if (els.length < 2) return;
+  beginAction();
   const pv = document.getElementById('performance-view'); const pvr = pv.getBoundingClientRect();
   const rects = els.map(el => {
     const r = el.getBoundingClientRect();
@@ -8204,7 +8286,7 @@ function alignSelected(mode) {
     const step = (s[s.length - 1].cy - s[0].cy) / (s.length - 1);
     s.forEach((r, i) => setC(r, r.cx, s[0].cy + step * i));
   }
-  saveCustomLayout(map); positionSelBox();
+  saveCustomLayout(map); positionSelBox(); endAction();
 }
 function buildRulers() {
   const top = document.getElementById('perf-ruler-top');
@@ -8247,12 +8329,14 @@ function buildSizeControls(el) {
     const range = document.createElement('input'); range.type = 'range'; range.min = min; range.max = max; range.step = 1; range.value = cur[key];
     const b = document.createElement('b'); b.textContent = cur[key];
     range.addEventListener('input', () => {
+      beginAction();                                  // captures the pre-change state once
       const v = clampSize(key, parseFloat(range.value));
       b.textContent = v;
       const map = getCustomLayout(); const k = el.dataset.perfEl;
       const c = map[k] || measureOne(el); c[key] = v; map[k] = c; saveCustomLayout(map);
       applyElSize(el, c); positionSelBox();
     });
+    range.addEventListener('change', endAction);      // commits one undo step on release
     row.appendChild(span); row.appendChild(range); row.appendChild(b);
     host.appendChild(row);
   });
@@ -8360,31 +8444,38 @@ function onPerfPointerDown(e) {
   if (!el) return;                 // empty space — handled by the stage tap (deselect)
   e.preventDefault();
   selectPerfEl(el);
-  const pv = document.getElementById('performance-view');
-  const pvr = pv.getBoundingClientRect();
+  beginAction();
   const r = el.getBoundingClientRect();
+  // Store the grab offset (element centre minus finger, in viewport px). Every
+  // move re-derives the centre from the LIVE finger position, so the exact point
+  // first touched stays glued to the finger even if the viewport / safe area
+  // shifts mid-drag (fixes the iPad jump-to-corner bug).
   perfDrag = {
-    el, pvW: pvr.width, pvH: pvr.height,
+    el,
     halfW: r.width / 2, halfH: r.height / 2,
-    cx: r.left + r.width / 2 - pvr.left,
-    cy: r.top + r.height / 2 - pvr.top,
-    sx: e.clientX, sy: e.clientY,
-    cands: collectSnaps(el, pvr)
+    grabDX: (r.left + r.width / 2) - e.clientX,
+    grabDY: (r.top + r.height / 2) - e.clientY,
+    moved: false
   };
 }
 function moveSelected(e) {
   e.preventDefault();
   const d = perfDrag;
-  const cx0 = d.cx + (e.clientX - d.sx);
-  const cy0 = d.cy + (e.clientY - d.sy);
+  const pv = document.getElementById('performance-view');
+  const pvr = pv.getBoundingClientRect();          // LIVE rect — robust to viewport shifts
+  if (!pvr.width || !pvr.height) return;
+  d.moved = true;
+  const cx0 = (e.clientX + d.grabDX) - pvr.left;
+  const cy0 = (e.clientY + d.grabDY) - pvr.top;
   let cx = cx0, cy = cy0, gX = null, gY = null, movedX = false, movedY = false;
+  const cands = collectSnaps(d.el, pvr);
   // Alignment matches drive both snapping (if Smart Snap on) and the temporary
   // guide lines (if Alignment Guides on) — the two toggle independently.
   if (edPrefs.smart || edPrefs.alignGuides) {
     const thr = edPrefs.snapDist || 10;
-    const sx = snapAxis(cx0, d.halfW, d.cands.X, thr);
+    const sx = snapAxis(cx0, d.halfW, cands.X, thr);
     if (sx) { gX = sx.guide; if (edPrefs.smart) { cx = sx.c; movedX = true; } }
-    const sy = snapAxis(cy0, d.halfH, d.cands.Y, thr);
+    const sy = snapAxis(cy0, d.halfH, cands.Y, thr);
     if (sy) { gY = sy.guide; if (edPrefs.smart) { cy = sy.c; movedY = true; } }
   }
   if (edPrefs.grid) {
@@ -8393,16 +8484,16 @@ function moveSelected(e) {
     if (!movedY) cy = Math.round(cy0 / g) * g;
   }
   // clamp inside the safe area so nothing hides under a notch/edge
-  cx = clampN(safeInsets.left + d.halfW, d.pvW - safeInsets.right - d.halfW, cx);
-  cy = clampN(safeInsets.top + d.halfH, d.pvH - safeInsets.bottom - d.halfH, cy);
-  d.lastX = cx; d.lastY = cy;
-  d.el.style.left = (cx / d.pvW * 100) + '%';
-  d.el.style.top = (cy / d.pvH * 100) + '%';
+  cx = clampN(safeInsets.left + d.halfW, pvr.width - safeInsets.right - d.halfW, cx);
+  cy = clampN(safeInsets.top + d.halfH, pvr.height - safeInsets.bottom - d.halfH, cy);
+  d.lastX = cx; d.lastY = cy; d.pvW = pvr.width; d.pvH = pvr.height;
+  d.el.style.left = (cx / pvr.width * 100) + '%';
+  d.el.style.top = (cy / pvr.height * 100) + '%';
   d.el.style.right = 'auto'; d.el.style.bottom = 'auto';
   d.el.style.transform = 'translate(-50%, -50%)';
   showGuide('perf-guide-v', edPrefs.alignGuides && gX !== null, gX);
   showGuide('perf-guide-h', edPrefs.alignGuides && gY !== null, gY);
-  updateDist(d, cx, cy);
+  updateDist({ halfW: d.halfW, halfH: d.halfH, pvW: pvr.width, pvH: pvr.height }, cx, cy);
   positionSelBox();
 }
 function resizeSelected(e) {
@@ -8428,24 +8519,28 @@ function onDocPointerMove(e) {
 function onDocPointerUp() {
   if (perfDrag) {
     const d = perfDrag; hideGuides();
-    const map = getCustomLayout(); const k = d.el.dataset.perfEl;
-    const c = map[k] || {};
-    c.x = +(((d.lastX != null ? d.lastX : d.cx) / d.pvW) * 100).toFixed(2);
-    c.y = +(((d.lastY != null ? d.lastY : d.cy) / d.pvH) * 100).toFixed(2);
-    map[k] = c; saveCustomLayout(map);
-    perfDrag = null; positionSelBox();
+    if (d.moved && d.lastX != null && d.pvW) {        // only persist on an actual move (not a tap-select)
+      const map = getCustomLayout(); const k = d.el.dataset.perfEl;
+      const c = map[k] || {};
+      c.x = +((d.lastX / d.pvW) * 100).toFixed(2);
+      c.y = +((d.lastY / d.pvH) * 100).toFixed(2);
+      map[k] = c; saveCustomLayout(map);
+    }
+    perfDrag = null; positionSelBox(); endAction();
   }
-  if (handleResize) { const el = handleResize.el; handleResize = null; if (el === selectedPerfEl) buildSizeControls(el); }
+  if (handleResize) { const el = handleResize.el; handleResize = null; if (el === selectedPerfEl) buildSizeControls(el); endAction(); }
   if (panelDrag) panelDrag = null;
 }
 function startHandleResize(e) {
   if (!selectedPerfEl) return;
   e.preventDefault(); e.stopPropagation();
+  beginAction();
   handleResize = { el: selectedPerfEl, t: elType(selectedPerfEl), sx: e.clientX, sy: e.clientY, start: currentSize(selectedPerfEl) };
 }
 // Precision nudge (arrow buttons) by the chosen pixel step.
 function nudge(dir) {
   if (!selectedKeys.length) return;
+  beginAction();
   const step = edPrefs.step || 1;
   const dx = dir === 'left' ? -step : dir === 'right' ? step : 0;
   const dy = dir === 'up' ? -step : dir === 'down' ? step : 0;
@@ -8462,7 +8557,7 @@ function nudge(dir) {
     c.x = +((cx / pvr.width) * 100).toFixed(2); c.y = +((cy / pvr.height) * 100).toFixed(2);
     map[k] = c; applyElPos(el, c);
   });
-  saveCustomLayout(map); positionSelBox();
+  saveCustomLayout(map); positionSelBox(); endAction();
 }
 function applyEdPrefsUI() {
   const pv = document.getElementById('performance-view');
@@ -8531,12 +8626,24 @@ function applyEdPrefsUI() {
   const sd = document.getElementById('perf-snap-dist');
   if (sd) sd.addEventListener('change', () => { edPrefs.snapDist = parseInt(sd.value, 10) || 10; saveEdPrefs(); });
 
+  // Collapsible accordion sections
+  document.querySelectorAll('#perf-edit-panel .pep-sec-head').forEach(h => {
+    h.addEventListener('click', () => h.closest('.pep-sec').classList.toggle('open'));
+  });
+
+  // Undo / Redo
+  const undoBtn = document.getElementById('perf-undo');
+  if (undoBtn) undoBtn.addEventListener('click', doUndo);
+  const redoBtn = document.getElementById('perf-redo');
+  if (redoBtn) redoBtn.addEventListener('click', doRedo);
+
   // Done + resets
   const done = document.getElementById('perf-edit-done');
   if (done) done.addEventListener('click', exitLayoutEdit);
   const rSel = document.getElementById('perf-edit-reset-sel');
   if (rSel) rSel.addEventListener('click', () => {
     if (!selectedKeys.length) return;
+    beginAction();
     const def = getDefaultLayout(); const map = getCustomLayout();
     selEls().forEach(el => {
       const k = el.dataset.perfEl;
@@ -8546,12 +8653,13 @@ function applyEdPrefsUI() {
     saveCustomLayout(map);
     applyCustomLayout();
     if (selectedPerfEl) buildSizeControls(selectedPerfEl);
-    positionSelBox();
+    positionSelBox(); endAction();
   });
   const rAll = document.getElementById('perf-edit-reset-all');
   if (rAll) rAll.addEventListener('click', () => {
+    beginAction();
     saveCustomLayout({ ...getDefaultLayout() });
-    clearCustomInline(); applyCustomLayout(); selectPerfEl(null);
+    clearCustomInline(); applyCustomLayout(); selectPerfEl(null); endAction();
   });
 })();
 // Now safe to apply the saved layout (incl. 'custom') — all consts are ready.
