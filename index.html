@@ -2093,6 +2093,12 @@
   }
   .pep-head:active { cursor: grabbing; }
   .pep-title { font-weight: 800; font-size: 13px; color: var(--text-0); }
+  .pep-orient { font-weight: 700; font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+  /* The Help button only lists keyboard shortcuts — useless on touch (no keyboard),
+     so hide it on touch devices (iPad) while keeping it on PC. */
+  @media (hover: none) {
+    #perf-help { display: none !important; }
+  }
   .pep-head-actions { display: flex; align-items: center; gap: 6px; }
   .pep-iconbtn {
     width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-strong);
@@ -3422,7 +3428,7 @@
     <!-- Floating, draggable Layout editor panel (only visible in Edit Layout mode) -->
     <div class="perf-edit-panel" id="perf-edit-panel">
       <div class="pep-head" id="pep-head">
-        <span class="pep-title">Layout</span>
+        <span class="pep-title">Layout <span class="pep-orient" id="pep-orient"></span></span>
         <div class="pep-head-actions">
           <button id="perf-undo" class="pep-iconbtn" title="Rückgängig" disabled>↶</button>
           <button id="perf-redo" class="pep-iconbtn" title="Wiederherstellen" disabled>↷</button>
@@ -4953,7 +4959,9 @@ const I18N = {
     "Horizontal verteilen": "Distribute horizontally",
     "Vertikal verteilen": "Distribute vertically",
     "Rückgängig": "Undo",
-    "Wiederherstellen": "Redo"
+    "Wiederherstellen": "Redo",
+    "Querformat": "Landscape",
+    "Hochformat": "Portrait"
   }
 };
 let currentLang = 'de';
@@ -8040,11 +8048,33 @@ function sizeTarget(el) {
 }
 function sliderEl(el) { return el.querySelector('.perf-speed-slider'); }
 
+// Layout is stored PER ORIENTATION so a landscape design and a portrait design
+// stay separate and auto-switch when the tablet is rotated.
+function currentOrientation() {
+  const w = window.innerWidth || document.documentElement.clientWidth || 1;
+  const h = window.innerHeight || document.documentElement.clientHeight || 1;
+  return h > w ? 'portrait' : 'landscape';
+}
+// Read the full {landscape, portrait} store, migrating the old flat shape.
+function getCustomStore() {
+  let raw = {};
+  try { raw = JSON.parse(localStorage.getItem(PERF_CUSTOM_KEY) || '{}') || {}; } catch (e) {}
+  if (raw && (raw.landscape || raw.portrait)) {
+    return { landscape: raw.landscape || {}, portrait: raw.portrait || {} };
+  }
+  // Old flat shape (element-keyed) → keep it under whichever orientation is
+  // active now; the other orientation seeds itself on first use.
+  const store = { landscape: {}, portrait: {} };
+  if (raw && typeof raw === 'object' && Object.keys(raw).length) store[currentOrientation()] = raw;
+  return store;
+}
 function getCustomLayout() {
-  try { return JSON.parse(localStorage.getItem(PERF_CUSTOM_KEY)) || {}; } catch (e) { return {}; }
+  return getCustomStore()[currentOrientation()] || {};
 }
 function saveCustomLayout(map) {
-  try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(map)); } catch (e) {}
+  const store = getCustomStore();
+  store[currentOrientation()] = map;
+  try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(store)); } catch (e) {}
 }
 function perfEls() {
   return Array.from(document.querySelectorAll('#performance-view [data-perf-el]'));
@@ -8221,6 +8251,7 @@ function enterLayoutEdit() {
   undoStack.length = 0; redoStack.length = 0; _pendingUndo = null; updateUndoUI();
   buildChips();
   applyEdPrefsUI();
+  updateOrientBadge();
   selectPerfEl(null);
   const panel = document.getElementById('perf-edit-panel');
   panel.classList.add('show');
@@ -8278,6 +8309,10 @@ function buildChips() {
     if (selectedKeys.includes(el.dataset.perfEl)) c.classList.add('active');
     host.appendChild(c);
   });
+}
+function updateOrientBadge() {
+  const el = document.getElementById('pep-orient');
+  if (el) el.textContent = T(currentOrientation() === 'portrait' ? 'Hochformat' : 'Querformat');
 }
 // Align / distribute the current multi-selection within the safe area.
 function alignSelected(mode) {
@@ -8708,15 +8743,23 @@ applyPerfLayout(getPerfLayout());
 // Re-apply the custom layout when the viewport changes (orientation flip, Safari
 // toolbar collapse, window resize) so positions/rulers/selection stay correct.
 (function setupLayoutResize() {
-  let raf = null;
+  let timer = null;
+  let lastOrient = currentOrientation();
   const reapply = () => {
-    raf = null;
+    timer = null;
     const pv = document.getElementById('performance-view');
-    if (!pv || !pv.classList.contains('layout-custom')) return;
-    applyCustomLayout();
-    if (perfEditing) { positionSelBox(); buildRulers(); }
+    if (!pv) return;
+    const orient = currentOrientation();
+    const flipped = orient !== lastOrient;
+    if (flipped) { lastOrient = orient; defaultLayoutCache = null; }   // reset baseline for the new orientation
+    if (!pv.classList.contains('layout-custom')) return;
+    applyCustomLayout();          // pulls the new orientation's layout (self-seeds if empty)
+    if (perfEditing) {
+      if (flipped) { buildChips(); selectPerfEl(null); updateOrientBadge(); }
+      positionSelBox(); buildRulers();
+    }
   };
-  const onResize = () => { if (raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(reapply); };
+  const onResize = () => { clearTimeout(timer); timer = setTimeout(reapply, 60); };
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', onResize);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
