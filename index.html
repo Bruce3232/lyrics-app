@@ -1932,6 +1932,131 @@
   }
   #performance-view.layout-bottom .perf-settings-pop.show { transform: translateX(-50%) scale(1); }
 
+  /* ===== Custom layout: every control is freely positioned ===== */
+  /* The overlay + controls become full-screen, click-through positioning
+     layers; their tagged children are absolutely placed (inline left/top/
+     transform set by the layout editor). Nothing has a fixed position. */
+  #performance-view.layout-custom .perf-overlay,
+  #performance-view.layout-custom .perf-controls {
+    position: absolute;
+    inset: 0;
+    top: 0; right: 0; bottom: 0; left: 0;
+    display: block;
+    flex-direction: row;
+    padding: 0;
+    margin: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    transform: none;
+    max-height: none;
+    pointer-events: none;           /* taps fall through to the lyrics (tap-to-hide) */
+  }
+  #performance-view.layout-custom .perf-overlay > [data-perf-el],
+  #performance-view.layout-custom .perf-controls > [data-perf-el] {
+    position: absolute;
+    margin: 0;
+    pointer-events: auto;
+    transform-origin: center center;
+  }
+  /* In custom layout hiding is opacity-only (the layer fills the screen, so a
+     translate would just shove the whole thing off centre). */
+  #performance-view.layout-custom .perf-overlay.hidden,
+  #performance-view.layout-custom .perf-controls.hidden {
+    opacity: 0;
+    transform: none;
+    pointer-events: none;
+  }
+  #performance-view.layout-custom.quick-songs-open .perf-controls { opacity: 0; transform: none; }
+
+  /* ---- Edit Layout mode: outlines + drag affordances ---- */
+  #performance-view.perf-editing [data-perf-el] {
+    outline: 2px dashed var(--accent);
+    outline-offset: 3px;
+    border-radius: 10px;
+    cursor: move;
+    touch-action: none;             /* let us drag instead of scroll */
+    transition: none !important;    /* no lag while dragging */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #performance-view.perf-editing [data-perf-el].selected {
+    outline: 2px solid var(--accent);
+    box-shadow: 0 0 0 4px rgba(255,140,26,0.28);
+  }
+  #performance-view.perf-editing [data-perf-el].dragging { opacity: 0.92; }
+  /* Dim the lyrics a touch so the editable chrome stands out. */
+  #performance-view.perf-editing .lyrics-stage { opacity: 0.45; }
+
+  .perf-edit-layout-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: filter 0.12s var(--ease);
+  }
+  .perf-edit-layout-btn:hover { filter: brightness(1.05); }
+
+  /* Alignment guides (centre / edge snap lines) */
+  .perf-guide {
+    position: absolute;
+    background: var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 75;
+    box-shadow: 0 0 6px rgba(255,140,26,0.6);
+    transition: opacity 0.08s linear;
+  }
+  #perf-guide-v { top: 0; bottom: 0; width: 2px; transform: translateX(-1px); }
+  #perf-guide-h { left: 0; right: 0; height: 2px; transform: translateY(-1px); }
+
+  /* Edit Layout toolbar — pinned bottom-centre, only visible while editing */
+  .perf-edit-bar {
+    position: absolute;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%) translateY(160%);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    max-width: calc(100% - 24px);
+    padding: 10px 14px;
+    background: var(--surface-strong);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    z-index: 90;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+  }
+  .perf-edit-bar.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .perf-edit-title { font-weight: 800; font-size: 13px; color: var(--text-0); white-space: nowrap; }
+  .perf-edit-sel {
+    font-size: 12px; color: var(--text-1); min-width: 86px; text-align: center;
+    padding: 6px 12px; background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: 9px; white-space: nowrap;
+  }
+  .perf-edit-size-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-1); }
+  .perf-edit-size-wrap input[type="range"] { width: 120px; }
+  .perf-edit-bar button {
+    padding: 8px 13px; border-radius: 10px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-0); font-weight: 600; font-size: 12px;
+    cursor: pointer; white-space: nowrap; transition: filter 0.12s var(--ease);
+  }
+  .perf-edit-bar button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .perf-edit-bar button:disabled { opacity: 0.4; cursor: default; }
+
   .perf-play-btn {
     width: 56px; height: 56px;
     border-radius: 50%;
@@ -3007,43 +3132,43 @@
   <!-- ============= PERFORMANCE ============= -->
   <div id="performance-view" class="view">
     <div class="perf-overlay" id="perf-overlay">
-      <button class="icon-btn" id="perf-back" title="Zurück (Esc)">
+      <button class="icon-btn" id="perf-back" data-perf-el="back" title="Zurück (Esc)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
-      <div class="perf-title-block">
+      <div class="perf-title-block" data-perf-el="title">
         <div class="perf-title" id="perf-title">—</div>
         <div class="perf-artist" id="perf-artist">—</div>
       </div>
-      <div class="perf-control-group perf-transpose-group" title="Transponieren: alle Akkorde in Halbtönen verschieben">
+      <div class="perf-control-group perf-transpose-group" data-perf-el="transpose" title="Transponieren: alle Akkorde in Halbtönen verschieben">
         <span class="label">Tr</span>
         <button class="perf-font-btn" id="perf-transpose-down" title="Tiefer (−1 Halbton)">−</button>
         <span class="value" id="perf-transpose-value">0</span>
         <button class="perf-font-btn" id="perf-transpose-up" title="Höher (+1 Halbton)">+</button>
       </div>
-      <div class="perf-control-group perf-chord-size-group" title="Akkord-Chip-Grösse">
+      <div class="perf-control-group perf-chord-size-group" data-perf-el="chord" title="Akkord-Chip-Grösse">
         <span class="label">Ak</span>
         <button class="perf-font-btn" id="perf-chord-down" title="Kleiner">−</button>
         <span class="value" id="perf-chord-value">100%</span>
         <button class="perf-font-btn" id="perf-chord-up" title="Grösser">+</button>
       </div>
-      <div class="perf-control-group perf-font-size-group" title="Schriftgrösse">
+      <div class="perf-control-group perf-font-size-group" data-perf-el="font" title="Schriftgrösse">
         <span class="label">Schrift</span>
         <button class="perf-font-btn" id="perf-font-down" title="Kleiner (←)">−</button>
         <span class="value" id="perf-font-value">30</span>
         <button class="perf-font-btn" id="perf-font-up" title="Grösser (→)">+</button>
       </div>
       <div class="perf-overlay-spacer"></div>
-      <button class="icon-btn" id="perf-edit" title="Bearbeiten">
+      <button class="icon-btn" id="perf-edit" data-perf-el="edit" title="Bearbeiten">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
-      <button class="icon-btn" id="perf-help" title="Tastatur-Kürzel">
+      <button class="icon-btn" id="perf-help" data-perf-el="help" title="Tastatur-Kürzel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </button>
-      <button class="icon-btn theme-toggle" id="theme-toggle-3" title="Hell/Dunkel umschalten">
+      <button class="icon-btn theme-toggle" id="theme-toggle-3" data-perf-el="theme" title="Hell/Dunkel umschalten">
         <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       </button>
-      <button class="icon-btn" id="perf-quick-songs" title="Setlist (Schnell-Wechsel)">
+      <button class="icon-btn" id="perf-quick-songs" data-perf-el="songs" title="Setlist (Schnell-Wechsel)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       </button>
     </div>
@@ -3069,7 +3194,7 @@
     </div>
 
     <div class="perf-controls" id="perf-controls">
-      <div class="perf-settings-wrap">
+      <div class="perf-settings-wrap" data-perf-el="settings">
         <button class="perf-icon-btn" id="perf-settings-btn" title="Steuerung &amp; Layout">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
@@ -3080,6 +3205,7 @@
             <div class="perf-settings-opts">
               <button class="perf-layout-btn" data-layout="right">Rechts</button>
               <button class="perf-layout-btn" data-layout="bottom">Unten</button>
+              <button class="perf-layout-btn" data-layout="custom">Eigenes</button>
             </div>
           </div>
           <div class="perf-settings-group">
@@ -3089,26 +3215,46 @@
               <button class="perf-autohide-btn" data-autohide="off">Aus</button>
             </div>
           </div>
+          <div class="perf-settings-group">
+            <button class="perf-edit-layout-btn" id="perf-edit-layout-btn">Layout bearbeiten</button>
+          </div>
         </div>
       </div>
-      <button class="perf-icon-btn" id="perf-prev-song" title="Vorheriger Song">
+      <button class="perf-icon-btn" id="perf-prev-song" data-perf-el="prev" title="Vorheriger Song">
         <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2" height="16"/></svg>
       </button>
-      <button class="perf-play-btn" id="perf-play-btn" title="Play/Pause (Space)">
+      <button class="perf-play-btn" id="perf-play-btn" data-perf-el="play" title="Play/Pause (Space)">
         <svg id="perf-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
       </button>
-      <button class="perf-icon-btn" id="perf-next-song" title="Nächster Song">
+      <button class="perf-icon-btn" id="perf-next-song" data-perf-el="next" title="Nächster Song">
         <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="17" y="4" width="2" height="16"/></svg>
       </button>
-      <div class="perf-speed-cluster" title="Geschwindigkeit">
+      <div class="perf-speed-cluster" data-perf-el="speed" title="Geschwindigkeit">
         <span class="value" id="perf-speed-value">30</span>
         <button class="perf-font-btn" id="perf-speed-up" title="Schneller (↑)">+</button>
         <input type="range" class="range-slider perf-speed-slider" id="perf-speed" min="5" max="40" step="1" value="20" title="Geschwindigkeit">
         <button class="perf-font-btn" id="perf-speed-down" title="Langsamer (↓)">−</button>
       </div>
-      <button class="perf-icon-btn" id="perf-restart" title="Neu starten / Zurück (R)">
+      <button class="perf-icon-btn" id="perf-restart" data-perf-el="restart" title="Neu starten / Zurück (R)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
       </button>
+    </div>
+
+    <!-- Alignment guides shown while dragging in Edit Layout mode -->
+    <div class="perf-guide" id="perf-guide-v"></div>
+    <div class="perf-guide" id="perf-guide-h"></div>
+
+    <!-- Layout edit toolbar (only visible in Edit Layout mode) -->
+    <div class="perf-edit-bar" id="perf-edit-bar">
+      <div class="perf-edit-title">Layout bearbeiten</div>
+      <div class="perf-edit-sel" id="perf-edit-sel">Element wählen…</div>
+      <div class="perf-edit-size-wrap" id="perf-edit-size-wrap">
+        <span>Grösse</span>
+        <input type="range" id="perf-edit-size" min="0.5" max="2.5" step="0.05" value="1" title="Grösse">
+      </div>
+      <button id="perf-edit-reset-sel">Auswahl zurücksetzen</button>
+      <button id="perf-edit-reset-all">Alles zurücksetzen</button>
+      <button id="perf-edit-done" class="primary">Fertig</button>
     </div>
   </div>
 
@@ -4507,7 +4653,22 @@ const I18N = {
     "Layout": "Layout",
     "Auto-Ausblenden": "Auto-hide",
     "An": "On",
-    "Aus": "Off"
+    "Aus": "Off",
+    "Eigenes": "Custom",
+    "Layout bearbeiten": "Edit Layout",
+    "Element wählen…": "Select an element…",
+    "Grösse": "Size",
+    "Auswahl zurücksetzen": "Reset selection",
+    "Alles zurücksetzen": "Reset all",
+    "Zurück": "Back",
+    "Transponieren": "Transpose",
+    "Akkordgrösse": "Chord size",
+    "Hilfe": "Help",
+    "Thema": "Theme",
+    "Setlist": "Setlist",
+    "Vorheriger": "Previous",
+    "Nächster": "Next",
+    "Neustart": "Restart"
   }
 };
 let currentLang = 'de';
@@ -7180,6 +7341,7 @@ function quickSongsOpen() {
 function scheduleControlsHide() {
   clearTimeout(controlsHideTimer);
   controlsHideTimer = null;
+  if (perfEditing) return;                  // never auto-hide while editing the layout
   if (!perfAutoHide) return;                // auto-hide turned off in Settings (tap-only)
   if (controlsInteracting) return;          // finger still down on a control
   if (quickSongsOpen()) return;             // never auto-hide while setlist is open
@@ -7443,19 +7605,25 @@ async function flushPendingSaves() {
 // Performance controls layout (right-side vs bottom), chosen in the perf Settings menu.
 const PERF_LAYOUT_KEY = 'lyrics-perf-layout';
 function getPerfLayout() {
-  try { const v = localStorage.getItem(PERF_LAYOUT_KEY); if (v === 'right' || v === 'bottom') return v; } catch (e) {}
+  try { const v = localStorage.getItem(PERF_LAYOUT_KEY); if (v === 'right' || v === 'bottom' || v === 'custom') return v; } catch (e) {}
   return 'right';
 }
 function applyPerfLayout(layout) {
-  const lay = (layout === 'bottom') ? 'bottom' : 'right';
+  const lay = (layout === 'bottom') ? 'bottom' : (layout === 'custom') ? 'custom' : 'right';
   try { localStorage.setItem(PERF_LAYOUT_KEY, lay); } catch (e) {}
-  document.getElementById('performance-view').classList.toggle('layout-bottom', lay === 'bottom');
+  const pv = document.getElementById('performance-view');
+  pv.classList.toggle('layout-bottom', lay === 'bottom');
+  pv.classList.toggle('layout-custom', lay === 'custom');
   document.querySelectorAll('.perf-layout-btn').forEach(b => b.classList.toggle('active', b.dataset.layout === lay));
+  if (lay === 'custom') applyCustomLayout();
+  else clearCustomInline();
   if (state.view === 'performance') {
     requestAnimationFrame(() => { measureMaxScroll(); perfScrollPos = Math.min(perfScrollPos, perfMaxScroll); applyScroll(); });
   }
 }
-applyPerfLayout(getPerfLayout());
+// NB: applyPerfLayout(getPerfLayout()) is invoked at the END of the layout-editor
+// module below — after PERF_CUSTOM_KEY etc. are initialised — so a saved 'custom'
+// layout doesn't hit a temporal-dead-zone error during load.
 
 // Auto-hide toggle: ON = controls slide away after the idle delay (default);
 // OFF = controls stay until you tap the screen to dismiss them.
@@ -7481,9 +7649,292 @@ applyAutoHide(getPerfAutoHide());
     const lay = e.target.closest('.perf-layout-btn');
     if (lay) { applyPerfLayout(lay.dataset.layout); pop.classList.remove('show'); return; }
     const ah = e.target.closest('.perf-autohide-btn');
-    if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); }   // keep popover open so the choice is visible
+    if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); return; }   // keep popover open so the choice is visible
+    const ed = e.target.closest('#perf-edit-layout-btn');
+    if (ed) { pop.classList.remove('show'); enterLayoutEdit(); return; }
   });
 })();
+
+// =====================================================
+//   Custom Performance Layout — drag & resize editor
+//   Any element tagged with data-perf-el is automatically movable, resizable,
+//   snappable and persisted. New controls inherit this for free: just add the
+//   attribute in the markup. Positions are stored as % of the performance view
+//   (anchored at each element's centre) so they hold up across screen sizes.
+// =====================================================
+const PERF_CUSTOM_KEY = 'lyrics-perf-custom';
+let perfEditing = false;
+let selectedPerfEl = null;
+let perfDrag = null;
+let defaultLayoutCache = null;
+let safeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+const SNAP_PX = 11;
+
+// Localised display names for the toolbar (German source → T() handles English).
+const PERF_EL_NAMES = {
+  back: 'Zurück', title: 'Titel', transpose: 'Transponieren', chord: 'Akkordgrösse',
+  font: 'Schriftgrösse', edit: 'Bearbeiten', help: 'Hilfe', theme: 'Thema',
+  songs: 'Setlist', settings: 'Einstellungen', prev: 'Vorheriger', play: 'Play',
+  next: 'Nächster', speed: 'Geschwindigkeit', restart: 'Neustart'
+};
+
+function getCustomLayout() {
+  try { return JSON.parse(localStorage.getItem(PERF_CUSTOM_KEY)) || {}; } catch (e) { return {}; }
+}
+function saveCustomLayout(map) {
+  try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(map)); } catch (e) {}
+}
+function perfEls() {
+  return Array.from(document.querySelectorAll('#performance-view [data-perf-el]'));
+}
+// Measure every element's current centre (in its existing right/bottom layout)
+// and return a layout map — used to seed the custom layout 1:1 and for resets.
+function measureLayout() {
+  const pv = document.getElementById('performance-view');
+  const pvr = pv.getBoundingClientRect();
+  const map = {};
+  if (!pvr.width || !pvr.height) return map;   // not laid out yet — don't store garbage
+  perfEls().forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;     // hidden (e.g. font +/- on touch) — skip
+    map[el.dataset.perfEl] = {
+      x: +(((r.left + r.width / 2 - pvr.left) / pvr.width) * 100).toFixed(2),
+      y: +(((r.top + r.height / 2 - pvr.top) / pvr.height) * 100).toFixed(2),
+      s: 1
+    };
+  });
+  return map;
+}
+function getDefaultLayout() {
+  if (defaultLayoutCache) return defaultLayoutCache;
+  // Measure the stock right-side layout without a visible flicker.
+  const pv = document.getElementById('performance-view');
+  const wasCustom = pv.classList.contains('layout-custom');
+  pv.classList.remove('layout-custom');
+  clearCustomInline();
+  defaultLayoutCache = measureLayout();
+  if (wasCustom) { pv.classList.add('layout-custom'); applyCustomLayout(); }
+  return defaultLayoutCache;
+}
+function styleEl(el, c) {
+  if (!c || !isFinite(c.x) || !isFinite(c.y)) return;   // never write NaN positions
+  el.style.left = c.x + '%';
+  el.style.top = c.y + '%';
+  el.style.right = 'auto';
+  el.style.bottom = 'auto';
+  el.style.transform = 'translate(-50%, -50%) scale(' + (c.s || 1) + ')';
+}
+function applyCustomLayout() {
+  const map = getCustomLayout();
+  let fallback = 0;
+  perfEls().forEach(el => {
+    const c = map[el.dataset.perfEl];
+    if (c) { styleEl(el, c); }
+    else {
+      // Unsaved (e.g. a control added in a later version) → drop it somewhere
+      // visible so the user can grab and place it.
+      styleEl(el, { x: 12 + (fallback % 4) * 8, y: 12 + Math.floor(fallback / 4) * 9, s: 1 });
+      fallback++;
+    }
+  });
+}
+function clearCustomInline() {
+  perfEls().forEach(el => {
+    el.style.left = el.style.top = el.style.right = el.style.bottom = el.style.transform = '';
+  });
+}
+function computeSafeInsets() {
+  let probe;
+  try {
+    probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);';
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe);
+    safeInsets = {
+      top: parseFloat(cs.paddingTop) || 0,
+      right: parseFloat(cs.paddingRight) || 0,
+      bottom: parseFloat(cs.paddingBottom) || 0,
+      left: parseFloat(cs.paddingLeft) || 0
+    };
+  } catch (e) {
+    safeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+  } finally {
+    if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
+  }
+  const M = 6;   // breathing room so nothing sits flush against the edge
+  safeInsets.top += M; safeInsets.right += M; safeInsets.bottom += M; safeInsets.left += M;
+}
+
+function enterLayoutEdit() {
+  const pv = document.getElementById('performance-view');
+  if (!pv.classList.contains('layout-custom')) {
+    // Seed from the current layout so the custom view starts identical, and
+    // cache it as the reset baseline (measured here while still non-custom).
+    const seed = measureLayout();
+    if (Object.keys(seed).length) {
+      defaultLayoutCache = seed;
+      if (!Object.keys(getCustomLayout()).length) saveCustomLayout(seed);
+    }
+  }
+  applyPerfLayout('custom');
+  perfEditing = true;
+  pv.classList.add('perf-editing');
+  showControlsUI();
+  clearTimeout(controlsHideTimer);
+  controlsHideTimer = null;
+  computeSafeInsets();
+  selectPerfEl(null);
+  document.getElementById('perf-edit-bar').classList.add('show');
+}
+function exitLayoutEdit() {
+  perfEditing = false;
+  document.getElementById('performance-view').classList.remove('perf-editing');
+  document.getElementById('perf-edit-bar').classList.remove('show');
+  selectPerfEl(null);
+  scheduleControlsHide();
+}
+function selectPerfEl(el) {
+  perfEls().forEach(e => e.classList.remove('selected'));
+  selectedPerfEl = el || null;
+  const nameEl = document.getElementById('perf-edit-sel');
+  const sizeWrap = document.getElementById('perf-edit-size-wrap');
+  const resetSel = document.getElementById('perf-edit-reset-sel');
+  if (el) {
+    el.classList.add('selected');
+    if (nameEl) nameEl.textContent = T(PERF_EL_NAMES[el.dataset.perfEl] || el.dataset.perfEl);
+    const c = getCustomLayout()[el.dataset.perfEl];
+    const sizeInput = document.getElementById('perf-edit-size');
+    if (sizeInput) sizeInput.value = (c && c.s) || 1;
+    if (sizeWrap) sizeWrap.style.visibility = 'visible';
+    if (resetSel) resetSel.disabled = false;
+  } else {
+    if (nameEl) nameEl.textContent = T('Element wählen…');
+    if (sizeWrap) sizeWrap.style.visibility = 'hidden';
+    if (resetSel) resetSel.disabled = true;
+  }
+}
+function showGuide(id, on, pos) {
+  const g = document.getElementById(id);
+  if (!g) return;
+  g.style.opacity = on ? '1' : '0';
+  if (on && pos != null) { if (id === 'perf-guide-v') g.style.left = pos + 'px'; else g.style.top = pos + 'px'; }
+}
+function hideGuides() { showGuide('perf-guide-v', false); showGuide('perf-guide-h', false); }
+
+function onPerfPointerDown(e) {
+  if (!perfEditing) return;
+  const el = e.target.closest('[data-perf-el]');
+  if (!el) return;                 // empty space — handled by the stage tap (deselect)
+  e.preventDefault();
+  selectPerfEl(el);
+  const pv = document.getElementById('performance-view');
+  const pvr = pv.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  perfDrag = {
+    el, pvW: pvr.width, pvH: pvr.height,
+    halfW: r.width / 2, halfH: r.height / 2,
+    cx: r.left + r.width / 2 - pvr.left,
+    cy: r.top + r.height / 2 - pvr.top,
+    sx: e.clientX, sy: e.clientY,
+    scale: (getCustomLayout()[el.dataset.perfEl] || {}).s || 1
+  };
+}
+function onPerfPointerMove(e) {
+  if (!perfDrag) return;
+  e.preventDefault();
+  const d = perfDrag;
+  let cx = d.cx + (e.clientX - d.sx);
+  let cy = d.cy + (e.clientY - d.sy);
+  // --- snapping (centre + safe edges) with alignment guides ---
+  let snapX = -1, snapY = -1;
+  if (Math.abs(cx - d.pvW / 2) < SNAP_PX) { cx = d.pvW / 2; snapX = cx; }
+  else if (Math.abs((cx - d.halfW) - safeInsets.left) < SNAP_PX) { cx = safeInsets.left + d.halfW; snapX = cx; }
+  else if (Math.abs((cx + d.halfW) - (d.pvW - safeInsets.right)) < SNAP_PX) { cx = d.pvW - safeInsets.right - d.halfW; snapX = cx; }
+  if (Math.abs(cy - d.pvH / 2) < SNAP_PX) { cy = d.pvH / 2; snapY = cy; }
+  else if (Math.abs((cy - d.halfH) - safeInsets.top) < SNAP_PX) { cy = safeInsets.top + d.halfH; snapY = cy; }
+  else if (Math.abs((cy + d.halfH) - (d.pvH - safeInsets.bottom)) < SNAP_PX) { cy = d.pvH - safeInsets.bottom - d.halfH; snapY = cy; }
+  showGuide('perf-guide-v', snapX >= 0, snapX);
+  showGuide('perf-guide-h', snapY >= 0, snapY);
+  // --- clamp inside the safe area so nothing hides under a notch/edge ---
+  cx = Math.max(safeInsets.left + d.halfW, Math.min(d.pvW - safeInsets.right - d.halfW, cx));
+  cy = Math.max(safeInsets.top + d.halfH, Math.min(d.pvH - safeInsets.bottom - d.halfH, cy));
+  d.lastX = cx; d.lastY = cy;
+  d.el.style.left = (cx / d.pvW * 100) + '%';
+  d.el.style.top = (cy / d.pvH * 100) + '%';
+  d.el.style.right = 'auto'; d.el.style.bottom = 'auto';
+  d.el.style.transform = 'translate(-50%, -50%) scale(' + d.scale + ')';
+}
+function onPerfPointerUp() {
+  if (!perfDrag) return;
+  const d = perfDrag;
+  hideGuides();
+  const map = getCustomLayout();
+  const k = d.el.dataset.perfEl;
+  map[k] = {
+    x: +(((d.lastX != null ? d.lastX : d.cx) / d.pvW) * 100).toFixed(2),
+    y: +(((d.lastY != null ? d.lastY : d.cy) / d.pvH) * 100).toFixed(2),
+    s: d.scale
+  };
+  saveCustomLayout(map);
+  perfDrag = null;
+}
+(function setupLayoutEditor() {
+  const pv = document.getElementById('performance-view');
+  if (!pv) return;
+  pv.addEventListener('pointerdown', onPerfPointerDown);
+  document.addEventListener('pointermove', onPerfPointerMove);
+  document.addEventListener('pointerup', onPerfPointerUp);
+  document.addEventListener('pointercancel', onPerfPointerUp);
+  // Swallow control clicks while editing so dragging the Play button doesn't
+  // start the song, Back doesn't leave, etc.
+  pv.addEventListener('click', (e) => {
+    if (perfEditing && e.target.closest('[data-perf-el]')) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  const sizeInput = document.getElementById('perf-edit-size');
+  if (sizeInput) sizeInput.addEventListener('input', (e) => {
+    if (!selectedPerfEl) return;
+    const s = parseFloat(e.target.value) || 1;
+    const map = getCustomLayout();
+    const k = selectedPerfEl.dataset.perfEl;
+    const c = map[k] || measureOne(selectedPerfEl);
+    c.s = s; map[k] = c;
+    saveCustomLayout(map);
+    styleEl(selectedPerfEl, c);
+  });
+  const done = document.getElementById('perf-edit-done');
+  if (done) done.addEventListener('click', exitLayoutEdit);
+  const rSel = document.getElementById('perf-edit-reset-sel');
+  if (rSel) rSel.addEventListener('click', () => {
+    if (!selectedPerfEl) return;
+    const def = getDefaultLayout();
+    const map = getCustomLayout();
+    const k = selectedPerfEl.dataset.perfEl;
+    if (def[k]) map[k] = { ...def[k] }; else delete map[k];
+    saveCustomLayout(map);
+    applyCustomLayout();
+    selectPerfEl(selectedPerfEl);
+  });
+  const rAll = document.getElementById('perf-edit-reset-all');
+  if (rAll) rAll.addEventListener('click', () => {
+    saveCustomLayout({ ...getDefaultLayout() });
+    applyCustomLayout();
+    selectPerfEl(null);
+  });
+})();
+function measureOne(el) {
+  const pv = document.getElementById('performance-view');
+  const pvr = pv.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  if (!pvr.width || !pvr.height) return { x: 50, y: 50, s: 1 };
+  return {
+    x: +(((r.left + r.width / 2 - pvr.left) / pvr.width) * 100).toFixed(2),
+    y: +(((r.top + r.height / 2 - pvr.top) / pvr.height) * 100).toFixed(2),
+    s: 1
+  };
+}
+// Now safe to apply the saved layout (incl. 'custom') — all consts are ready.
+applyPerfLayout(getPerfLayout());
 document.getElementById('perf-play-btn').addEventListener('click', togglePerfScroll);
 document.getElementById('perf-restart').addEventListener('click', restartPerf);
 
@@ -7638,6 +8089,8 @@ document.getElementById('library-fullscreen-btn')?.addEventListener('click', tog
 
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
+  // While editing the layout, a tap on empty space just clears the selection.
+  if (perfEditing) { selectPerfEl(null); return; }
   // A single tap on the lyrics toggles the UI instantly (show if hidden, hide
   // if shown). Tapping the lyrics never starts or stops the song — only the
   // play/stop button does that.
