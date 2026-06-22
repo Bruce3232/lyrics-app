@@ -2605,6 +2605,65 @@
   }
 
   /* Modal */
+  /* ===== Chord reference drawer (left slide-out, compact) ===== */
+  .chord-drawer {
+    position: fixed; top: 0; bottom: 0; left: 0;
+    width: min(82vw, 236px);
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.3s var(--ease);
+    display: none;
+  }
+  body.in-performance .chord-drawer { display: block; }
+  /* Hidden while editing the layout so it never sits over the editor. */
+  #performance-view.perf-editing ~ .chord-drawer { display: none !important; }
+  .chord-drawer.open { transform: translateX(0); }
+  .chord-drawer-inner {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    background: var(--surface-strong);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border-right: 1px solid var(--border-strong);
+    border-radius: 0 16px 16px 0;
+    box-shadow: 8px 0 40px rgba(0,0,0,0.35);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Always-visible little handle riding the drawer's right edge. */
+  .chord-tab {
+    position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
+    width: 26px; height: 76px;
+    border: 1px solid var(--border-strong); border-left: none;
+    border-radius: 0 12px 12px 0;
+    background: var(--surface-strong);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    color: var(--text-1);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; box-shadow: 4px 0 16px rgba(0,0,0,0.22);
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.12s var(--ease);
+  }
+  .chord-tab:hover { color: var(--accent); }
+  .chord-tab svg { width: 15px; height: 15px; }
+  .chord-head { font-size: 13px; font-weight: 700; color: var(--text-0); padding: 12px 12px 0; flex-shrink: 0; }
+  .chord-instruments { display: flex; gap: 4px; padding: 8px 12px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .chord-inst {
+    flex: 1; padding: 7px 4px; border-radius: 9px;
+    border: 1px solid var(--border-strong); background: var(--surface);
+    color: var(--text-1); font-size: 12px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: all 0.12s var(--ease);
+  }
+  .chord-inst.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chord-list {
+    flex: 1; overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .chord-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 8px 6px; text-align: center; }
+  .chord-card-name { font-size: 14px; font-weight: 700; color: var(--text-0); margin-bottom: 4px; }
+  .chord-dgm { display: block; width: 100%; height: auto; max-height: 118px; }
+  .chord-empty { color: var(--text-2); font-size: 13px; text-align: center; padding: 26px 14px; line-height: 1.5; }
+
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -3632,6 +3691,22 @@
     </div>
   </div>
 
+</div>
+
+<!-- Chord reference drawer (auto-detected chords; Guitar / Ukulele / Piano) -->
+<div class="chord-drawer" id="chord-drawer">
+  <button class="chord-tab" id="chord-tab" title="Akkorde" aria-label="Akkorde">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+  </button>
+  <div class="chord-drawer-inner">
+    <div class="chord-head">Akkorde</div>
+    <div class="chord-instruments">
+      <button class="chord-inst active" data-inst="guitar">Gitarre</button>
+      <button class="chord-inst" data-inst="ukulele">Ukulele</button>
+      <button class="chord-inst" data-inst="piano">Klavier</button>
+    </div>
+    <div class="chord-list" id="chord-list"></div>
+  </div>
 </div>
 
 <!-- Quick Songs Panel (slides in from right during performance) -->
@@ -5147,7 +5222,11 @@ const I18N = {
     "Diese Vorlage mit dem aktuellen Layout ersetzen?": "Replace this template with the current layout?",
     "Vorlage aktualisiert": "Template updated",
     "Vorlage löschen?": "Delete template?",
-    "Diese eigene Vorlage wird dauerhaft entfernt.": "This custom template will be permanently removed."
+    "Diese eigene Vorlage wird dauerhaft entfernt.": "This custom template will be permanently removed.",
+    "Akkorde": "Chords",
+    "Gitarre": "Guitar",
+    "Klavier": "Piano",
+    "Keine Akkorde erkannt": "No chords detected"
   }
 };
 let currentLang = 'de';
@@ -5364,6 +5443,9 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(name + '-view').classList.add('active');
   state.view = name;
+  // Chord drawer is a performance-only surface; show its tab only there.
+  document.body.classList.toggle('in-performance', name === 'performance');
+  if (name !== 'performance' && typeof closeChordPanel === 'function') closeChordPanel();
   if (name !== 'performance') {
     releaseWakeLock();
   }
@@ -7308,6 +7390,8 @@ function openPerformance(song) {
     // couldn't be measured at load (view was hidden) gets seeded/placed correctly
     // instead of staying piled in the corner.
     if (getPerfLayout() === 'custom') applyCustomLayout();
+    // Detect this song's chords once and render the reference drawer.
+    if (typeof buildChordPanel === 'function') buildChordPanel();
   }, 100);
   resetControlsTimer();
   requestWakeLock();
@@ -8482,6 +8566,7 @@ function currentSize(el) {
 }
 
 function enterLayoutEdit() {
+  if (typeof closeChordPanel === 'function') closeChordPanel();
   const pv = document.getElementById('performance-view');
   // Ensure we have real positions BEFORE switching to custom so nothing piles
   // into the corner. Seed from the stock layout if the custom map is empty —
@@ -9499,6 +9584,7 @@ function changeTranspose(delta) {
     saveCurrentTranspose();
     const lines = (ver.lyrics || '').split('\n');
     renderLyrics(lines);
+    if (typeof buildChordPanel === 'function') buildChordPanel();   // chords changed → refresh diagrams
   }
 }
 let transposeSaveDebounce = null;
@@ -9521,6 +9607,247 @@ function saveCurrentTranspose() {
 }
 document.getElementById('perf-transpose-down').addEventListener('click', () => changeTranspose(-1));
 document.getElementById('perf-transpose-up').addEventListener('click', () => changeTranspose(1));
+
+// =====================================================
+//   Chord reference drawer — auto-detects the chords used in the current song
+//   and shows Guitar / Ukulele / Piano diagrams in a left slide-out panel.
+//   Reuses NOTE_INDEX / NOTES_SHARP from the transpose code.
+// =====================================================
+const CHORD_INSTRUMENT_KEY = 'lyrics-chord-instrument';
+let chordPanelInstrument = 'guitar';
+let chordPanelChords = [];     // cached parsed chords for the current song
+
+// quality string → { canon, intervals(semitones from root) }
+function classifyQuality(q) {
+  q = (q || '').trim().replace(/[Δ△]/g, 'maj7').replace(/ø/g, 'm7b5').replace(/[°]/g, 'dim');
+  const M = (canon, intervals) => ({ canon, intervals });
+  if (q === '' || q === 'maj' || q === 'M') return M('', [0, 4, 7]);
+  if (/^(maj9|M9)/.test(q)) return M('maj9', [0, 4, 7, 11, 14]);
+  if (/^(maj7|M7|j7)/.test(q)) return M('maj7', [0, 4, 7, 11]);
+  if (/^(m7b5|min7b5|m7-5)/.test(q)) return M('m7b5', [0, 3, 6, 10]);
+  if (/^dim7/.test(q)) return M('dim7', [0, 3, 6, 9]);
+  if (/^dim/.test(q)) return M('dim', [0, 3, 6]);
+  if (/^(\+|aug)/.test(q)) return M('aug', [0, 4, 8]);
+  if (/^sus2/.test(q)) return M('sus2', [0, 2, 7]);
+  if (/^(sus4|sus)/.test(q)) return M('sus4', [0, 5, 7]);
+  if (/^(mmaj7|mM7|minmaj7)/.test(q)) return M('mmaj7', [0, 3, 7, 11]);
+  if (/^(m|min|-)/.test(q)) {
+    if (/9/.test(q)) return M('m9', [0, 3, 7, 10, 14]);
+    if (/11/.test(q)) return M('m7', [0, 3, 7, 10, 14, 17]);
+    if (/13/.test(q)) return M('m7', [0, 3, 7, 10, 14, 21]);
+    if (/7/.test(q)) return M('m7', [0, 3, 7, 10]);
+    if (/6/.test(q)) return M('m6', [0, 3, 7, 9]);
+    return M('m', [0, 3, 7]);
+  }
+  if (/^(6\/9|69)/.test(q)) return M('6', [0, 4, 7, 9, 14]);
+  if (/^6/.test(q)) return M('6', [0, 4, 7, 9]);
+  if (/^add9/.test(q)) return M('add9', [0, 4, 7, 14]);
+  if (/^7sus4/.test(q)) return M('7sus4', [0, 5, 7, 10]);
+  if (/^9/.test(q)) return M('9', [0, 4, 7, 10, 14]);
+  if (/^11/.test(q)) return M('9', [0, 4, 7, 10, 14, 17]);
+  if (/^13/.test(q)) return M('9', [0, 4, 7, 10, 14, 21]);
+  if (/^7/.test(q)) return M('7', [0, 4, 7, 10]);
+  if (/^5/.test(q)) return M('5', [0, 7]);
+  return M('', [0, 4, 7]);
+}
+function parseChordForDiagram(token) {
+  if (token == null) return null;
+  const m = String(token).trim().match(/^([A-G])([#b♯♭]?)(.*)$/);
+  if (!m) return null;
+  const rootName = m[1] + (m[2] || '').replace('♯', '#').replace('♭', 'b');
+  const rootPc = NOTE_INDEX[rootName];
+  if (rootPc == null) return null;
+  let rest = m[3] || '';
+  let bassPc = null, bassName = '';
+  const slash = rest.indexOf('/');
+  if (slash >= 0) {
+    const bm = rest.slice(slash + 1).match(/^([A-G])([#b♯♭]?)/);
+    if (bm) { bassName = bm[1] + (bm[2] || '').replace('♯', '#').replace('♭', 'b'); bassPc = NOTE_INDEX[bassName]; }
+    rest = rest.slice(0, slash);
+  }
+  const { canon, intervals } = classifyQuality(rest);
+  const display = rootName + canon + (bassPc != null ? '/' + bassName : '');
+  return { rootPc, intervals, canon, bassPc, display };
+}
+function chordPcSet(p) { const s = new Set(); p.intervals.forEach(i => s.add(((p.rootPc + i) % 12 + 12) % 12)); return s; }
+
+// ---- guitar / ukulele shape data (frets low→high string; -1 = muted, 0 = open) ----
+const GTR_OPEN = {
+  'C': [-1,3,2,0,1,0], 'C7': [-1,3,2,3,1,0], 'Cmaj7': [-1,3,2,0,0,0], 'C6': [-1,3,2,2,1,0], 'Cadd9': [-1,3,2,0,3,0],
+  'D': [-1,-1,0,2,3,2], 'Dm': [-1,-1,0,2,3,1], 'D7': [-1,-1,0,2,1,2], 'Dmaj7': [-1,-1,0,2,2,2], 'Dm7': [-1,-1,0,2,1,1], 'Dsus4': [-1,-1,0,2,3,3], 'Dsus2': [-1,-1,0,2,3,0],
+  'E': [0,2,2,1,0,0], 'Em': [0,2,2,0,0,0], 'E7': [0,2,0,1,0,0], 'Em7': [0,2,0,0,0,0], 'Emaj7': [0,2,1,1,0,0], 'Esus4': [0,2,2,2,0,0],
+  'F': [1,3,3,2,1,1], 'Fmaj7': [-1,-1,3,2,1,0], 'Fm': [1,3,3,1,1,1],
+  'G': [3,2,0,0,0,3], 'G7': [3,2,0,0,0,1], 'Gmaj7': [3,2,0,0,0,2], 'G6': [3,2,0,0,0,0],
+  'A': [-1,0,2,2,2,0], 'Am': [-1,0,2,2,1,0], 'A7': [-1,0,2,0,2,0], 'Am7': [-1,0,2,0,1,0], 'Amaj7': [-1,0,2,1,2,0], 'Asus4': [-1,0,2,2,3,0], 'Asus2': [-1,0,2,2,0,0], 'Am6': [-1,0,2,2,1,2],
+  'B7': [-1,2,1,2,0,2], 'Bm': [-1,2,4,4,3,2], 'B': [-1,2,4,4,4,2]
+};
+const UKE_OPEN = {
+  'C': [0,0,0,3], 'C7': [0,0,0,1], 'Cmaj7': [0,0,0,2], 'Cm': [0,3,3,3],
+  'D': [2,2,2,0], 'Dm': [2,2,1,0], 'D7': [2,0,2,0],
+  'Em': [0,4,3,2], 'Em7': [0,2,0,2],
+  'F': [2,0,1,0],
+  'G': [0,2,3,2], 'G7': [0,2,1,2], 'Gmaj7': [0,2,2,2], 'Gm': [0,2,3,1],
+  'A': [2,1,0,0], 'Am': [2,0,0,0], 'A7': [0,1,0,0], 'Am7': [0,0,0,0], 'Amaj7': [1,1,0,0],
+  'B7': [2,3,2,2]
+};
+// Movable barre shapes (transpositions of the standard open shapes — correct by
+// construction). Offsets from the base fret on the rooting string; -1 = muted.
+const GTR_MOV = {
+  '':     { s6: [0,2,2,1,0,0], s5: [-1,0,2,2,2,0] },
+  'm':    { s6: [0,2,2,0,0,0], s5: [-1,0,2,2,1,0] },
+  '7':    { s6: [0,2,0,1,0,0], s5: [-1,0,2,0,2,0] },
+  'm7':   { s6: [0,2,0,0,0,0], s5: [-1,0,2,0,1,0] },
+  'maj7': { s6: [0,2,1,1,0,0], s5: [-1,0,2,1,2,0] },
+  'sus4': { s6: [0,2,2,2,0,0], s5: [-1,0,2,2,3,0] }
+};
+function movableGuitar(rootPc, canon) {
+  const t = GTR_MOV[canon]; if (!t) return null;
+  const base6 = ((rootPc - 4) % 12 + 12) % 12;
+  const base5 = ((rootPc - 9) % 12 + 12) % 12;
+  const useS6 = base6 <= base5;
+  const tpl = useS6 ? t.s6 : t.s5, base = useS6 ? base6 : base5;
+  return tpl.map(o => o < 0 ? -1 : o + base);
+}
+// Correct-by-notes fallback: search for a playable voicing whose every fretted
+// note belongs to the chord (root required, root-in-bass preferred).
+function findVoicing(tuning, pcSet, rootPc) {
+  const n = tuning.length, SPAN = 3;
+  let best = null;
+  for (let base = 0; base <= 9; base++) {
+    const cands = tuning.map(open => {
+      const a = [-1];
+      for (let f = (base === 0 ? 0 : base); f <= base + SPAN; f++) {
+        if (pcSet.has(((open + f) % 12 + 12) % 12)) a.push(f);
+      }
+      return a;
+    });
+    const cur = new Array(n);
+    const score = (arr) => {
+      const played = []; arr.forEach((f, i) => { if (f >= 0) played.push(i); });
+      if (played.length < Math.min(3, n)) return;
+      const pcs = new Set(); played.forEach(i => pcs.add(((tuning[i] + arr[i]) % 12 + 12) % 12));
+      if (!pcs.has(rootPc)) return;
+      let coverage = 0; pcSet.forEach(p => { if (pcs.has(p)) coverage++; });
+      if (coverage < Math.min(3, pcSet.size)) return;
+      const first = played[0], last = played[played.length - 1];
+      let innerMute = 0; for (let i = first; i <= last; i++) if (arr[i] < 0) innerMute++;
+      const pos = arr.filter(f => f > 0);
+      const span = pos.length ? Math.max(...pos) - Math.min(...pos) : 0;
+      const bassPc = ((tuning[first] + arr[first]) % 12 + 12) % 12;
+      const s = coverage * 100 + (bassPc === rootPc ? 16 : 0) + played.length * 4
+              - (n - played.length) * 7 - innerMute * 45 - span * 4 - base * 1.5;
+      if (!best || s > best.s) best = { s, arr: arr.slice() };
+    };
+    const rec = (i) => { if (i === n) { score(cur); return; } for (const f of cands[i]) { cur[i] = f; rec(i + 1); } };
+    rec(0);
+  }
+  return best ? best.arr : null;
+}
+function chordShape(p, instrument, tuning) {
+  const key = NOTES_SHARP[p.rootPc] + (p.canon || '');
+  if (instrument === 'ukulele') { if (UKE_OPEN[key]) return UKE_OPEN[key].slice(); }
+  else { if (GTR_OPEN[key]) return GTR_OPEN[key].slice(); const mv = movableGuitar(p.rootPc, p.canon); if (mv) return mv; }
+  return findVoicing(tuning, chordPcSet(p), p.rootPc);
+}
+
+// ---- SVG renderers ----
+function chordFretSVG(p, instrument) {
+  const tuning = instrument === 'ukulele' ? [7, 0, 4, 9] : [4, 9, 2, 7, 11, 4];
+  let frets = chordShape(p, instrument, tuning) || tuning.map(() => -1);
+  const n = tuning.length, FRETS = 4;
+  const pos = frets.filter(f => f > 0);
+  const maxF = pos.length ? Math.max(...pos) : 0, minF = pos.length ? Math.min(...pos) : 0;
+  const open = maxF <= FRETS, startFret = open ? 1 : minF;
+  const sGap = 15, fGap = 20, padT = 20, padB = 8, padL = 16, padR = 12;
+  const W = padL + padR + (n - 1) * sGap, H = padT + padB + FRETS * fGap;
+  const gx = i => padL + i * sGap, gy = r => padT + r * fGap;
+  let s = '';
+  for (let r = 0; r <= FRETS; r++) { const y = gy(r); const tk = (open && r === 0) ? 3 : 1; s += `<line x1="${gx(0)}" y1="${y}" x2="${gx(n - 1)}" y2="${y}" stroke="var(--text-2)" stroke-width="${tk}"/>`; }
+  for (let i = 0; i < n; i++) s += `<line x1="${gx(i)}" y1="${gy(0)}" x2="${gx(i)}" y2="${gy(FRETS)}" stroke="var(--text-2)" stroke-width="1"/>`;
+  if (!open) s += `<text x="${gx(0) - 7}" y="${(gy(0) + fGap * 0.72).toFixed(1)}" font-size="9" fill="var(--text-1)" text-anchor="end">${startFret}</text>`;
+  for (let i = 0; i < n; i++) {
+    const f = frets[i], x = gx(i);
+    if (f < 0) s += `<text x="${x}" y="${padT - 7}" font-size="10" fill="var(--text-2)" text-anchor="middle">×</text>`;
+    else if (f === 0) s += `<circle cx="${x}" cy="${padT - 10}" r="3.2" fill="none" stroke="var(--text-1)" stroke-width="1.3"/>`;
+    else { const cy = gy(f - startFret + 1) - fGap / 2; s += `<circle cx="${x}" cy="${cy.toFixed(1)}" r="5" fill="var(--accent)"/>`; }
+  }
+  return `<svg class="chord-dgm" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">${s}</svg>`;
+}
+function chordPianoSVG(p) {
+  const W = 196, H = 64, whiteW = W / 14, blackW = whiteW * 0.62, blackH = H * 0.62;
+  const whiteOrd = { 0: 0, 2: 1, 4: 2, 5: 3, 7: 4, 9: 5, 11: 6 };
+  const blackLeft = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+  const isWhite = pc => whiteOrd[pc] != null;
+  const notes = []; const seen = new Set();
+  p.intervals.forEach(iv => { let s = p.rootPc + iv; while (s >= 24) s -= 12; while (s < 0) s += 12; if (!seen.has(s)) { seen.add(s); notes.push(s); } });
+  let whites = '', blacks = '', dots = '';
+  for (let i = 0; i < 14; i++) whites += `<rect x="${(i * whiteW).toFixed(1)}" y="0" width="${whiteW.toFixed(1)}" height="${H}" rx="2" fill="#f5f5f7" stroke="#c7c7cd" stroke-width="1"/>`;
+  for (let oct = 0; oct < 2; oct++) [1, 3, 6, 8, 10].forEach(pc => { const cx = (oct * 7 + blackLeft[pc] + 1) * whiteW; blacks += `<rect x="${(cx - blackW / 2).toFixed(1)}" y="0" width="${blackW.toFixed(1)}" height="${blackH.toFixed(1)}" rx="1.5" fill="#1b1b1f"/>`; });
+  notes.forEach(s => {
+    const oct = Math.floor(s / 12), pc = s % 12;
+    if (isWhite(pc)) { const cx = (oct * 7 + whiteOrd[pc]) * whiteW + whiteW / 2; dots += `<circle cx="${cx.toFixed(1)}" cy="${(H - 9).toFixed(1)}" r="4.2" fill="var(--accent)"/>`; }
+    else { const cx = (oct * 7 + blackLeft[pc] + 1) * whiteW; dots += `<circle cx="${cx.toFixed(1)}" cy="${(blackH - 8).toFixed(1)}" r="3.6" fill="#fff" stroke="var(--accent)" stroke-width="1.6"/>`; }
+  });
+  return `<svg class="chord-dgm" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">${whites}${blacks}${dots}</svg>`;
+}
+
+// ---- detection + panel rendering ----
+function detectSongChords() {
+  const seen = new Set(), out = [];
+  document.querySelectorAll('#lyrics-track .seg-chord-chip, #lyrics-track .chord-chip').forEach(el => {
+    const txt = (el.firstChild && el.firstChild.nodeType === 3) ? el.firstChild.textContent : el.textContent;
+    const p = parseChordForDiagram(txt);
+    if (!p || seen.has(p.display)) return;
+    seen.add(p.display); out.push(p);
+  });
+  return out;
+}
+function renderChordPanel() {
+  const host = document.getElementById('chord-list'); if (!host) return;
+  if (!chordPanelChords.length) { host.innerHTML = `<div class="chord-empty">${T('Keine Akkorde erkannt')}</div>`; return; }
+  const inst = chordPanelInstrument;
+  host.innerHTML = chordPanelChords.map(c => {
+    const dgm = inst === 'piano' ? chordPianoSVG(c) : chordFretSVG(c, inst);
+    return `<div class="chord-card"><div class="chord-card-name">${escapeHtml(c.display)}</div>${dgm}</div>`;
+  }).join('');
+}
+function buildChordPanel() { chordPanelChords = detectSongChords(); renderChordPanel(); }
+function setChordInstrument(inst) {
+  chordPanelInstrument = inst;
+  try { localStorage.setItem(CHORD_INSTRUMENT_KEY, inst); } catch (e) {}
+  document.querySelectorAll('.chord-inst').forEach(b => b.classList.toggle('active', b.dataset.inst === inst));
+  renderChordPanel();
+}
+function chordPanelOpen() { const d = document.getElementById('chord-drawer'); return !!d && d.classList.contains('open'); }
+function openChordPanel() { const d = document.getElementById('chord-drawer'); if (d) d.classList.add('open'); }
+function closeChordPanel() { const d = document.getElementById('chord-drawer'); if (d) d.classList.remove('open'); }
+function toggleChordPanel() { chordPanelOpen() ? closeChordPanel() : openChordPanel(); }
+
+(function setupChordPanel() {
+  try { const s = localStorage.getItem(CHORD_INSTRUMENT_KEY); if (s === 'guitar' || s === 'ukulele' || s === 'piano') chordPanelInstrument = s; } catch (e) {}
+  const tab = document.getElementById('chord-tab');
+  const drawer = document.getElementById('chord-drawer');
+  if (tab) tab.addEventListener('click', (e) => { e.stopPropagation(); toggleChordPanel(); });
+  document.querySelectorAll('.chord-inst').forEach(b => {
+    b.classList.toggle('active', b.dataset.inst === chordPanelInstrument);
+    b.addEventListener('click', (e) => { e.stopPropagation(); setChordInstrument(b.dataset.inst); });
+  });
+  if (drawer) drawer.addEventListener('click', (e) => e.stopPropagation());
+  // edge-swipe to open, swipe-left to close (ignore vertical scrolls)
+  let sx = null, sy = null;
+  window.addEventListener('touchstart', (e) => {
+    if (state.view !== 'performance' || perfEditing) { sx = null; return; }
+    const t = e.touches[0]; sx = t.clientX; sy = t.clientY;
+  }, { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (sx == null) return;
+    const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < Math.abs(dy)) { sx = null; return; }
+    if (!chordPanelOpen() && sx <= 28 && dx > 45) { openChordPanel(); sx = null; }
+    else if (chordPanelOpen() && dx < -45) { closeChordPanel(); sx = null; }
+  }, { passive: true });
+  window.addEventListener('touchend', () => { sx = null; });
+})();
 
 function changeChordSize(delta) {
   const ver = currentVersion();
@@ -9601,6 +9928,9 @@ document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
   // While editing the layout, a tap on empty space just clears the selection.
   if (perfEditing) { selectPerfEl(null); return; }
+  // If the chord drawer is open, a tap on the lyrics just closes it (and does
+  // NOT toggle the controls).
+  if (typeof chordPanelOpen === 'function' && chordPanelOpen()) { closeChordPanel(); return; }
   // Tapping the lyrics never starts/stops the song — only the play button does.
   // Revealing hidden controls works from anywhere; HIDING only happens when the
   // tap lands in the central zone, so edge mis-taps don't dismiss the UI.
