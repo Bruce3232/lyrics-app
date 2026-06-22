@@ -2345,62 +2345,53 @@
   .perf-font-btn:active { transform: scale(0.94); }
 
   /* ============================================================
-     Dark mode: make the performance controls read as solid white
-     "physical" buttons that sit clearly in front of the lyrics, with
-     a 3D raised look and a press-in animation. Light mode keeps its
-     own (already light) styling.
+     Floating-control depth — ~90% flat, ~10% 3D. Buttons keep their
+     EXACT current colours, size and icons; we only lift them off the
+     background so they read as premium floating controls (Apple/iPadOS
+     feel): a faint top highlight, a soft shadow underneath, a touch more
+     border. Dark stays dark, white stays white.
      ============================================================ */
-  /* Round action buttons (skip / prev / next / restart / settings) and the
-     speed +/- buttons → raised white pucks with dark glyphs. */
+  /* Dark theme: keep the dark face; just raise it. */
   body:not(.light-mode) .perf-icon-btn,
-  body:not(.light-mode) .perf-speed-cluster .perf-font-btn {
-    background: linear-gradient(180deg, #fcfcff 0%, #d2d4e0 100%);
-    border: 1px solid rgba(255,255,255,0.85);
-    color: #1b1c26;
-    box-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 7px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.95);
+  body:not(.light-mode) .perf-speed-cluster .perf-font-btn,
+  body:not(.light-mode) .perf-control-group {
+    border-color: rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 3px 8px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.45);
   }
-  /* Press-in: the 3D "thickness" collapses + an inner shadow appears, so the
-     button looks pushed down — while staying white (no colour change). */
+  /* Light theme: keep white; soft Apple-style float. */
+  body.light-mode .perf-icon-btn,
+  body.light-mode .perf-speed-cluster .perf-font-btn,
+  body.light-mode .perf-control-group {
+    border-color: rgba(20,20,30,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 3px 8px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06);
+  }
+  /* Play button keeps its accent fill — add the same faint highlight + lift. */
+  body:not(.light-mode) .perf-play-btn { box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px var(--accent-glow), 0 2px 6px rgba(0,0,0,0.5); }
+  body.light-mode .perf-play-btn { box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 14px var(--accent-glow), 0 2px 6px rgba(0,0,0,0.18); }
+
+  /* Gentle press-in (no colour change): the lift softens and a faint inner
+     shadow appears, so the control reads as pushed down. */
   body:not(.light-mode) .perf-icon-btn:active,
   body:not(.light-mode) .perf-speed-cluster .perf-font-btn:active {
-    background: linear-gradient(180deg, #e6e7ef 0%, #c4c6d2 100%);
-    border-color: rgba(255,255,255,0.85);
-    color: #1b1c26;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.45), 0 2px 5px rgba(0,0,0,0.5), inset 0 2px 6px rgba(0,0,0,0.3);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
   }
-  body:not(.light-mode) .perf-icon-btn:active svg { transform: translateY(1.5px); }
-  body:not(.light-mode) .perf-speed-cluster .perf-font-btn:active { transform: translateY(1.5px); }
-
-  /* TR / AK pills: not pressed, just raised + clearly visible on black. */
-  body:not(.light-mode) .perf-control-group {
-    background: linear-gradient(180deg, #fbfbff 0%, #d2d4e0 100%);
-    border: 1px solid rgba(255,255,255,0.85);
-    box-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 7px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.95);
+  body.light-mode .perf-icon-btn:active,
+  body.light-mode .perf-speed-cluster .perf-font-btn:active {
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.16), 0 1px 2px rgba(0,0,0,0.06);
   }
-  body:not(.light-mode) .perf-control-group .label { color: #4b4d5c; }
-  body:not(.light-mode) .perf-control-group .value { color: var(--accent-deep); }
-  body:not(.light-mode) .perf-control-group .perf-font-btn { color: #1b1c26; }
-  body:not(.light-mode) .perf-control-group .perf-font-btn:hover { background: rgba(0,0,0,0.08); color: var(--accent-deep); }
-  body:not(.light-mode) .perf-control-group .perf-font-btn:active { background: rgba(0,0,0,0.12); transform: translateY(1px); }
-
-  /* Touch: keep the white press-in (don't flash orange) and the raised look on
-     the sticky tap-:hover that iOS leaves behind. */
+  /* Touch: keep the resting colour on tap (press-in shadow only, no orange flash). */
   @media (hover: none) {
-    body:not(.light-mode) .perf-icon-btn:hover,
-    body:not(.light-mode) .perf-speed-cluster .perf-font-btn:hover {
-      background: linear-gradient(180deg, #fcfcff 0%, #d2d4e0 100%) !important;
-      border-color: rgba(255,255,255,0.85) !important;
-      color: #1b1c26 !important;
-    }
     body:not(.light-mode) .perf-icon-btn:active,
     body:not(.light-mode) .perf-speed-cluster .perf-font-btn:active {
-      background: linear-gradient(180deg, #e6e7ef 0%, #c4c6d2 100%) !important;
-      border-color: rgba(255,255,255,0.85) !important;
-      color: #1b1c26 !important;
-      box-shadow: 0 1px 0 rgba(0,0,0,0.45), 0 2px 5px rgba(0,0,0,0.5), inset 0 2px 6px rgba(0,0,0,0.3) !important;
+      background: var(--surface-strong) !important; color: var(--text-0) !important;
+      border-color: rgba(255,255,255,0.22) !important;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4) !important;
     }
-    body:not(.light-mode) .perf-control-group .perf-font-btn:active {
-      background: rgba(0,0,0,0.12) !important; color: var(--accent-deep) !important;
+    body.light-mode .perf-icon-btn:active,
+    body.light-mode .perf-speed-cluster .perf-font-btn:active {
+      background: var(--surface-strong) !important; color: var(--text-0) !important;
+      border-color: rgba(20,20,30,0.16) !important;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.16), 0 1px 2px rgba(0,0,0,0.06) !important;
     }
   }
 
