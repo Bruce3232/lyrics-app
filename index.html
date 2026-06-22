@@ -1900,32 +1900,51 @@
     transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
   }
   .perf-settings-pop.show { opacity: 1; transform: scale(1); pointer-events: auto; }
-  /* Wider so the template list reads comfortably (still clamped on-screen by JS). */
-  .perf-settings-pop { min-width: 232px; }
-  /* ---- Template picker (10 ready-made layouts) ---- */
-  .perf-template-list { display: flex; flex-direction: column; gap: 6px; }
-  .perf-template-btn {
-    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-    padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-strong);
-    background: var(--surface); color: var(--text-0); cursor: pointer;
-    transition: background 0.12s var(--ease), border-color 0.12s var(--ease), color 0.12s var(--ease);
-  }
-  .perf-template-btn:hover { border-color: var(--accent); }
-  .perf-template-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .perf-template-btn .ptn-num {
-    flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; background: var(--surface-strong); color: var(--text-1);
-  }
-  .perf-template-btn.active .ptn-num { background: rgba(255,255,255,0.25); color: #fff; }
-  .perf-template-btn .ptn-text { display: flex; flex-direction: column; min-width: 0; }
-  .perf-template-btn .ptn-name { font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .perf-template-btn .ptn-sub { font-size: 10px; opacity: 0.7; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .perf-settings-pop { min-width: 200px; }
   /* In a template/custom layout the song title gets a FIXED width so its left
      edge is predictable (the packer reserves exactly this much space for it) —
      long names ellipsize instead of pushing into / under the other controls. */
   #performance-view.layout-custom [data-perf-el="title"] { width: min(34vw, 240px); overflow: hidden; }
   #performance-view.layout-custom [data-perf-el="title"] .perf-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pep-saverow { margin: 10px 0 8px; }
+
+  /* ===== Layout template browser (modal) ===== */
+  /* Light backdrop so the lyrics stay partly visible behind the popup. */
+  .perf-tpl-backdrop { background: rgba(0,0,0,0.30); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  /* .modal.perf-tpl-modal — double class beats the base .modal width/max-width. */
+  .modal.perf-tpl-modal {
+    width: min(94vw, 600px);
+    max-width: 600px;
+    max-height: min(86vh, 760px);
+    padding: 0;
+    display: flex; flex-direction: column; overflow: hidden;
+    animation: tplPop 0.18s var(--ease);
+  }
+  @keyframes tplPop { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+  .perf-tpl-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 13px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+  .perf-tpl-head h3 { font-size: 17px; font-weight: 700; margin: 0; }
+  .perf-tpl-close { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-1); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.12s var(--ease); }
+  .perf-tpl-close:hover { color: var(--text-0); border-color: var(--accent); }
+  .perf-tpl-body { padding: 14px 18px 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .perf-tpl-section + .perf-tpl-section { margin-top: 18px; }
+  .perf-tpl-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin: 0 2px 10px; }
+  .perf-tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .perf-tpl-empty { font-size: 13px; color: var(--text-2); line-height: 1.5; padding: 4px 2px; }
+  .tpl-card { position: relative; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface); padding: 8px; cursor: pointer; transition: border-color 0.12s var(--ease), transform 0.12s var(--ease), box-shadow 0.12s var(--ease); }
+  .tpl-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+  .tpl-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  .tpl-card-name { font-size: 12px; font-weight: 600; text-align: center; margin-top: 7px; color: var(--text-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tpl-prev { position: relative; width: 100%; background: var(--bg-1); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+  .tpl-prev::after { content: ''; position: absolute; inset: 16% 12%; border-radius: 4px; background: repeating-linear-gradient(0deg, var(--border) 0 1px, transparent 1px 7px); opacity: 0.22; }
+  .tpm { position: absolute; transform: translate(-50%, -50%); background: var(--text-2); border-radius: 2px; z-index: 1; }
+  .tpm-button { width: 7px; height: 7px; border-radius: 50%; }
+  .tpm-play { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+  .tpm-group { width: 22px; height: 7px; border-radius: 3px; }
+  .tpm-text { width: 26px; height: 5px; border-radius: 2px; opacity: 0.5; }
+  .tpm-slider { width: 4px; height: 22px; border-radius: 3px; }
+  .tpl-card-acts { display: flex; gap: 6px; justify-content: center; margin-top: 7px; }
+  .tpl-card-acts button { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface-strong); color: var(--text-1); font-size: 12px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.12s var(--ease); }
+  .tpl-card-acts button:hover { color: var(--text-0); border-color: var(--accent); }
   .perf-settings-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin: 0 2px 10px; }
   .perf-settings-group { margin-bottom: 10px; }
   .perf-settings-group:last-child { margin-bottom: 0; }
@@ -3459,8 +3478,7 @@
         <div class="perf-settings-pop" id="perf-settings-pop">
           <div class="perf-settings-title">Steuerung</div>
           <div class="perf-settings-group">
-            <div class="perf-settings-label">Vorlagen</div>
-            <div class="perf-template-list" id="perf-template-list"></div>
+            <button class="perf-edit-layout-btn" id="perf-open-templates">Vorlagen …</button>
           </div>
           <div class="perf-settings-group">
             <div class="perf-settings-label">Auto-Ausblenden</div>
@@ -3602,6 +3620,9 @@
               <span>px</span>
             </div>
           </div>
+        </div>
+        <div class="pep-saverow">
+          <button class="perf-edit-layout-btn" id="perf-save-template">Als Vorlage speichern</button>
         </div>
         <div class="pep-resets">
           <button id="perf-edit-reset-sel">Auswahl zurücksetzen</button>
@@ -3958,6 +3979,39 @@
 
     <div class="modal-actions" style="margin-top:18px;">
       <button class="btn" id="import-cancel">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Layout template browser (built-in + custom), compact + responsive, lyrics stay visible behind it -->
+<div class="modal-backdrop perf-tpl-backdrop" id="perf-template-modal">
+  <div class="modal perf-tpl-modal">
+    <div class="perf-tpl-head">
+      <h3>Vorlagen</h3>
+      <button class="perf-tpl-close" id="perf-tpl-close" title="Schliessen" aria-label="Schliessen">✕</button>
+    </div>
+    <div class="perf-tpl-body">
+      <div class="perf-tpl-section">
+        <div class="perf-tpl-section-title">Integrierte Vorlagen</div>
+        <div class="perf-tpl-grid" id="perf-tpl-builtin"></div>
+      </div>
+      <div class="perf-tpl-section">
+        <div class="perf-tpl-section-title">Meine Vorlagen</div>
+        <div class="perf-tpl-grid" id="perf-tpl-mine"></div>
+        <div class="perf-tpl-empty" id="perf-tpl-mine-empty">Noch keine eigenen Vorlagen. Passe das Layout an (Layout bearbeiten) und speichere es als eigene Vorlage.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Generic single-field text prompt (name / rename) -->
+<div class="modal-backdrop modal-backdrop-top" id="prompt-modal">
+  <div class="modal">
+    <h3 id="prompt-title">Name</h3>
+    <input class="field-input" id="prompt-input" maxlength="40" autocomplete="off" style="width:100%; margin-bottom:18px;">
+    <div class="modal-actions">
+      <button class="btn" id="prompt-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="prompt-ok">Speichern</button>
     </div>
   </div>
 </div>
@@ -5079,7 +5133,21 @@ const I18N = {
     "Kompakt oben": "Compact top",
     "Alles in der oberen Zone": "Everything in the top zone",
     "Minimal oben + gross unten": "Minimal top + large bottom",
-    "Wenig oben, Transport gross unten": "Minimal top, large transport below"
+    "Wenig oben, Transport gross unten": "Minimal top, large transport below",
+    "Vorlagen …": "Templates …",
+    "Integrierte Vorlagen": "Built-in templates",
+    "Meine Vorlagen": "My templates",
+    "Noch keine eigenen Vorlagen. Passe das Layout an (Layout bearbeiten) und speichere es als eigene Vorlage.": "No custom templates yet. Arrange the layout (Edit layout) and save it as your own template.",
+    "Als Vorlage speichern": "Save as template",
+    "Vorlage benennen": "Name your template",
+    "Meine Vorlage": "My template",
+    "Als Vorlage gespeichert": "Saved as template",
+    "Mit aktuellem Layout überschreiben": "Overwrite with current layout",
+    "Vorlage überschreiben?": "Overwrite template?",
+    "Diese Vorlage mit dem aktuellen Layout ersetzen?": "Replace this template with the current layout?",
+    "Vorlage aktualisiert": "Template updated",
+    "Vorlage löschen?": "Delete template?",
+    "Diese eigene Vorlage wird dauerhaft entfernt.": "This custom template will be permanently removed."
   }
 };
 let currentLang = 'de';
@@ -8104,7 +8172,7 @@ applyAutoHide(getPerfAutoHide());
     e.stopPropagation();
     const willShow = !pop.classList.contains('show');
     pop.classList.toggle('show');
-    if (willShow) { if (typeof refreshTemplateUI === 'function') refreshTemplateUI(); positionPop(); }
+    if (willShow) positionPop();
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('.perf-settings-wrap')) pop.classList.remove('show'); });
   window.addEventListener('resize', () => { if (pop.classList.contains('show')) positionPop(); });
@@ -8970,7 +9038,7 @@ const PERF_TEMPLATES = [
 ];
 function getPerfTemplate() { try { return localStorage.getItem(PERF_TEMPLATE_KEY) || ''; } catch (e) { return ''; } }
 function setPerfTemplate(id) { try { if (id) localStorage.setItem(PERF_TEMPLATE_KEY, id); else localStorage.removeItem(PERF_TEMPLATE_KEY); } catch (e) {} }
-function isComputedTemplate(id) { return !!id && id !== 'current'; }
+function isComputedTemplate(id) { return !!id && id !== 'current' && PERF_TEMPLATES.some(t => t.id === id); }
 
 // Natural size of each visible control (orientation-independent), measured from
 // the stock layout so the packer can place things edge-to-edge without overlap.
@@ -9109,63 +9177,197 @@ function buildTemplateMap(id, boxW, boxH, sizes) {
   return map;
 }
 
-// Apply a template: bake positions for BOTH orientations (current from the real
-// box, the other from the swapped box) then render via the custom layout.
+// Apply a built-in template: bake positions for BOTH orientations (current from
+// the real box, the other from the swapped box) then render via the custom layout.
 function applyTemplate(id) {
-  const pop = document.getElementById('perf-settings-pop');
-  if (id === 'current') {           // "Current Style" IS the native, responsive right layout
+  if (id === 'current') {           // "Current" IS the native, responsive right layout
     setPerfTemplate('current');
     applyPerfLayout('right');
-    refreshTemplateUI();
-    if (pop) pop.classList.remove('show');
-    return;
+  } else {
+    setPerfTemplate(id);
+    computeSafeInsets();
+    const sizes = measurePerfSizes();
+    const pv = document.getElementById('performance-view');
+    const r = pv.getBoundingClientRect();
+    let bw = r.width, bh = r.height;
+    if (!bw || !bh) { bw = window.innerWidth || 768; bh = window.innerHeight || 1024; }
+    const cur = currentOrientation();
+    const other = cur === 'portrait' ? 'landscape' : 'portrait';
+    const store = getCustomStore();
+    store[cur] = buildTemplateMap(id, bw, bh, sizes);
+    store[other] = buildTemplateMap(id, bh, bw, sizes);   // swapped box ≈ the other orientation
+    try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(store)); } catch (e) {}
+    applyPerfLayout('custom');
   }
-  setPerfTemplate(id);
-  computeSafeInsets();
-  const sizes = measurePerfSizes();
-  const pv = document.getElementById('performance-view');
-  const r = pv.getBoundingClientRect();
-  let bw = r.width, bh = r.height;
-  if (!bw || !bh) { bw = window.innerWidth || 768; bh = window.innerHeight || 1024; }
-  const cur = currentOrientation();
-  const other = cur === 'portrait' ? 'landscape' : 'portrait';
-  const store = getCustomStore();
-  store[cur] = buildTemplateMap(id, bw, bh, sizes);
-  store[other] = buildTemplateMap(id, bh, bw, sizes);   // swapped box ≈ the other orientation
-  try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(store)); } catch (e) {}
-  applyPerfLayout('custom');
   refreshTemplateUI();
-  if (pop) pop.classList.remove('show');
+  closeTemplateModal();
+  const pop = document.getElementById('perf-settings-pop'); if (pop) pop.classList.remove('show');
 }
 
-function buildTemplateList() {
-  const host = document.getElementById('perf-template-list');
-  if (!host) return;
-  host.innerHTML = '';
-  PERF_TEMPLATES.forEach((t, idx) => {
-    const b = document.createElement('button');
-    b.className = 'perf-template-btn';
-    b.dataset.template = t.id;
-    const num = document.createElement('span'); num.className = 'ptn-num'; num.textContent = String(idx + 1);
-    const txt = document.createElement('span'); txt.className = 'ptn-text';
-    const nm = document.createElement('span'); nm.className = 'ptn-name'; nm.textContent = t.name;   // German source; auto-localized
-    const sb = document.createElement('span'); sb.className = 'ptn-sub'; sb.textContent = t.sub;
-    txt.appendChild(nm); txt.appendChild(sb);
-    b.appendChild(num); b.appendChild(txt);
-    b.addEventListener('click', () => applyTemplate(t.id));
-    host.appendChild(b);
-  });
-  if (typeof localize === 'function') localize(host);   // translate the German source text if lang = en
+// ---------- Custom ("My") templates: named, saved, persistent ----------
+const PERF_MYTPL_KEY = 'lyrics-perf-mytemplates';
+function getMyTemplates() { try { return JSON.parse(localStorage.getItem(PERF_MYTPL_KEY) || '[]') || []; } catch (e) { return []; } }
+function saveMyTemplates(arr) { try { localStorage.setItem(PERF_MYTPL_KEY, JSON.stringify(arr)); } catch (e) {} }
+function applyMyTemplate(tid) {
+  const t = getMyTemplates().find(x => x.id === tid); if (!t) return;
+  const store = { landscape: (t.store && t.store.landscape) || {}, portrait: (t.store && t.store.portrait) || {} };
+  try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(store)); } catch (e) {}
+  setPerfTemplate('my:' + tid);     // not a computed template → rotation keeps the saved positions
+  applyPerfLayout('custom');
+  refreshTemplateUI();
+  closeTemplateModal();
+  const pop = document.getElementById('perf-settings-pop'); if (pop) pop.classList.remove('show');
+}
+async function saveCurrentLayoutAsTemplate() {
+  const name = await promptDialog(T('Vorlage benennen'), { placeholder: T('Name'), okLabel: T('Speichern') });
+  if (name == null) return;
+  if (getPerfLayout() === 'custom') { try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(getCustomStore())); } catch (e) {} }
+  const arr = getMyTemplates();
+  const id = 'c' + Date.now().toString(36);
+  arr.push({ id, name: (name.trim().slice(0, 40) || T('Meine Vorlage')), store: JSON.parse(JSON.stringify(getCustomStore())), createdAt: Date.now() });
+  saveMyTemplates(arr);
+  setPerfTemplate('my:' + id);
+  showToast(T('Als Vorlage gespeichert'));
   refreshTemplateUI();
 }
+async function renameMyTemplate(tid) {
+  const arr = getMyTemplates(); const t = arr.find(x => x.id === tid); if (!t) return;
+  const name = await promptDialog(T('Umbenennen'), { value: t.name, okLabel: T('Speichern') });
+  if (name == null) return;
+  t.name = name.trim().slice(0, 40) || t.name; saveMyTemplates(arr); buildMineGrid();
+}
+async function overwriteMyTemplate(tid) {
+  const arr = getMyTemplates(); const t = arr.find(x => x.id === tid); if (!t) return;
+  if (!(await confirmDialog(T('Vorlage überschreiben?'), T('Diese Vorlage mit dem aktuellen Layout ersetzen?')))) return;
+  if (getPerfLayout() === 'custom') { try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(getCustomStore())); } catch (e) {} }
+  t.store = JSON.parse(JSON.stringify(getCustomStore())); saveMyTemplates(arr);
+  setPerfTemplate('my:' + tid); showToast(T('Vorlage aktualisiert')); buildMineGrid(); refreshTemplateUI();
+}
+async function deleteMyTemplate(tid) {
+  if (!(await confirmDialog(T('Vorlage löschen?'), T('Diese eigene Vorlage wird dauerhaft entfernt.')))) return;
+  saveMyTemplates(getMyTemplates().filter(x => x.id !== tid));
+  if (getPerfTemplate() === 'my:' + tid) setPerfTemplate('');
+  buildMineGrid(); refreshTemplateUI();
+}
+
+// ---------- Template browser modal ----------
+let _tplSizes = null, _tplBox = null;
+function tplPreviewBox() {
+  const r = document.getElementById('performance-view').getBoundingClientRect();
+  return { w: r.width || window.innerWidth || 768, h: r.height || window.innerHeight || 1024 };
+}
+// A small diagram of where each control will sit (positions are real % values).
+function renderTplPreview(map, aspect) {
+  const box = document.createElement('div');
+  box.className = 'tpl-prev';
+  box.style.aspectRatio = (aspect && isFinite(aspect) ? aspect : 1.33).toFixed(3);
+  for (const k in map) {
+    const c = map[k]; if (!c || !isFinite(c.x) || !isFinite(c.y)) continue;
+    const m = document.createElement('span');
+    m.className = 'tpm tpm-' + (PERF_EL_TYPE[k] || 'button');
+    m.style.left = c.x + '%'; m.style.top = c.y + '%';
+    box.appendChild(m);
+  }
+  return box;
+}
+function buildBuiltinGrid() {
+  const host = document.getElementById('perf-tpl-builtin'); if (!host) return;
+  host.innerHTML = '';
+  const bw = _tplBox.w, bh = _tplBox.h, aspect = bw / bh;
+  PERF_TEMPLATES.forEach((t) => {
+    const map = (t.id === 'current') ? seedFromDefaultLayout() : buildTemplateMap(t.id, bw, bh, _tplSizes);
+    const card = document.createElement('div');
+    card.className = 'tpl-card'; card.dataset.tpl = t.id;
+    card.appendChild(renderTplPreview(map, aspect));
+    const nm = document.createElement('div'); nm.className = 'tpl-card-name'; nm.textContent = t.name; card.appendChild(nm);
+    card.addEventListener('click', () => applyTemplate(t.id));
+    host.appendChild(card);
+  });
+  if (typeof localize === 'function') localize(host);   // translate German card names if lang = en
+}
+function buildMineGrid() {
+  const host = document.getElementById('perf-tpl-mine'); if (!host) return;
+  const empty = document.getElementById('perf-tpl-mine-empty');
+  host.innerHTML = '';
+  const arr = getMyTemplates();
+  if (empty) empty.style.display = arr.length ? 'none' : '';
+  const box = _tplBox || tplPreviewBox(), aspect = box.w / box.h, ori = currentOrientation();
+  arr.forEach((t) => {
+    const map = (t.store && (t.store[ori] || t.store.landscape || t.store.portrait)) || {};
+    const card = document.createElement('div');
+    card.className = 'tpl-card'; card.dataset.tpl = 'my:' + t.id;
+    card.appendChild(renderTplPreview(map, aspect));
+    const nm = document.createElement('div'); nm.className = 'tpl-card-name'; nm.textContent = t.name; card.appendChild(nm);
+    const acts = document.createElement('div'); acts.className = 'tpl-card-acts';
+    const mk = (label, title, fn) => { const b = document.createElement('button'); b.textContent = label; b.title = title; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); return b; };
+    acts.appendChild(mk('✎', T('Umbenennen'), () => renameMyTemplate(t.id)));
+    acts.appendChild(mk('⤓', T('Mit aktuellem Layout überschreiben'), () => overwriteMyTemplate(t.id)));
+    acts.appendChild(mk('🗑', T('Löschen'), () => deleteMyTemplate(t.id)));
+    card.appendChild(acts);
+    card.addEventListener('click', () => applyMyTemplate(t.id));
+    host.appendChild(card);
+  });
+}
+function openTemplateModal() {
+  const modal = document.getElementById('perf-template-modal'); if (!modal) return;
+  const pv = document.getElementById('performance-view');
+  const wasCustom = pv.classList.contains('layout-custom');
+  computeSafeInsets();
+  _tplSizes = measurePerfSizes();          // measuring toggles layout off…
+  _tplBox = tplPreviewBox();
+  buildBuiltinGrid();
+  buildMineGrid();
+  if (wasCustom) { clearCustomInline(); applyCustomLayout(); }   // …so restore the live controls
+  refreshTemplateUI();
+  modal.classList.add('show');
+  const pop = document.getElementById('perf-settings-pop'); if (pop) pop.classList.remove('show');
+}
+function closeTemplateModal() { const m = document.getElementById('perf-template-modal'); if (m) m.classList.remove('show'); }
 function refreshTemplateUI() {
   const active = getPerfTemplate() || (getPerfLayout() === 'right' ? 'current' : '');
-  document.querySelectorAll('#perf-template-list .perf-template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === active));
+  document.querySelectorAll('#perf-template-modal .tpl-card').forEach(c => c.classList.toggle('active', c.dataset.tpl === active));
 }
+
+// ---------- Generic single-field prompt dialog → Promise<string|null> ----------
+function promptDialog(title, opts) {
+  opts = opts || {};
+  return new Promise((resolve) => {
+    const m = document.getElementById('prompt-modal'); if (!m) { resolve(null); return; }
+    const input = document.getElementById('prompt-input');
+    const ok = document.getElementById('prompt-ok');
+    const cancel = document.getElementById('prompt-cancel');
+    document.getElementById('prompt-title').textContent = title || '';
+    input.value = opts.value || '';
+    input.placeholder = opts.placeholder || '';
+    ok.textContent = opts.okLabel || T('Speichern');
+    m.classList.add('show');
+    setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 40);
+    const cleanup = () => { m.classList.remove('show'); ok.removeEventListener('click', onOk); cancel.removeEventListener('click', onCancel); input.removeEventListener('keydown', onKey); };
+    const onOk = () => { const v = input.value; cleanup(); resolve(v); };
+    const onCancel = () => { cleanup(); resolve(null); };
+    const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); onOk(); } else if (e.key === 'Escape') { e.preventDefault(); onCancel(); } };
+    ok.addEventListener('click', onOk); cancel.addEventListener('click', onCancel); input.addEventListener('keydown', onKey);
+  });
+}
+
+// Wire the popover "Templates" button, the editor "Save as template" button, and
+// the modal's close affordances (✕, backdrop click, Esc).
+(function setupTemplateBrowser() {
+  const openBtn = document.getElementById('perf-open-templates');
+  if (openBtn) openBtn.addEventListener('click', openTemplateModal);
+  const saveBtn = document.getElementById('perf-save-template');
+  if (saveBtn) saveBtn.addEventListener('click', saveCurrentLayoutAsTemplate);
+  const closeBtn = document.getElementById('perf-tpl-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeTemplateModal);
+  const modal = document.getElementById('perf-template-modal');
+  if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeTemplateModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { const m = document.getElementById('perf-template-modal'); if (m && m.classList.contains('show')) closeTemplateModal(); }
+  });
+})();
 
 // Now safe to apply the saved layout (incl. 'custom') — all consts are ready.
 applyPerfLayout(getPerfLayout());
-buildTemplateList();
 
 // Re-apply the custom layout when the viewport changes (orientation flip, Safari
 // toolbar collapse, window resize) so positions/rulers/selection stay correct.
