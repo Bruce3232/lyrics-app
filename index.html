@@ -1927,6 +1927,24 @@
     width: 96px;
     height: 6px;
   }
+  /* Horizontal slider: + makes it move RIGHT, so + belongs on the right and −
+     on the left. DOM order is value,+,slider,− → reorder to value,−,slider,+. */
+  #performance-view.layout-bottom .perf-speed-cluster #perf-speed-value { order: 0; }
+  #performance-view.layout-bottom .perf-speed-cluster #perf-speed-down { order: 1; }
+  #performance-view.layout-bottom .perf-speed-cluster #perf-speed { order: 2; }
+  #performance-view.layout-bottom .perf-speed-cluster #perf-speed-up { order: 3; }
+
+  /* Custom layout: the speed cluster can be rotated 90° (sc-horiz) and the slider
+     turned off (sc-noslider), both from the layout editor. */
+  #performance-view.layout-custom .perf-speed-cluster.sc-horiz { flex-direction: row; }
+  #performance-view.layout-custom .perf-speed-cluster.sc-horiz .perf-speed-slider {
+    writing-mode: horizontal-tb; direction: ltr; width: 96px; height: 6px;
+  }
+  #performance-view.layout-custom .perf-speed-cluster.sc-horiz #perf-speed-value { order: 0; }
+  #performance-view.layout-custom .perf-speed-cluster.sc-horiz #perf-speed-down { order: 1; }
+  #performance-view.layout-custom .perf-speed-cluster.sc-horiz #perf-speed { order: 2; }
+  #performance-view.layout-custom .perf-speed-cluster.sc-horiz #perf-speed-up { order: 3; }
+  #performance-view.layout-custom .perf-speed-cluster.sc-noslider .perf-speed-slider { display: none; }
   /* When controls sit at the bottom, the Settings popover opens upward. */
   #performance-view.layout-bottom .perf-settings-pop {
     right: auto;
@@ -4963,7 +4981,9 @@ const I18N = {
     "Rückgängig": "Undo",
     "Wiederherstellen": "Redo",
     "Querformat": "Landscape",
-    "Hochformat": "Portrait"
+    "Hochformat": "Portrait",
+    "Drehen": "Rotate",
+    "Regler": "Slider"
   }
 };
 let currentLang = 'de';
@@ -8155,10 +8175,19 @@ function applyElSize(el, c) {
       if (artist) artist.style.fontSize = Math.max(10, Math.round(c.fs * 0.45)) + 'px';
     }
   } else if (t === 'slider') {
+    const horiz = c.vert === false;                  // default = vertical
+    el.classList.toggle('sc-horiz', horiz);
+    el.classList.toggle('sc-noslider', c.noSlider === true);
     const sl = sliderEl(el);
     if (sl) {
-      if (isFinite(c.len)) sl.style.height = c.len + 'px';     // vertical slider: height = length
-      if (isFinite(c.thick)) sl.style.width = c.thick + 'px';
+      // len = along the slider, thick = across it — map to width/height by orientation.
+      if (horiz) {
+        if (isFinite(c.len)) sl.style.width = c.len + 'px';
+        if (isFinite(c.thick)) sl.style.height = c.thick + 'px';
+      } else {
+        if (isFinite(c.len)) sl.style.height = c.len + 'px';
+        if (isFinite(c.thick)) sl.style.width = c.thick + 'px';
+      }
       if (isFinite(c.thumb)) sl.style.setProperty('--perf-thumb', c.thumb + 'px');
     }
   }
@@ -8195,6 +8224,7 @@ function clearElInline(el) {
   const title = el.querySelector('.perf-title'); if (title) title.style.fontSize = '';
   const artist = el.querySelector('.perf-artist'); if (artist) artist.style.fontSize = '';
   const sl = sliderEl(el); if (sl) { sl.style.height = ''; sl.style.width = ''; sl.style.removeProperty('--perf-thumb'); }
+  el.classList.remove('sc-horiz', 'sc-noslider');
 }
 function clearCustomInline() { perfEls().forEach(clearElInline); }
 function computeSafeInsets() {
@@ -8228,8 +8258,10 @@ function currentSize(el) {
   if (t === 'text') { const title = el.querySelector('.perf-title'); const fs = parseFloat(title && getComputedStyle(title).fontSize) || 30; return { fs: clampSize('fs', c.fs != null ? c.fs : fs) }; }
   if (t === 'slider') {
     const sl = sliderEl(el); const r = sl ? sl.getBoundingClientRect() : { height: 96, width: 6 };
+    const horiz = c.vert === false;
+    const lenPx = horiz ? r.width : r.height, thickPx = horiz ? r.height : r.width;
     const thumb = parseFloat(sl && getComputedStyle(sl).getPropertyValue('--perf-thumb')) || 22;
-    return { len: clampSize('len', c.len != null ? c.len : r.height), thick: clampSize('thick', c.thick != null ? c.thick : r.width), thumb: clampSize('thumb', c.thumb != null ? c.thumb : thumb) };
+    return { len: clampSize('len', c.len != null ? c.len : lenPx), thick: clampSize('thick', c.thick != null ? c.thick : thickPx), thumb: clampSize('thumb', c.thumb != null ? c.thumb : thumb) };
   }
   return {};
 }
@@ -8389,7 +8421,29 @@ function buildSizeControls(el) {
   const host = document.getElementById('perf-size-controls');
   if (!host) return;
   host.innerHTML = '';
-  const defs = SIZE_DEFS[elType(el)] || [];
+  const isSlider = elType(el) === 'slider';
+  const cfg = getCustomLayout()[el.dataset.perfEl] || {};
+  // Speed cluster gets Rotate (90°) + Slider on/off toggles.
+  if (isSlider) {
+    const opts = document.createElement('div'); opts.className = 'pep-opts'; opts.style.marginBottom = '6px';
+    const mkToggle = (label, active, fn) => {
+      const b = document.createElement('button'); b.className = 'pep-toggle' + (active ? ' active' : '');
+      b.textContent = T(label);
+      b.addEventListener('click', () => { beginAction(); fn(); endAction(); buildSizeControls(el); positionSelBox(); });
+      return b;
+    };
+    opts.appendChild(mkToggle('Drehen', cfg.vert === false, () => {
+      const map = getCustomLayout(); const k = el.dataset.perfEl; const c = map[k] || measureOne(el);
+      c.vert = (c.vert === false) ? true : false; map[k] = c; saveCustomLayout(map); applyElSize(el, c);
+    }));
+    opts.appendChild(mkToggle('Regler', !(cfg.noSlider === true), () => {
+      const map = getCustomLayout(); const k = el.dataset.perfEl; const c = map[k] || measureOne(el);
+      c.noSlider = !(c.noSlider === true); map[k] = c; saveCustomLayout(map); applyElSize(el, c);
+    }));
+    host.appendChild(opts);
+  }
+  // Size sliders — skip the len/thick/thumb when the speed slider is turned off.
+  const defs = (isSlider && cfg.noSlider === true) ? [] : (SIZE_DEFS[elType(el)] || []);
   const cur = currentSize(el);
   defs.forEach(([key, label, min, max]) => {
     const row = document.createElement('div'); row.className = 'pep-pc-row';
@@ -8580,7 +8634,11 @@ function resizeSelected(e) {
   if (h.t === 'button' || h.t === 'group') { c.w = clampSize('w', h.start.w + dx); c.h = clampSize('h', h.start.h + dy); }
   else if (h.t === 'play') { c.d = clampSize('d', h.start.d + (dx + dy) / 2); }
   else if (h.t === 'text') { c.fs = clampSize('fs', h.start.fs + dy * 0.3); }
-  else if (h.t === 'slider') { c.len = clampSize('len', h.start.len + dy); c.thick = clampSize('thick', h.start.thick + dx * 0.4); }
+  else if (h.t === 'slider') {
+    // Drag along the slider's length to lengthen it; the cross-axis adjusts thickness.
+    if (c.vert === false) { c.len = clampSize('len', h.start.len + dx); c.thick = clampSize('thick', h.start.thick + dy * 0.4); }
+    else { c.len = clampSize('len', h.start.len + dy); c.thick = clampSize('thick', h.start.thick + dx * 0.4); }
+  }
   map[k] = c; saveCustomLayout(map); applyElSize(h.el, c); positionSelBox();
 }
 function movePanelDrag(e) {
