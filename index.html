@@ -8994,7 +8994,10 @@ function applyEdPrefsUI() {
   if (rSel) rSel.addEventListener('click', () => {
     if (!selectedKeys.length) return;
     beginAction();
-    const def = getDefaultLayout(); const map = getCustomLayout();
+    // Reset the selected control(s) to their slot in the clean default template
+    // (current orientation) — always on-screen, unlike the stock stack.
+    const def = buildDefaultTemplateMaps()[currentOrientation()] || {};
+    const map = getCustomLayout();
     selEls().forEach(el => {
       const k = el.dataset.perfEl;
       if (def[k]) map[k] = { ...def[k] }; else delete map[k];
@@ -9008,8 +9011,13 @@ function applyEdPrefsUI() {
   const rAll = document.getElementById('perf-edit-reset-all');
   if (rAll) rAll.addEventListener('click', () => {
     beginAction();
-    saveCustomLayout({ ...getDefaultLayout() });
-    clearCustomInline(); applyCustomLayout(); selectPerfEl(null); endAction();
+    // Reset to the clean default template (both orientations) — never the stock
+    // stack that could overflow off-screen.
+    const maps = buildDefaultTemplateMaps();
+    const store = getCustomStore();
+    store.landscape = maps.landscape; store.portrait = maps.portrait;
+    try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(store)); } catch (e) {}
+    clearCustomInline(); applyCustomLayout(); selectPerfEl(null); buildChips(); endAction();
   });
 })();
 
@@ -9202,6 +9210,23 @@ function applyTemplate(id) {
   refreshTemplateUI();
   closeTemplateModal();
   const pop = document.getElementById('perf-settings-pop'); if (pop) pop.classList.remove('show');
+}
+
+// "Reset all" / "Reset selection" target: a clean, guaranteed-on-screen layout.
+// (The old reset used the stock right-side stack, which has too many controls
+// for the height and spills off the bottom on tall/narrow screens.) We compute
+// a balanced default template instead, so resets always land fully visible.
+const PERF_DEFAULT_TEMPLATE = 'bottom-center';
+function buildDefaultTemplateMaps() {
+  computeSafeInsets();
+  const sizes = measurePerfSizes();
+  const r = document.getElementById('performance-view').getBoundingClientRect();
+  const bw = r.width || window.innerWidth || 768, bh = r.height || window.innerHeight || 1024;
+  const cur = currentOrientation(), other = cur === 'portrait' ? 'landscape' : 'portrait';
+  const maps = {};
+  maps[cur] = buildTemplateMap(PERF_DEFAULT_TEMPLATE, bw, bh, sizes);
+  maps[other] = buildTemplateMap(PERF_DEFAULT_TEMPLATE, bh, bw, sizes);   // swapped ≈ other orientation
+  return maps;
 }
 
 // ---------- Custom ("My") templates: named, saved, persistent ----------
