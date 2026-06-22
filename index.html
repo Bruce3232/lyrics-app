@@ -1891,6 +1891,8 @@
     box-shadow: var(--shadow-lg);
     padding: 12px;
     z-index: 60;
+    max-height: calc(100vh - 20px);
+    overflow-y: auto;
     opacity: 0;
     transform: scale(0.96);
     transform-origin: top right;
@@ -8013,8 +8015,43 @@ applyAutoHide(getPerfAutoHide());
   const btn = document.getElementById('perf-settings-btn');
   const pop = document.getElementById('perf-settings-pop');
   if (!btn || !pop) return;
-  btn.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.toggle('show'); });
+
+  // Place the popover next to the gear but ALWAYS fully inside the screen
+  // (it could open off the bottom when the gear sits low in a custom/bottom
+  // layout). Positions are clamped to the viewport. The wrap's transform is
+  // translation-only, so screen↔wrap offsets map 1:1.
+  function positionPop() {
+    const wrap = btn.closest('.perf-settings-wrap');
+    if (!wrap) return;
+    pop.style.left = pop.style.top = pop.style.right = pop.style.bottom = '';
+    pop.style.transform = 'none';                    // measure full size, no scale/translate
+    const wrapRect = wrap.getBoundingClientRect();
+    const br = btn.getBoundingClientRect();
+    const pr = pop.getBoundingClientRect();
+    const w = pr.width, h = pr.height;
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const M = 10;
+    let Lx, Ly;
+    if (br.left - 12 - w >= M) { Lx = br.left - 12 - w; Ly = br.top; }            // left of the gear (default)
+    else if (br.right + 12 + w <= vw - M) { Lx = br.right + 12; Ly = br.top; }    // right of the gear
+    else { Lx = br.left + br.width / 2 - w / 2; Ly = (br.top > vh / 2) ? (br.top - 12 - h) : (br.bottom + 12); } // above/below
+    Lx = Math.max(M, Math.min(vw - M - w, Lx));
+    Ly = Math.max(M, Math.min(vh - M - h, Ly));
+    pop.style.left = (Lx - wrapRect.left) + 'px';
+    pop.style.top = (Ly - wrapRect.top) + 'px';
+    pop.style.right = 'auto';
+    pop.style.bottom = 'auto';
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willShow = !pop.classList.contains('show');
+    pop.classList.toggle('show');
+    if (willShow) positionPop();
+  });
   document.addEventListener('click', (e) => { if (!e.target.closest('.perf-settings-wrap')) pop.classList.remove('show'); });
+  window.addEventListener('resize', () => { if (pop.classList.contains('show')) positionPop(); });
   pop.addEventListener('click', (e) => {
     const lay = e.target.closest('.perf-layout-btn');
     if (lay) { applyPerfLayout(lay.dataset.layout); pop.classList.remove('show'); return; }
