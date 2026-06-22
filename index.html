@@ -1900,6 +1900,32 @@
     transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
   }
   .perf-settings-pop.show { opacity: 1; transform: scale(1); pointer-events: auto; }
+  /* Wider so the template list reads comfortably (still clamped on-screen by JS). */
+  .perf-settings-pop { min-width: 232px; }
+  /* ---- Template picker (10 ready-made layouts) ---- */
+  .perf-template-list { display: flex; flex-direction: column; gap: 6px; }
+  .perf-template-btn {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-0); cursor: pointer;
+    transition: background 0.12s var(--ease), border-color 0.12s var(--ease), color 0.12s var(--ease);
+  }
+  .perf-template-btn:hover { border-color: var(--accent); }
+  .perf-template-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .perf-template-btn .ptn-num {
+    flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; background: var(--surface-strong); color: var(--text-1);
+  }
+  .perf-template-btn.active .ptn-num { background: rgba(255,255,255,0.25); color: #fff; }
+  .perf-template-btn .ptn-text { display: flex; flex-direction: column; min-width: 0; }
+  .perf-template-btn .ptn-name { font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .perf-template-btn .ptn-sub { font-size: 10px; opacity: 0.7; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* In a template/custom layout the song title gets a FIXED width so its left
+     edge is predictable (the packer reserves exactly this much space for it) —
+     long names ellipsize instead of pushing into / under the other controls. */
+  #performance-view.layout-custom [data-perf-el="title"] { width: min(34vw, 240px); overflow: hidden; }
+  #performance-view.layout-custom [data-perf-el="title"] .perf-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .perf-settings-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin: 0 2px 10px; }
   .perf-settings-group { margin-bottom: 10px; }
   .perf-settings-group:last-child { margin-bottom: 0; }
@@ -3433,12 +3459,8 @@
         <div class="perf-settings-pop" id="perf-settings-pop">
           <div class="perf-settings-title">Steuerung</div>
           <div class="perf-settings-group">
-            <div class="perf-settings-label">Layout</div>
-            <div class="perf-settings-opts">
-              <button class="perf-layout-btn" data-layout="right">Rechts</button>
-              <button class="perf-layout-btn" data-layout="bottom">Unten</button>
-              <button class="perf-layout-btn" data-layout="custom">Eigenes</button>
-            </div>
+            <div class="perf-settings-label">Vorlagen</div>
+            <div class="perf-template-list" id="perf-template-list"></div>
           </div>
           <div class="perf-settings-group">
             <div class="perf-settings-label">Auto-Ausblenden</div>
@@ -5036,7 +5058,28 @@ const I18N = {
     "Querformat": "Landscape",
     "Hochformat": "Portrait",
     "Drehen": "Rotate",
-    "Regler": "Slider"
+    "Regler": "Slider",
+    "Vorlagen": "Templates",
+    "Aktuell": "Current",
+    "Standard rechts": "Default right side",
+    "Steuerung oben mittig": "Top controls centered",
+    "Bedienelemente oben zentriert": "Controls centered at top",
+    "Steuerung unten mittig": "Bottom controls centered",
+    "Transport unten zentriert": "Transport centered at bottom",
+    "Regler links": "Slider on the left",
+    "Geschwindigkeit links": "Speed slider on the left",
+    "Regler links + unten rechts": "Slider left + bottom right",
+    "Regler links, Transport rechts": "Slider left, transport right",
+    "Volle obere Leiste": "Full-width top bar",
+    "Obere Leiste über volle Breite": "Top bar spanning the full width",
+    "Oben links + unten rechts": "Top left + bottom right",
+    "Steuerung oben links": "Controls at the top left",
+    "Oben rechts + unten links": "Top right + bottom left",
+    "Steuerung oben rechts": "Controls at the top right",
+    "Kompakt oben": "Compact top",
+    "Alles in der oberen Zone": "Everything in the top zone",
+    "Minimal oben + gross unten": "Minimal top + large bottom",
+    "Wenig oben, Transport gross unten": "Minimal top, large transport below"
   }
 };
 let currentLang = 'de';
@@ -8061,13 +8104,11 @@ applyAutoHide(getPerfAutoHide());
     e.stopPropagation();
     const willShow = !pop.classList.contains('show');
     pop.classList.toggle('show');
-    if (willShow) positionPop();
+    if (willShow) { if (typeof refreshTemplateUI === 'function') refreshTemplateUI(); positionPop(); }
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('.perf-settings-wrap')) pop.classList.remove('show'); });
   window.addEventListener('resize', () => { if (pop.classList.contains('show')) positionPop(); });
   pop.addEventListener('click', (e) => {
-    const lay = e.target.closest('.perf-layout-btn');
-    if (lay) { applyPerfLayout(lay.dataset.layout); pop.classList.remove('show'); return; }
     const ah = e.target.closest('.perf-autohide-btn');
     if (ah) { applyAutoHide(ah.dataset.autohide === 'on'); return; }   // keep popover open so the choice is visible
     const ed = e.target.closest('#perf-edit-layout-btn');
@@ -8102,7 +8143,12 @@ const clampN = (lo, hi, v) => Math.max(lo, Math.min(hi, v));
 // ---- Undo / Redo (layout history) ----
 let undoStack = [], redoStack = [], _pendingUndo = null;
 function snapshotLayout() { return localStorage.getItem(PERF_CUSTOM_KEY) || '{}'; }
-function beginAction() { if (_pendingUndo == null) _pendingUndo = snapshotLayout(); }
+function beginAction() {
+  if (_pendingUndo == null) _pendingUndo = snapshotLayout();
+  // A hand edit turns an applied template into the user's own custom layout, so
+  // rotation no longer re-generates (and thus overwrites) their tweaks.
+  if (typeof setPerfTemplate === 'function') setPerfTemplate('');
+}
 function endAction() {
   if (_pendingUndo == null) return;
   const now = snapshotLayout();
@@ -8898,8 +8944,228 @@ function applyEdPrefsUI() {
     clearCustomInline(); applyCustomLayout(); selectPerfEl(null); endAction();
   });
 })();
+
+// =====================================================
+//   Layout Templates — 10 ready-made, fully responsive arrangements
+//   Each template computes a clean position for every control from the LIVE
+//   view size + each control's natural size, SEPARATELY for portrait and
+//   landscape, then bakes the result into the per-orientation custom store so
+//   the normal render path and the Edit-Layout editor keep working unchanged.
+//   Only POSITIONS change — sizes, styles, colours, icons and behaviour stay
+//   exactly as designed. Picking a template is instant; editing it afterwards
+//   turns it into your own custom layout.
+// =====================================================
+const PERF_TEMPLATE_KEY = 'lyrics-perf-template';
+const PERF_TEMPLATES = [
+  { id: 'current',        name: 'Aktuell',                     sub: 'Standard rechts' },
+  { id: 'top-center',     name: 'Steuerung oben mittig',       sub: 'Bedienelemente oben zentriert' },
+  { id: 'bottom-center',  name: 'Steuerung unten mittig',      sub: 'Transport unten zentriert' },
+  { id: 'slider-left',    name: 'Regler links',                sub: 'Geschwindigkeit links' },
+  { id: 'slider-left-br', name: 'Regler links + unten rechts', sub: 'Regler links, Transport rechts' },
+  { id: 'top-full',       name: 'Volle obere Leiste',          sub: 'Obere Leiste über volle Breite' },
+  { id: 'tl-br',          name: 'Oben links + unten rechts',   sub: 'Steuerung oben links' },
+  { id: 'tr-bl',          name: 'Oben rechts + unten links',   sub: 'Steuerung oben rechts' },
+  { id: 'compact-top',    name: 'Kompakt oben',                sub: 'Alles in der oberen Zone' },
+  { id: 'minimal',        name: 'Minimal oben + gross unten',  sub: 'Wenig oben, Transport gross unten' }
+];
+function getPerfTemplate() { try { return localStorage.getItem(PERF_TEMPLATE_KEY) || ''; } catch (e) { return ''; } }
+function setPerfTemplate(id) { try { if (id) localStorage.setItem(PERF_TEMPLATE_KEY, id); else localStorage.removeItem(PERF_TEMPLATE_KEY); } catch (e) {} }
+function isComputedTemplate(id) { return !!id && id !== 'current'; }
+
+// Natural size of each visible control (orientation-independent), measured from
+// the stock layout so the packer can place things edge-to-edge without overlap.
+function measurePerfSizes() {
+  const pv = document.getElementById('performance-view');
+  const wasCustom = pv.classList.contains('layout-custom');
+  pv.classList.remove('layout-custom'); clearCustomInline();   // synchronous — no paint, no flicker
+  const sizes = {};
+  perfEls().forEach(el => { const r = el.getBoundingClientRect(); if (r.width && r.height) sizes[el.dataset.perfEl] = { w: r.width, h: r.height }; });
+  if (wasCustom) pv.classList.add('layout-custom');
+  return sizes;
+}
+// --- packing helpers (all in px, within a safe content box) ---
+function tplSpanW(els, sizes, gap) { const l = els.filter(e => sizes[e]); return l.reduce((a, e) => a + sizes[e].w, 0) + gap * Math.max(0, l.length - 1); }
+function tplMaxH(els, sizes) { const l = els.filter(e => sizes[e]); return l.length ? Math.max(...l.map(e => sizes[e].h)) : 0; }
+// Lay a horizontal row of controls, vertically centred on cy, packed inside [x0,x1].
+function tplRow(out, els, sizes, cy, x0, x1, align, gap) {
+  const l = els.filter(e => sizes[e]); if (!l.length) return { start: x0, end: x0 };
+  const span = tplSpanW(l, sizes, gap);
+  let sx = align === 'left' ? x0 : align === 'right' ? x1 - span : (x0 + x1) / 2 - span / 2;
+  sx = Math.max(x0, Math.min(x1 - span, sx));
+  let x = sx; l.forEach(e => { out[e] = { _cx: x + sizes[e].w / 2, _cy: cy }; x += sizes[e].w + gap; });
+  return { start: sx, end: sx + span };
+}
+function tplOne(out, el, sizes, cx, cy) { if (sizes[el]) out[el] = { _cx: cx, _cy: cy }; }
+
+// Compute one template's layout for a box (px). Returns { el: {x,y} } in %.
+function buildTemplateMap(id, boxW, boxH, sizes) {
+  const i = safeInsets;
+  const B = { x0: i.left, y0: i.top, x1: boxW - i.right, y1: boxH - i.bottom };
+  const gap = clampN(8, 22, boxW * 0.02);
+  const out = {};
+  const has = (e) => !!sizes[e], w = (e) => has(e) ? sizes[e].w : 0, h = (e) => has(e) ? sizes[e].h : 0;
+  const TOP = ['transpose', 'chord', 'font'].filter(has);          // TR / AK / FONT
+  const ICONS = ['edit', 'help', 'theme', 'songs'].filter(has);    // edit / help / brightness / menu
+  const TRANSPORT = ['prev', 'play', 'next', 'restart'].filter(has); // rewind / play / skip / loop
+
+  const rowH = Math.max(h('back'), tplMaxH(TOP, sizes), tplMaxH(ICONS, sizes), 36);
+  const topY = B.y0 + rowH / 2;
+  const row2Y = topY + rowH + gap;
+  const row3Y = row2Y + rowH + gap;
+  const botRowH = Math.max(tplMaxH(TRANSPORT, sizes), 44);
+  const botY = B.y1 - botRowH / 2;
+
+  // nav: back top-left, song title just right of it. The title gets a FIXED box
+  // width in custom layouts (CSS: width:min(34vw,240px)) so its rendered left edge
+  // is predictable regardless of song-name length — titleW here MUST match that CSS
+  // value, otherwise the title overlaps the back button or the centred controls.
+  const titleW = has('title') ? Math.min(boxW * 0.34, 240) : 0;
+  tplOne(out, 'back', sizes, B.x0 + w('back') / 2, topY);
+  if (has('title')) out['title'] = { _cx: B.x0 + w('back') + gap + titleW / 2, _cy: topY };
+  const navR = B.x0 + w('back') + (titleW ? gap + titleW : 0) + gap;   // free zone starts here
+
+  // speed slider + settings gear share one side; gear sits just under the top row,
+  // slider centred in the space below it (kept above the transport row if they share a side).
+  const sideMaxW = Math.max(w('speed'), w('settings'));
+  const placeSide = (side, transportSameSide) => {
+    const x = side === 'left' ? B.x0 + sideMaxW / 2 : B.x1 - sideMaxW / 2;
+    const sy = topY + rowH / 2 + gap + h('settings') / 2;
+    tplOne(out, 'settings', sizes, x, sy);
+    const top = sy + h('settings') / 2 + gap + h('speed') / 2;
+    const bot = (transportSameSide ? (botY - botRowH / 2 - gap) : B.y1) - h('speed') / 2;
+    tplOne(out, 'speed', sizes, x, clampN(top, Math.max(top, bot), (top + bot) / 2));
+  };
+  // Standard top bar: icons right, TR/AK/FONT placed per align. 'center' centres
+  // them on the SCREEN (for symmetry) when they clear the nav/title and the icons;
+  // otherwise (or for left/right that don't fit) they drop to a clean second row.
+  // r2x0/r2x1 bound the second row so a wrapped TR/AK/FONT row stays clear of a
+  // side gear/slider column (passed in only for the side-column templates).
+  const topBar = (topAlign, r2x0, r2x1) => {
+    r2x0 = (r2x0 == null) ? B.x0 : r2x0; r2x1 = (r2x1 == null) ? B.x1 : r2x1;
+    const ic = tplRow(out, ICONS, sizes, topY, navR, B.x1, 'right', gap);
+    if (!TOP.length) return { row2: false };
+    const span = tplSpanW(TOP, sizes, gap);
+    if (topAlign === 'center') {
+      const c0 = (B.x0 + B.x1) / 2 - span / 2;
+      if (c0 >= navR && c0 + span <= ic.start - gap) { tplRow(out, TOP, sizes, topY, B.x0, B.x1, 'center', gap); return { row2: false }; }
+    } else {
+      const free = (ic.start - gap) - navR;
+      if (span <= free) { tplRow(out, TOP, sizes, topY, navR, ic.start - gap, topAlign, gap); return { row2: false }; }
+    }
+    tplRow(out, TOP, sizes, row2Y, r2x0, r2x1, topAlign === 'right' ? 'right' : topAlign === 'left' ? 'left' : 'center', gap);
+    return { row2: true };
+  };
+  const sideReserve = sideMaxW + gap;   // horizontal strip a side column occupies
+
+  switch (id) {
+    case 'top-center':
+      topBar('center'); placeSide('right', false);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0, B.x1, 'center', gap);
+      break;
+    case 'bottom-center':
+      topBar('left'); placeSide('right', false);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0, B.x1, 'center', gap);
+      break;
+    case 'slider-left':
+      topBar('left', B.x0 + sideReserve, B.x1); placeSide('left', false);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0 + sideReserve, B.x1, 'center', gap);
+      break;
+    case 'slider-left-br':
+      topBar('left', B.x0 + sideReserve, B.x1); placeSide('left', false);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0 + sideReserve, B.x1, 'right', gap);
+      break;
+    case 'top-full':
+      topBar('center'); placeSide('right', false);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0, B.x1, 'center', gap);
+      break;
+    case 'tl-br': {
+      // TR/AK/FONT then icons, clustered top-left under the nav row
+      tplRow(out, TOP, sizes, row2Y, B.x0, B.x1, 'left', gap);
+      tplRow(out, ICONS, sizes, row3Y, B.x0, B.x1, 'left', gap);
+      placeSide('right', true);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0, B.x1, 'right', gap);
+      break;
+    }
+    case 'tr-bl':
+      topBar('right'); placeSide('left', true);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0, B.x1, 'left', gap);
+      break;
+    case 'compact-top': {
+      const tb = topBar('center'); placeSide('right', false);
+      tplRow(out, TRANSPORT, sizes, tb.row2 ? row3Y : row2Y, B.x0, B.x1, 'center', gap);
+      break;
+    }
+    case 'minimal':
+      topBar('center'); placeSide('right', false);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0, B.x1, 'center', gap * 2.2);
+      break;
+    default:
+      topBar('center'); placeSide('right', false);
+      tplRow(out, TRANSPORT, sizes, botY, B.x0, B.x1, 'center', gap);
+  }
+
+  const map = {};
+  for (const k in out) { const c = out[k]; if (isFinite(c._cx) && isFinite(c._cy)) map[k] = { x: +((c._cx / boxW) * 100).toFixed(2), y: +((c._cy / boxH) * 100).toFixed(2) }; }
+  return map;
+}
+
+// Apply a template: bake positions for BOTH orientations (current from the real
+// box, the other from the swapped box) then render via the custom layout.
+function applyTemplate(id) {
+  const pop = document.getElementById('perf-settings-pop');
+  if (id === 'current') {           // "Current Style" IS the native, responsive right layout
+    setPerfTemplate('current');
+    applyPerfLayout('right');
+    refreshTemplateUI();
+    if (pop) pop.classList.remove('show');
+    return;
+  }
+  setPerfTemplate(id);
+  computeSafeInsets();
+  const sizes = measurePerfSizes();
+  const pv = document.getElementById('performance-view');
+  const r = pv.getBoundingClientRect();
+  let bw = r.width, bh = r.height;
+  if (!bw || !bh) { bw = window.innerWidth || 768; bh = window.innerHeight || 1024; }
+  const cur = currentOrientation();
+  const other = cur === 'portrait' ? 'landscape' : 'portrait';
+  const store = getCustomStore();
+  store[cur] = buildTemplateMap(id, bw, bh, sizes);
+  store[other] = buildTemplateMap(id, bh, bw, sizes);   // swapped box ≈ the other orientation
+  try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(store)); } catch (e) {}
+  applyPerfLayout('custom');
+  refreshTemplateUI();
+  if (pop) pop.classList.remove('show');
+}
+
+function buildTemplateList() {
+  const host = document.getElementById('perf-template-list');
+  if (!host) return;
+  host.innerHTML = '';
+  PERF_TEMPLATES.forEach((t, idx) => {
+    const b = document.createElement('button');
+    b.className = 'perf-template-btn';
+    b.dataset.template = t.id;
+    const num = document.createElement('span'); num.className = 'ptn-num'; num.textContent = String(idx + 1);
+    const txt = document.createElement('span'); txt.className = 'ptn-text';
+    const nm = document.createElement('span'); nm.className = 'ptn-name'; nm.textContent = t.name;   // German source; auto-localized
+    const sb = document.createElement('span'); sb.className = 'ptn-sub'; sb.textContent = t.sub;
+    txt.appendChild(nm); txt.appendChild(sb);
+    b.appendChild(num); b.appendChild(txt);
+    b.addEventListener('click', () => applyTemplate(t.id));
+    host.appendChild(b);
+  });
+  if (typeof localize === 'function') localize(host);   // translate the German source text if lang = en
+  refreshTemplateUI();
+}
+function refreshTemplateUI() {
+  const active = getPerfTemplate() || (getPerfLayout() === 'right' ? 'current' : '');
+  document.querySelectorAll('#perf-template-list .perf-template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === active));
+}
+
 // Now safe to apply the saved layout (incl. 'custom') — all consts are ready.
 applyPerfLayout(getPerfLayout());
+buildTemplateList();
 
 // Re-apply the custom layout when the viewport changes (orientation flip, Safari
 // toolbar collapse, window resize) so positions/rulers/selection stay correct.
@@ -8914,6 +9180,18 @@ applyPerfLayout(getPerfLayout());
     const flipped = orient !== lastOrient;
     if (flipped) { lastOrient = orient; defaultLayoutCache = null; }   // reset baseline for the new orientation
     if (!pv.classList.contains('layout-custom')) return;
+    // If a (computed) template is active, freshly re-fit it to the new orientation's
+    // real box so spacing stays clean — unless the user has since edited it by hand.
+    if (flipped && isComputedTemplate(getPerfTemplate())) {
+      computeSafeInsets();
+      const sizes = measurePerfSizes();
+      const r = pv.getBoundingClientRect();
+      if (r.width && r.height) {
+        const store = getCustomStore();
+        store[orient] = buildTemplateMap(getPerfTemplate(), r.width, r.height, sizes);
+        try { localStorage.setItem(PERF_CUSTOM_KEY, JSON.stringify(store)); } catch (e) {}
+      }
+    }
     applyCustomLayout();          // pulls the new orientation's layout (self-seeds if empty)
     if (perfEditing) {
       if (flipped) { buildChips(); selectPerfEl(null); updateOrientBadge(); }
