@@ -9562,14 +9562,25 @@ function toggleFullscreen() {
 document.getElementById('library-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
 
 
+// The central "reading zone" of the lyrics — tapping here is what hides the
+// controls. Mis-taps nearer the edges (where the settings gear, speed slider and
+// transport buttons live) are intentionally ignored, so you can fiddle with the
+// controls without accidentally dismissing them. Generous so it's easy to hit.
+function inCentralTapZone(x, y) {
+  const vw = window.innerWidth || document.documentElement.clientWidth || 1;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 1;
+  const padX = vw * 0.18, padY = vh * 0.20;     // central ≈ 64% wide × 60% tall
+  return x >= padX && x <= vw - padX && y >= padY && y <= vh - padY;
+}
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
   // While editing the layout, a tap on empty space just clears the selection.
   if (perfEditing) { selectPerfEl(null); return; }
-  // A single tap on the lyrics toggles the UI instantly (show if hidden, hide
-  // if shown). Tapping the lyrics never starts or stops the song — only the
-  // play/stop button does that.
-  toggleControlsUI();
+  // Tapping the lyrics never starts/stops the song — only the play button does.
+  // Revealing hidden controls works from anywhere; HIDING only happens when the
+  // tap lands in the central zone, so edge mis-taps don't dismiss the UI.
+  if (controlsAreHidden()) { toggleControlsUI(); return; }
+  if (inCentralTapZone(e.clientX, e.clientY)) toggleControlsUI();
 });
 
 // Keyboard shortcuts
