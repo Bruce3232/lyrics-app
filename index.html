@@ -8016,6 +8016,19 @@ applyAutoHide(getPerfAutoHide());
   const pop = document.getElementById('perf-settings-pop');
   if (!btn || !pop) return;
 
+  // Keep the open popover IN FRONT of every other control. In custom layout
+  // each [data-perf-el] gets transform: translate(-50%,-50%), which creates its
+  // own stacking context — so the popover's own z-index can't escape its wrap,
+  // and sibling buttons later in the DOM (Prev/Play/Skip/Reset) would paint over
+  // it. Lifting the WRAP's stacking context while the popover is shown floats
+  // the whole thing above those siblings. Covers every open/close path.
+  const settingsWrap = btn.closest('.perf-settings-wrap');
+  if (settingsWrap) {
+    new MutationObserver(() => {
+      settingsWrap.style.zIndex = pop.classList.contains('show') ? '100' : '';
+    }).observe(pop, { attributes: true, attributeFilter: ['class'] });
+  }
+
   // Place the popover next to the gear but ALWAYS fully inside the screen
   // (it could open off the bottom when the gear sits low in a custom/bottom
   // layout). Positions are clamped to the viewport. The wrap's transform is
