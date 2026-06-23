@@ -2618,6 +2618,9 @@
   /* Hidden while editing the layout so it never sits over the editor. */
   #performance-view.perf-editing ~ .chord-drawer { display: none !important; }
   .chord-drawer.open { transform: translateX(0); }
+  /* While dragging the edge, don't animate — width changes apply in real time. */
+  .chord-drawer.resizing { transition: none; }
+  .chord-drawer.resizing .chord-list { pointer-events: none; }
   .chord-drawer-inner {
     position: absolute; inset: 0;
     display: flex; flex-direction: column;
@@ -2657,8 +2660,24 @@
   .chord-list {
     flex: 1; overflow-y: auto; overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 10px; display: flex; flex-direction: column; gap: 10px;
+    padding: 10px;
+    /* Auto-fit columns: 1 at the compact width, 2+ as the panel is widened. */
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px; align-content: start;
   }
+  /* Draggable right-edge resize handle. */
+  .chord-resize {
+    position: absolute; top: 0; bottom: 0; right: 0; width: 12px;
+    cursor: ew-resize; touch-action: none; z-index: 3;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  .chord-resize::before {
+    content: ''; position: absolute; top: 50%; right: 3px;
+    width: 3px; height: 42px; transform: translateY(-50%);
+    border-radius: 3px; background: var(--border-strong);
+    transition: background 0.12s var(--ease);
+  }
+  .chord-resize:hover::before, .chord-drawer.resizing .chord-resize::before { background: var(--accent); }
   .chord-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 8px 6px; text-align: center; }
   .chord-card-name { font-size: 14px; font-weight: 700; color: var(--text-0); margin-bottom: 4px; }
   .chord-dgm { display: block; width: 100%; height: auto; max-height: 118px; }
@@ -3706,6 +3725,7 @@
       <button class="chord-inst" data-inst="piano">Klavier</button>
     </div>
     <div class="chord-list" id="chord-list"></div>
+    <div class="chord-resize" id="chord-resize" title="Breite anpassen" aria-label="Breite anpassen"></div>
   </div>
 </div>
 
@@ -9614,8 +9634,37 @@ document.getElementById('perf-transpose-up').addEventListener('click', () => cha
 //   Reuses NOTE_INDEX / NOTES_SHARP from the transpose code.
 // =====================================================
 const CHORD_INSTRUMENT_KEY = 'lyrics-chord-instrument';
+const CHORD_WIDTH_KEY = 'lyrics-chord-width';
+const CHORD_DEFAULT_W = 236, CHORD_MIN_W = 216;
 let chordPanelInstrument = 'guitar';
 let chordPanelChords = [];     // cached parsed chords for the current song
+
+// Responsive width limits: min ≈ default (so diagrams stay readable), max a
+// reasonable fraction of the screen so the lyrics always stay visible.
+function chordWidthBounds() {
+  const vw = window.innerWidth || document.documentElement.clientWidth || 768;
+  const frac = vw <= 500 ? 0.5 : vw <= 1100 ? 0.40 : 0.38;
+  // Never widen past the responsive fraction (keeps the lyrics visible). On very
+  // small phones the comfortable minimum already exceeds that, so the panel just
+  // stays at the minimum (no widening) rather than covering the screen.
+  const MAX = Math.max(CHORD_MIN_W, Math.round(vw * frac));
+  return { MIN: CHORD_MIN_W, MAX };
+}
+function getChordWidth() {
+  let w; try { w = parseInt(localStorage.getItem(CHORD_WIDTH_KEY) || '', 10); } catch (e) {}
+  if (!w || isNaN(w)) w = CHORD_DEFAULT_W;
+  const { MIN, MAX } = chordWidthBounds();
+  return Math.max(MIN, Math.min(MAX, w));
+}
+// Apply (and re-clamp) the drawer width; persist when the user sets it.
+function applyChordWidth(w, persist) {
+  const d = document.getElementById('chord-drawer'); if (!d) return;
+  const { MIN, MAX } = chordWidthBounds();
+  w = Math.max(MIN, Math.min(MAX, w || getChordWidth()));
+  d.style.width = w + 'px';
+  if (persist) { try { localStorage.setItem(CHORD_WIDTH_KEY, String(Math.round(w))); } catch (e) {} }
+  return w;
+}
 
 // quality string → { canon, intervals(semitones from root) }
 function classifyQuality(q) {
@@ -9819,7 +9868,7 @@ function setChordInstrument(inst) {
   renderChordPanel();
 }
 function chordPanelOpen() { const d = document.getElementById('chord-drawer'); return !!d && d.classList.contains('open'); }
-function openChordPanel() { const d = document.getElementById('chord-drawer'); if (d) d.classList.add('open'); }
+function openChordPanel() { const d = document.getElementById('chord-drawer'); if (d) { applyChordWidth(); d.classList.add('open'); } }
 function closeChordPanel() { const d = document.getElementById('chord-drawer'); if (d) d.classList.remove('open'); }
 function toggleChordPanel() { chordPanelOpen() ? closeChordPanel() : openChordPanel(); }
 
@@ -9833,14 +9882,43 @@ function toggleChordPanel() { chordPanelOpen() ? closeChordPanel() : openChordPa
     b.addEventListener('click', (e) => { e.stopPropagation(); setChordInstrument(b.dataset.inst); });
   });
   if (drawer) drawer.addEventListener('click', (e) => e.stopPropagation());
+  applyChordWidth();   // restore the saved width on load
+  window.addEventListener('resize', () => { if (drawer) applyChordWidth(); });   // re-clamp on device/orientation change
+
+  // Drag the right edge to resize; width changes live, the choice is remembered.
+  const handle = document.getElementById('chord-resize');
+  if (handle && drawer) {
+    let startX = 0, startW = 0, dragging = false;
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dragging = true; startX = e.clientX; startW = drawer.getBoundingClientRect().width;
+      drawer.classList.add('resizing');
+      try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const { MIN, MAX } = chordWidthBounds();
+      drawer.style.width = Math.max(MIN, Math.min(MAX, startW + (e.clientX - startX))) + 'px';
+    });
+    const end = (e) => {
+      if (!dragging) return; dragging = false;
+      drawer.classList.remove('resizing');
+      try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+      applyChordWidth(drawer.getBoundingClientRect().width, true);   // clamp + persist
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
   // edge-swipe to open, swipe-left to close (ignore vertical scrolls)
   let sx = null, sy = null;
   window.addEventListener('touchstart', (e) => {
     if (state.view !== 'performance' || perfEditing) { sx = null; return; }
+    if (e.target && e.target.closest && e.target.closest('.chord-resize')) { sx = null; return; }   // edge-resize, not a swipe
     const t = e.touches[0]; sx = t.clientX; sy = t.clientY;
   }, { passive: true });
   window.addEventListener('touchmove', (e) => {
     if (sx == null) return;
+    if (drawer && drawer.classList.contains('resizing')) { sx = null; return; }   // mid-resize: never swipe-close
     const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
     if (Math.abs(dx) < Math.abs(dy)) { sx = null; return; }
     if (!chordPanelOpen() && sx <= 28 && dx > 45) { openChordPanel(); sx = null; }
