@@ -2683,6 +2683,49 @@
   .chord-dgm { display: block; width: 100%; height: auto; max-height: 118px; }
   .chord-empty { color: var(--text-2); font-size: 13px; text-align: center; padding: 26px 14px; line-height: 1.5; }
 
+  /* ===== Floating chord popup (tap a chord in the lyrics) ===== */
+  .chord-popup {
+    position: fixed; z-index: 95; left: 0; top: 0; width: 204px;
+    padding: 10px 12px 12px;
+    background: var(--surface-strong);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border-strong); border-radius: 14px;
+    box-shadow: 0 12px 44px rgba(0,0,0,0.42);
+    opacity: 0; transform: scale(0.96); pointer-events: none;
+    transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+    text-align: center; -webkit-tap-highlight-color: transparent;
+  }
+  .chord-popup.show { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .cp-name { font-size: 18px; font-weight: 800; color: var(--text-0); margin-bottom: 6px; }
+  .cp-dgm { margin-bottom: 4px; }
+  .cp-dgm .chord-dgm { max-height: 124px; }
+  .cp-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 0 8px; }
+  .cp-arrow {
+    width: 30px; height: 30px; flex: 0 0 auto; border-radius: 50%;
+    border: 1px solid var(--border-strong); background: var(--surface);
+    color: var(--text-0); font-size: 18px; line-height: 1; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: border-color 0.12s var(--ease), color 0.12s var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cp-arrow:hover { border-color: var(--accent); color: var(--accent); }
+  .cp-inv { font-size: 12px; font-weight: 600; color: var(--text-1); min-width: 84px; }
+  .cp-play {
+    width: 100%; padding: 7px 0; border-radius: 9px; border: none;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 13px;
+    cursor: pointer; transition: filter 0.12s var(--ease);
+  }
+  .cp-play:hover { filter: brightness(1.06); }
+  /* Chord chips are tappable to open the popup. */
+  #lyrics-track .seg-chord-chip, #lyrics-track .chord-chip { cursor: pointer; }
+
+  /* ===== Focus mode: hide all chrome, keep only lyrics + chords + popup ===== */
+  #performance-view.perf-focus .perf-overlay { opacity: 0 !important; pointer-events: none !important; }
+  #performance-view.perf-focus .perf-controls > [data-perf-el]:not([data-perf-el="focus"]) { opacity: 0 !important; pointer-events: none !important; }
+  #performance-view.perf-focus [data-perf-el="focus"] { opacity: 0.32; }
+  #performance-view.perf-focus [data-perf-el="focus"]:hover { opacity: 0.7; }
+  #performance-view.perf-focus ~ .chord-drawer { display: none !important; }
+
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -3570,6 +3613,9 @@
           </div>
         </div>
       </div>
+      <button class="perf-icon-btn" id="perf-focus" data-perf-el="focus" title="Fokus-Modus (Steuerung ausblenden)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
       <button class="perf-icon-btn" id="perf-prev-song" data-perf-el="prev" title="Vorheriger Song">
         <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2" height="16"/></svg>
       </button>
@@ -5246,7 +5292,14 @@ const I18N = {
     "Akkorde": "Chords",
     "Gitarre": "Guitar",
     "Klavier": "Piano",
-    "Keine Akkorde erkannt": "No chords detected"
+    "Keine Akkorde erkannt": "No chords detected",
+    "Fokus": "Focus",
+    "Fokus-Modus (Steuerung ausblenden)": "Focus mode (hide controls)",
+    "Grundstellung": "Root",
+    "Umkehrung": "Inversion",
+    "Abspielen": "Play",
+    "Vorherige Umkehrung": "Previous inversion",
+    "Nächste Umkehrung": "Next inversion"
   }
 };
 let currentLang = 'de';
@@ -7948,6 +8001,20 @@ function toggleControlsUI() {
   if (controlsAreHidden()) { showControlsUI(); scheduleControlsHide(); }
   else { hideControlsUI(false); }
 }
+// Focus mode: an explicit toggle that hides the whole UI (top bar + every control
+// except the Focus button itself) leaving just the lyrics, chords and any open
+// chord popup. Replaces the old "tap the middle to hide" behaviour.
+function setFocusMode(on) {
+  const pv = document.getElementById('performance-view');
+  if (!pv) return;
+  pv.classList.toggle('perf-focus', on);
+  const btn = document.getElementById('perf-focus');
+  if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (on && typeof closeChordPanel === 'function') closeChordPanel();
+  remeasureAfterUiToggle();
+}
+function toggleFocusMode() { const pv = document.getElementById('performance-view'); setFocusMode(!pv.classList.contains('perf-focus')); }
+(function () { const b = document.getElementById('perf-focus'); if (b) b.addEventListener('click', (e) => { e.stopPropagation(); toggleFocusMode(); }); })();
 
 // Keep the UI alive while the user is touching/using the controls, and restart
 // the countdown the instant they let go.
@@ -8362,12 +8429,12 @@ const PERF_EL_NAMES = {
   back: 'Zurück', title: 'Titel', transpose: 'Transponieren', chord: 'Akkordgrösse',
   font: 'Schriftgrösse', edit: 'Bearbeiten', help: 'Hilfe', theme: 'Thema',
   songs: 'Setlist', settings: 'Einstellungen', prev: 'Vorheriger', play: 'Play',
-  next: 'Nächster', speed: 'Geschwindigkeit', restart: 'Neustart'
+  next: 'Nächster', speed: 'Geschwindigkeit', restart: 'Neustart', focus: 'Fokus'
 };
 // Which resize properties each element type exposes.
 const PERF_EL_TYPE = {
   back: 'button', edit: 'button', help: 'button', theme: 'button', songs: 'button',
-  prev: 'button', next: 'button', restart: 'button', settings: 'button',
+  prev: 'button', next: 'button', restart: 'button', settings: 'button', focus: 'button',
   play: 'play', title: 'text', transpose: 'group', chord: 'group', font: 'group',
   speed: 'slider'
 };
@@ -9186,7 +9253,7 @@ function buildTemplateMap(id, boxW, boxH, sizes) {
   const out = {};
   const has = (e) => !!sizes[e], w = (e) => has(e) ? sizes[e].w : 0, h = (e) => has(e) ? sizes[e].h : 0;
   const TOP = ['transpose', 'chord', 'font'].filter(has);          // TR / AK / FONT
-  const ICONS = ['edit', 'help', 'theme', 'songs'].filter(has);    // edit / help / brightness / menu
+  const ICONS = ['edit', 'help', 'theme', 'songs', 'focus'].filter(has);    // edit / help / brightness / menu / focus
   const TRANSPORT = ['prev', 'play', 'next', 'restart'].filter(has); // rewind / play / skip / loop
 
   const rowH = Math.max(h('back'), tplMaxH(TOP, sizes), tplMaxH(ICONS, sizes), 36);
@@ -9758,8 +9825,10 @@ function movableGuitar(rootPc, canon) {
   return tpl.map(o => o < 0 ? -1 : o + base);
 }
 // Correct-by-notes fallback: search for a playable voicing whose every fretted
-// note belongs to the chord (root required, root-in-bass preferred).
-function findVoicing(tuning, pcSet, rootPc) {
+// note belongs to the chord (root required; the requested bass note preferred in
+// the bass — used for inversions/slash chords, defaults to the root).
+function findVoicing(tuning, pcSet, rootPc, bassPc) {
+  if (bassPc == null) bassPc = rootPc;
   const n = tuning.length, SPAN = 3;
   let best = null;
   for (let base = 0; base <= 9; base++) {
@@ -9782,8 +9851,8 @@ function findVoicing(tuning, pcSet, rootPc) {
       let innerMute = 0; for (let i = first; i <= last; i++) if (arr[i] < 0) innerMute++;
       const pos = arr.filter(f => f > 0);
       const span = pos.length ? Math.max(...pos) - Math.min(...pos) : 0;
-      const bassPc = ((tuning[first] + arr[first]) % 12 + 12) % 12;
-      const s = coverage * 100 + (bassPc === rootPc ? 16 : 0) + played.length * 4
+      const lowPc = ((tuning[first] + arr[first]) % 12 + 12) % 12;
+      const s = coverage * 100 + (lowPc === bassPc ? 22 : 0) + played.length * 4
               - (n - played.length) * 7 - innerMute * 45 - span * 4 - base * 1.5;
       if (!best || s > best.s) best = { s, arr: arr.slice() };
     };
@@ -9792,17 +9861,58 @@ function findVoicing(tuning, pcSet, rootPc) {
   }
   return best ? best.arr : null;
 }
-function chordShape(p, instrument, tuning) {
-  const key = NOTES_SHARP[p.rootPc] + (p.canon || '');
-  if (instrument === 'ukulele') { if (UKE_OPEN[key]) return UKE_OPEN[key].slice(); }
-  else { if (GTR_OPEN[key]) return GTR_OPEN[key].slice(); const mv = movableGuitar(p.rootPc, p.canon); if (mv) return mv; }
-  return findVoicing(tuning, chordPcSet(p), p.rootPc);
+function chordShape(p, instrument, tuning, bassPc) {
+  const inversion = bassPc != null && bassPc !== p.rootPc;
+  if (!inversion) {
+    const key = NOTES_SHARP[p.rootPc] + (p.canon || '');
+    if (instrument === 'ukulele') { if (UKE_OPEN[key]) return UKE_OPEN[key].slice(); }
+    else { if (GTR_OPEN[key]) return GTR_OPEN[key].slice(); const mv = movableGuitar(p.rootPc, p.canon); if (mv) return mv; }
+  }
+  return findVoicing(tuning, chordPcSet(p), p.rootPc, bassPc);
+}
+// Unique chord-tone pitch classes, and a close-position voicing with `bass` lowest.
+function chordToneSet(p) { return [...new Set(p.intervals.map(i => ((p.rootPc + i) % 12 + 12) % 12))]; }
+function voicingNotes(tones, bass) {
+  const rest = tones.filter(t => t !== bass).sort((a, b) => ((a - bass + 12) % 12) - ((b - bass + 12) % 12));
+  const notes = [bass]; let last = bass;
+  rest.forEach(t => { let s = t; while (s <= last) s += 12; notes.push(s); last = s; });
+  return notes;
+}
+// Inversions: root position, then each chord tone in the bass (slash names).
+function chordInversions(p) {
+  const tones = chordToneSet(p);
+  return tones.map((bassPc, k) => ({
+    bassPc,
+    name: (k === 0) ? p.display.replace(/\/.*$/, '') : (p.display.replace(/\/.*$/, '') + '/' + NOTES_SHARP[bassPc]),
+    label: (k === 0) ? T('Grundstellung') : (T('Umkehrung') + ' ' + k)
+  }));
+}
+// Audio: play the chord tones (bass note lowest) with a soft strum.
+let chordAudioCtx = null;
+function playChordAudio(p, bassPc) {
+  try {
+    chordAudioCtx = chordAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (chordAudioCtx.state === 'suspended') chordAudioCtx.resume();
+    const notes = voicingNotes(chordToneSet(p), bassPc == null ? p.rootPc : bassPc);
+    const now = chordAudioCtx.currentTime, baseMidi = 48;   // C3
+    notes.forEach((semi, idx) => {
+      const freq = 440 * Math.pow(2, (baseMidi + semi - 69) / 12);
+      const o = chordAudioCtx.createOscillator(), g = chordAudioCtx.createGain();
+      o.type = 'triangle'; o.frequency.value = freq;
+      const t0 = now + idx * 0.045;
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(0.17, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0007, t0 + 1.3);
+      o.connect(g); g.connect(chordAudioCtx.destination);
+      o.start(t0); o.stop(t0 + 1.4);
+    });
+  } catch (e) {}
 }
 
 // ---- SVG renderers ----
-function chordFretSVG(p, instrument) {
+function chordFretSVG(p, instrument, bassPc) {
   const tuning = instrument === 'ukulele' ? [7, 0, 4, 9] : [4, 9, 2, 7, 11, 4];
-  let frets = chordShape(p, instrument, tuning) || tuning.map(() => -1);
+  let frets = chordShape(p, instrument, tuning, bassPc) || tuning.map(() => -1);
   const n = tuning.length, FRETS = 4;
   const pos = frets.filter(f => f > 0);
   const maxF = pos.length ? Math.max(...pos) : 0, minF = pos.length ? Math.min(...pos) : 0;
@@ -9822,13 +9932,13 @@ function chordFretSVG(p, instrument) {
   }
   return `<svg class="chord-dgm" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">${s}</svg>`;
 }
-function chordPianoSVG(p) {
+function chordPianoSVG(p, bassPc) {
   const W = 196, H = 64, whiteW = W / 14, blackW = whiteW * 0.62, blackH = H * 0.62;
   const whiteOrd = { 0: 0, 2: 1, 4: 2, 5: 3, 7: 4, 9: 5, 11: 6 };
   const blackLeft = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
   const isWhite = pc => whiteOrd[pc] != null;
-  const notes = []; const seen = new Set();
-  p.intervals.forEach(iv => { let s = p.rootPc + iv; while (s >= 24) s -= 12; while (s < 0) s += 12; if (!seen.has(s)) { seen.add(s); notes.push(s); } });
+  const seen = new Set(), notes = [];
+  voicingNotes(chordToneSet(p), bassPc == null ? p.rootPc : bassPc).forEach(s => { while (s >= 24) s -= 12; while (s < 0) s += 12; if (!seen.has(s)) { seen.add(s); notes.push(s); } });
   let whites = '', blacks = '', dots = '';
   for (let i = 0; i < 14; i++) whites += `<rect x="${(i * whiteW).toFixed(1)}" y="0" width="${whiteW.toFixed(1)}" height="${H}" rx="2" fill="#f5f5f7" stroke="#c7c7cd" stroke-width="1"/>`;
   for (let oct = 0; oct < 2; oct++) [1, 3, 6, 8, 10].forEach(pc => { const cx = (oct * 7 + blackLeft[pc] + 1) * whiteW; blacks += `<rect x="${(cx - blackW / 2).toFixed(1)}" y="0" width="${blackW.toFixed(1)}" height="${blackH.toFixed(1)}" rx="1.5" fill="#1b1b1f"/>`; });
@@ -9866,7 +9976,104 @@ function setChordInstrument(inst) {
   try { localStorage.setItem(CHORD_INSTRUMENT_KEY, inst); } catch (e) {}
   document.querySelectorAll('.chord-inst').forEach(b => b.classList.toggle('active', b.dataset.inst === inst));
   renderChordPanel();
+  if (chordPopupOpen()) renderChordPopup();   // keep the open popup in sync with the global instrument
 }
+
+// ===== Floating chord popup (tap a chord in the lyrics) =====
+let cpChord = null, cpInvs = [], cpIdx = 0, cpAnchor = null;
+function ensureChordPopup() {
+  let el = document.getElementById('chord-popup');
+  if (el) return el;
+  el = document.createElement('div');
+  el.className = 'chord-popup'; el.id = 'chord-popup';
+  el.innerHTML =
+    '<div class="cp-name" id="cp-name"></div>' +
+    '<div class="cp-dgm" id="cp-dgm"></div>' +
+    '<div class="cp-nav"><button class="cp-arrow" id="cp-prev" aria-label="' + escapeHtml(T('Vorherige Umkehrung')) + '">‹</button>' +
+    '<span class="cp-inv" id="cp-inv"></span>' +
+    '<button class="cp-arrow" id="cp-next" aria-label="' + escapeHtml(T('Nächste Umkehrung')) + '">›</button></div>' +
+    '<button class="cp-play" id="cp-play">▶ ' + escapeHtml(T('Abspielen')) + '</button>';
+  document.body.appendChild(el);
+  el.addEventListener('click', (e) => e.stopPropagation());
+  el.querySelector('#cp-prev').addEventListener('click', (e) => { e.stopPropagation(); navChordPopup(-1); });
+  el.querySelector('#cp-next').addEventListener('click', (e) => { e.stopPropagation(); navChordPopup(1); });
+  el.querySelector('#cp-play').addEventListener('click', (e) => { e.stopPropagation(); if (cpChord) playChordAudio(cpChord, cpInvs[cpIdx] && cpInvs[cpIdx].bassPc); });
+  // swipe left/right to change inversion
+  let sx = null;
+  el.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null;
+    if (Math.abs(dx) > 40) navChordPopup(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  return el;
+}
+function chordPopupOpen() { const el = document.getElementById('chord-popup'); return !!el && el.classList.contains('show'); }
+function renderChordPopup() {
+  const el = document.getElementById('chord-popup'); if (!el || !cpChord) return;
+  const inv = cpInvs[cpIdx] || { bassPc: cpChord.rootPc, name: cpChord.display, label: '' };
+  el.querySelector('#cp-name').textContent = inv.name;
+  el.querySelector('#cp-inv').textContent = inv.label;
+  const inst = chordPanelInstrument;
+  el.querySelector('#cp-dgm').innerHTML = inst === 'piano' ? chordPianoSVG(cpChord, inv.bassPc) : chordFretSVG(cpChord, inst, inv.bassPc);
+  const multi = cpInvs.length > 1;
+  el.querySelector('#cp-prev').style.visibility = multi ? '' : 'hidden';
+  el.querySelector('#cp-next').style.visibility = multi ? '' : 'hidden';
+}
+function positionChordPopup() {
+  const el = document.getElementById('chord-popup'); if (!el || !cpAnchor) return;
+  el.style.left = '0px'; el.style.top = '0px';   // measure unconstrained
+  const r = el.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight, M = 8, gap = 10;
+  let left = cpAnchor.left + cpAnchor.width / 2 - r.width / 2;
+  left = Math.max(M, Math.min(vw - M - r.width, left));
+  let top = cpAnchor.top - gap - r.height;                 // prefer above
+  if (top < M) top = cpAnchor.bottom + gap;                // not enough room → below
+  top = Math.max(M, Math.min(vh - M - r.height, top));
+  el.style.left = Math.round(left) + 'px';
+  el.style.top = Math.round(top) + 'px';
+}
+function navChordPopup(dir) {
+  if (!cpInvs.length) return;
+  cpIdx = (cpIdx + dir + cpInvs.length) % cpInvs.length;
+  renderChordPopup();
+  requestAnimationFrame(positionChordPopup);   // size may change → keep on-screen
+}
+function openChordPopup(parsed, anchorRect) {
+  const el = ensureChordPopup();
+  cpChord = parsed; cpInvs = chordInversions(parsed); cpAnchor = anchorRect;
+  // start at the inversion matching the written bass (e.g. G/B), else root position
+  cpIdx = 0;
+  if (parsed.bassPc != null) { const k = cpInvs.findIndex(v => v.bassPc === parsed.bassPc); if (k >= 0) cpIdx = k; }
+  renderChordPopup();
+  el.classList.add('show');
+  requestAnimationFrame(positionChordPopup);
+}
+function closeChordPopup() { const el = document.getElementById('chord-popup'); if (el) el.classList.remove('show'); cpChord = null; }
+
+(function setupChordPopup() {
+  // Tap a chord chip in the lyrics → open the popup for that chord.
+  const track = document.getElementById('lyrics-track');
+  if (track) track.addEventListener('click', (e) => {
+    if (state.view !== 'performance' || perfEditing) return;
+    const chip = e.target.closest('.seg-chord-chip, .chord-chip');
+    if (!chip) return;
+    e.stopPropagation();          // don't let the lyrics handler also react
+    const txt = (chip.firstChild && chip.firstChild.nodeType === 3) ? chip.firstChild.textContent : chip.textContent;
+    const parsed = parseChordForDiagram(txt);
+    if (parsed) openChordPopup(parsed, chip.getBoundingClientRect());
+  });
+  // Click anywhere outside the popup (and not on a chip / the lyrics, which have
+  // their own handlers) closes it.
+  document.addEventListener('click', (e) => {
+    if (!chordPopupOpen()) return;
+    if (e.target.closest && (e.target.closest('.chord-popup') || e.target.closest('.seg-chord-chip, .chord-chip') || e.target.closest('#lyrics-stage'))) return;
+    closeChordPopup();
+  });
+  // Esc closes the popup first (before leaving performance).
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && chordPopupOpen()) { e.stopPropagation(); closeChordPopup(); } }, true);
+  // Re-clamp on resize/rotation.
+  window.addEventListener('resize', () => { if (chordPopupOpen()) positionChordPopup(); });
+})();
 function chordPanelOpen() { const d = document.getElementById('chord-drawer'); return !!d && d.classList.contains('open'); }
 function openChordPanel() { const d = document.getElementById('chord-drawer'); if (d) { applyChordWidth(); d.classList.add('open'); } }
 function closeChordPanel() { const d = document.getElementById('chord-drawer'); if (d) d.classList.remove('open'); }
@@ -9992,28 +10199,17 @@ function toggleFullscreen() {
 document.getElementById('library-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
 
 
-// The central "reading zone" of the lyrics — tapping here is what hides the
-// controls. Mis-taps nearer the edges (where the settings gear, speed slider and
-// transport buttons live) are intentionally ignored, so you can fiddle with the
-// controls without accidentally dismissing them. Generous so it's easy to hit.
-function inCentralTapZone(x, y) {
-  const vw = window.innerWidth || document.documentElement.clientWidth || 1;
-  const vh = window.innerHeight || document.documentElement.clientHeight || 1;
-  const padX = vw * 0.18, padY = vh * 0.20;     // central ≈ 64% wide × 60% tall
-  return x >= padX && x <= vw - padX && y >= padY && y <= vh - padY;
-}
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
   // While editing the layout, a tap on empty space just clears the selection.
   if (perfEditing) { selectPerfEl(null); return; }
-  // If the chord drawer is open, a tap on the lyrics just closes it (and does
-  // NOT toggle the controls).
+  // A tap on the lyrics dismisses an open chord popup / chord drawer first.
+  if (typeof chordPopupOpen === 'function' && chordPopupOpen()) { closeChordPopup(); return; }
   if (typeof chordPanelOpen === 'function' && chordPanelOpen()) { closeChordPanel(); return; }
-  // Tapping the lyrics never starts/stops the song — only the play button does.
-  // Revealing hidden controls works from anywhere; HIDING only happens when the
-  // tap lands in the central zone, so edge mis-taps don't dismiss the UI.
-  if (controlsAreHidden()) { toggleControlsUI(); return; }
-  if (inCentralTapZone(e.clientX, e.clientY)) toggleControlsUI();
+  // Tapping the lyrics never starts/stops the song. It no longer HIDES the UI
+  // either (that was removed — use the Focus button); a tap only WAKES the
+  // controls if the idle auto-hide has tucked them away.
+  if (controlsAreHidden()) { showControlsUI(); scheduleControlsHide(); }
 });
 
 // Keyboard shortcuts
