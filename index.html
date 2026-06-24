@@ -6231,11 +6231,14 @@ function openSetlistPicker(songIds) {
   newNameInput.value = '';
 
   const renderList = () => {
-    if (state.setlists.length === 0) {
+    // Only the CURRENT album/folder's setlists (matches the library) so the list
+    // isn't cluttered with setlists from every other album.
+    const folderSetlists = setlistsInCurrentFolder();
+    if (folderSetlists.length === 0) {
       list.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text-2);">Noch keine Setlists erstellt</p>';
       return;
     }
-    list.innerHTML = state.setlists.map(sl => {
+    list.innerHTML = folderSetlists.map(sl => {
       const containedCount = songIds.filter(id => (sl.songIds || []).includes(id)).length;
       const allContained = containedCount === songIds.length && songIds.length > 0;
       const badge = allContained
@@ -6290,6 +6293,7 @@ function openSetlistPicker(songIds) {
       id: 'setlist_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
       name,
       songIds: [...songIds],
+      folderId: state.currentFolderId === MAIN_FOLDER_ID ? undefined : state.currentFolderId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
