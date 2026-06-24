@@ -1614,7 +1614,9 @@
     border-radius: 5px;
     padding: 1px 6px;
     font-weight: 600;
-    font-size: 0.78em;
+    /* Honour the AK (chord size) control just like the over-lyric chips, so
+       EVERY chord scales together. */
+    font-size: calc(0.78em * var(--chord-scale, 1));
     white-space: nowrap;
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
   }
@@ -1740,6 +1742,17 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     text-align: center;
     flex: 0 0 auto;
+    /* The wrapper (.seg-chord) is pointer-events:none so empty space stays
+       click-through; re-enable it on the chip itself so over-lyric chords are
+       tappable too (same as standalone chord rows). */
+    pointer-events: auto;
+  }
+  /* The chord whose popup is currently open gets a clear highlight (works for
+     both chord systems). */
+  #lyrics-track .seg-chord-chip.chord-active,
+  #lyrics-track .chord-chip.chord-active {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    box-shadow: 0 0 0 2px var(--accent-glow);
   }
   body.light-mode .chord-segment .seg-chord {
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
@@ -7710,6 +7723,8 @@ function measureMaxScroll() {
 function applyScroll() {
   const track = document.getElementById('lyrics-track');
   track.style.transform = `translateY(${-perfScrollPos}px)`;
+  // Keep an open chord popup glued to its chord as the lyrics scroll.
+  if (typeof repositionChordPopup === 'function') repositionChordPopup();
 }
 
 function startPerfScroll() {
@@ -9824,42 +9839,61 @@ function movableGuitar(rootPc, canon) {
   const tpl = useS6 ? t.s6 : t.s5, base = useS6 ? base6 : base5;
   return tpl.map(o => o < 0 ? -1 : o + base);
 }
-// Correct-by-notes fallback: search for a playable voicing whose every fretted
-// note belongs to the chord (root required; the requested bass note preferred in
-// the bass — used for inversions/slash chords, defaults to the root).
+// Score a candidate voicing — higher is better, -Infinity if unusable. Every
+// fretted note must be a chord tone, the root must sound, most tones covered.
+function scoreVoicing(arr, tuning, pcSet, rootPc, bassPc, base) {
+  const n = tuning.length;
+  const played = []; arr.forEach((f, i) => { if (f >= 0) played.push(i); });
+  if (played.length < Math.min(3, n)) return -Infinity;
+  const pcs = new Set(); played.forEach(i => pcs.add(((tuning[i] + arr[i]) % 12 + 12) % 12));
+  if (!pcs.has(rootPc)) return -Infinity;
+  let coverage = 0; pcSet.forEach(p => { if (pcs.has(p)) coverage++; });
+  if (coverage < Math.min(3, pcSet.size)) return -Infinity;
+  const first = played[0], last = played[played.length - 1];
+  let innerMute = 0; for (let i = first; i <= last; i++) if (arr[i] < 0) innerMute++;
+  const pos = arr.filter(f => f > 0);
+  const span = pos.length ? Math.max(...pos) - Math.min(...pos) : 0;
+  const lowPc = ((tuning[first] + arr[first]) % 12 + 12) % 12;
+  return coverage * 100 + (lowPc === bassPc ? 22 : 0) + played.length * 4
+       - (n - played.length) * 7 - innerMute * 45 - span * 4 - base * 1.5;
+}
+// Best playable voicing within a 4-fret window starting at `base`.
+function bestVoicingAtBase(tuning, pcSet, rootPc, bassPc, base) {
+  const n = tuning.length, SPAN = 3;
+  const cands = tuning.map(open => {
+    const a = [-1];
+    for (let f = (base === 0 ? 0 : base); f <= base + SPAN; f++) if (pcSet.has(((open + f) % 12 + 12) % 12)) a.push(f);
+    return a;
+  });
+  const cur = new Array(n); let best = null, bestS = -Infinity;
+  const rec = (i) => {
+    if (i === n) { const s = scoreVoicing(cur, tuning, pcSet, rootPc, bassPc, base); if (s > bestS) { bestS = s; best = cur.slice(); } return; }
+    for (const f of cands[i]) { cur[i] = f; rec(i + 1); }
+  };
+  rec(0);
+  return best ? { arr: best, score: bestS } : null;
+}
+// Single best voicing anywhere (used as the primary shape / inversion fallback).
 function findVoicing(tuning, pcSet, rootPc, bassPc) {
   if (bassPc == null) bassPc = rootPc;
-  const n = tuning.length, SPAN = 3;
-  let best = null;
-  for (let base = 0; base <= 9; base++) {
-    const cands = tuning.map(open => {
-      const a = [-1];
-      for (let f = (base === 0 ? 0 : base); f <= base + SPAN; f++) {
-        if (pcSet.has(((open + f) % 12 + 12) % 12)) a.push(f);
-      }
-      return a;
-    });
-    const cur = new Array(n);
-    const score = (arr) => {
-      const played = []; arr.forEach((f, i) => { if (f >= 0) played.push(i); });
-      if (played.length < Math.min(3, n)) return;
-      const pcs = new Set(); played.forEach(i => pcs.add(((tuning[i] + arr[i]) % 12 + 12) % 12));
-      if (!pcs.has(rootPc)) return;
-      let coverage = 0; pcSet.forEach(p => { if (pcs.has(p)) coverage++; });
-      if (coverage < Math.min(3, pcSet.size)) return;
-      const first = played[0], last = played[played.length - 1];
-      let innerMute = 0; for (let i = first; i <= last; i++) if (arr[i] < 0) innerMute++;
-      const pos = arr.filter(f => f > 0);
-      const span = pos.length ? Math.max(...pos) - Math.min(...pos) : 0;
-      const lowPc = ((tuning[first] + arr[first]) % 12 + 12) % 12;
-      const s = coverage * 100 + (lowPc === bassPc ? 22 : 0) + played.length * 4
-              - (n - played.length) * 7 - innerMute * 45 - span * 4 - base * 1.5;
-      if (!best || s > best.s) best = { s, arr: arr.slice() };
-    };
-    const rec = (i) => { if (i === n) { score(cur); return; } for (const f of cands[i]) { cur[i] = f; rec(i + 1); } };
-    rec(0);
-  }
-  return best ? best.arr : null;
+  let best = null, bestS = -Infinity;
+  for (let base = 0; base <= 9; base++) { const r = bestVoicingAtBase(tuning, pcSet, rootPc, rootPc, base); if (r && r.score > bestS) { bestS = r.score; best = r.arr; } }
+  if (bassPc !== rootPc) { let b2 = null, s2 = -Infinity; for (let base = 0; base <= 9; base++) { const r = bestVoicingAtBase(tuning, pcSet, rootPc, bassPc, base); if (r && r.score > s2) { s2 = r.score; b2 = r.arr; } } if (b2) return b2; }
+  return best;
+}
+// ALL distinct playable shapes across the neck (guitar/ukulele) — the familiar
+// curated/open shape first, then one best voicing per fret window, deduped and
+// ordered low→high. This is what the popup pages through ("1 of N").
+function guitarShapes(p, instrument) {
+  const tuning = instrument === 'ukulele' ? [7, 0, 4, 9] : [4, 9, 2, 7, 11, 4];
+  const pcSet = chordPcSet(p);
+  const out = [], seen = new Set();
+  const add = (frets) => { if (!frets) return; const k = frets.join(','); if (seen.has(k)) return; seen.add(k); out.push(frets); };
+  add(chordShape(p, instrument, tuning));                 // familiar open/curated shape first
+  for (let base = 0; base <= 11; base++) { const r = bestVoicingAtBase(tuning, pcSet, p.rootPc, p.rootPc, base); if (r) add(r.arr); }
+  const minf = (x) => { const pv = x.filter(f => f > 0); return pv.length ? Math.min(...pv) : 0; };
+  out.sort((a, b) => minf(a) - minf(b));
+  return out.slice(0, 24);
 }
 function chordShape(p, instrument, tuning, bassPc) {
   const inversion = bassPc != null && bassPc !== p.rootPc;
@@ -9910,27 +9944,74 @@ function playChordAudio(p, bassPc) {
 }
 
 // ---- SVG renderers ----
-function chordFretSVG(p, instrument, bassPc) {
-  const tuning = instrument === 'ukulele' ? [7, 0, 4, 9] : [4, 9, 2, 7, 11, 4];
-  let frets = chordShape(p, instrument, tuning, bassPc) || tuning.map(() => -1);
-  const n = tuning.length, FRETS = 4;
+// Assign finger numbers (1=index…4=pinky) and detect a barre. Heuristic but
+// matches the common shapes: a barre = the lowest fret held on 2+ strings with
+// other fingers above it; remaining notes get fingers in ascending-fret order.
+function computeFingers(frets) {
+  const n = frets.length, fretted = [];
+  for (let i = 0; i < n; i++) if (frets[i] > 0) fretted.push({ s: i, f: frets[i] });
+  const fingers = frets.map(() => 0); let barre = null;
+  if (fretted.length) {
+    const minF = Math.min(...fretted.map(x => x.f));
+    const atMin = fretted.filter(x => x.f === minF);
+    const higher = fretted.filter(x => x.f > minF);
+    if (atMin.length >= 2 && higher.length >= 1) {
+      const ss = fretted.map(x => x.s);
+      barre = { fret: minF, from: Math.min(...ss), to: Math.max(...ss) };
+      atMin.forEach(x => fingers[x.s] = 1);
+      let fg = 2; higher.slice().sort((a, b) => a.f - b.f || a.s - b.s).forEach(x => { fingers[x.s] = Math.min(4, fg++); });
+    } else {
+      let fg = 1; fretted.slice().sort((a, b) => a.f - b.f || a.s - b.s).forEach(x => { fingers[x.s] = Math.min(4, fg++); });
+    }
+  }
+  return { fingers, barre };
+}
+function renderFretDiagram(frets) {
+  const n = frets.length, FRETS = 4;
+  const { fingers, barre } = computeFingers(frets);
   const pos = frets.filter(f => f > 0);
   const maxF = pos.length ? Math.max(...pos) : 0, minF = pos.length ? Math.min(...pos) : 0;
   const open = maxF <= FRETS, startFret = open ? 1 : minF;
-  const sGap = 15, fGap = 20, padT = 20, padB = 8, padL = 16, padR = 12;
+  const sGap = 16, fGap = 21, padT = 22, padB = 8, padL = 14, padR = 20;
   const W = padL + padR + (n - 1) * sGap, H = padT + padB + FRETS * fGap;
   const gx = i => padL + i * sGap, gy = r => padT + r * fGap;
   let s = '';
   for (let r = 0; r <= FRETS; r++) { const y = gy(r); const tk = (open && r === 0) ? 3 : 1; s += `<line x1="${gx(0)}" y1="${y}" x2="${gx(n - 1)}" y2="${y}" stroke="var(--text-2)" stroke-width="${tk}"/>`; }
   for (let i = 0; i < n; i++) s += `<line x1="${gx(i)}" y1="${gy(0)}" x2="${gx(i)}" y2="${gy(FRETS)}" stroke="var(--text-2)" stroke-width="1"/>`;
-  if (!open) s += `<text x="${gx(0) - 7}" y="${(gy(0) + fGap * 0.72).toFixed(1)}" font-size="9" fill="var(--text-1)" text-anchor="end">${startFret}</text>`;
+  // Starting-fret number to the right of the top fret (only when not open position).
+  if (!open) s += `<text x="${gx(n - 1) + 8}" y="${(gy(0) + fGap * 0.72).toFixed(1)}" font-size="11" font-weight="700" fill="var(--text-1)" text-anchor="start">${startFret}</text>`;
+  // × (muted) / ○ (open) above the nut
   for (let i = 0; i < n; i++) {
     const f = frets[i], x = gx(i);
     if (f < 0) s += `<text x="${x}" y="${padT - 7}" font-size="10" fill="var(--text-2)" text-anchor="middle">×</text>`;
-    else if (f === 0) s += `<circle cx="${x}" cy="${padT - 10}" r="3.2" fill="none" stroke="var(--text-1)" stroke-width="1.3"/>`;
-    else { const cy = gy(f - startFret + 1) - fGap / 2; s += `<circle cx="${x}" cy="${cy.toFixed(1)}" r="5" fill="var(--accent)"/>`; }
+    else if (f === 0) s += `<circle cx="${x}" cy="${padT - 10}" r="3.4" fill="none" stroke="var(--text-1)" stroke-width="1.4"/>`;
+  }
+  // Barre bar
+  if (barre) {
+    const cy = gy(barre.fret - startFret + 1) - fGap / 2, x1 = gx(barre.from), x2 = gx(barre.to);
+    s += `<rect x="${(x1 - 6).toFixed(1)}" y="${(cy - 6).toFixed(1)}" width="${(x2 - x1 + 12).toFixed(1)}" height="12" rx="6" fill="var(--accent)"/>`;
+    s += `<text x="${((x1 + x2) / 2).toFixed(1)}" y="${(cy + 3.2).toFixed(1)}" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">1</text>`;
+  }
+  // Finger dots (skip strings already drawn as part of the barre)
+  for (let i = 0; i < n; i++) {
+    const f = frets[i]; if (f <= 0) continue; if (barre && f === barre.fret) continue;
+    const cy = gy(f - startFret + 1) - fGap / 2;
+    s += `<circle cx="${gx(i)}" cy="${cy.toFixed(1)}" r="6.5" fill="var(--accent)"/>`;
+    if (fingers[i]) s += `<text x="${gx(i)}" y="${(cy + 3.2).toFixed(1)}" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">${fingers[i]}</text>`;
   }
   return `<svg class="chord-dgm" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">${s}</svg>`;
+}
+function chordFretSVG(p, instrument, bassPc) {
+  const tuning = instrument === 'ukulele' ? [7, 0, 4, 9] : [4, 9, 2, 7, 11, 4];
+  return renderFretDiagram(chordShape(p, instrument, tuning, bassPc) || tuning.map(() => -1));
+}
+// What the popup pages through: piano = inversions; guitar/ukulele = shapes.
+function chordVariants(p, instrument) {
+  if (instrument === 'piano') {
+    return chordInversions(p).map(inv => ({ kind: 'piano', bassPc: inv.bassPc, name: inv.name, label: inv.label }));
+  }
+  const shapes = guitarShapes(p, instrument);
+  return shapes.map((frets, i) => ({ kind: 'fret', frets, name: p.display.replace(/\/.*$/, ''), label: (i + 1) + ' / ' + shapes.length }));
 }
 function chordPianoSVG(p, bassPc) {
   const W = 196, H = 64, whiteW = W / 14, blackW = whiteW * 0.62, blackH = H * 0.62;
@@ -9976,11 +10057,11 @@ function setChordInstrument(inst) {
   try { localStorage.setItem(CHORD_INSTRUMENT_KEY, inst); } catch (e) {}
   document.querySelectorAll('.chord-inst').forEach(b => b.classList.toggle('active', b.dataset.inst === inst));
   renderChordPanel();
-  if (chordPopupOpen()) renderChordPopup();   // keep the open popup in sync with the global instrument
+  if (chordPopupOpen()) { rebuildChordVariants(); renderChordPopup(); requestAnimationFrame(positionChordPopup); }   // sync the open popup (inversions↔shapes)
 }
 
 // ===== Floating chord popup (tap a chord in the lyrics) =====
-let cpChord = null, cpInvs = [], cpIdx = 0, cpAnchor = null;
+let cpChord = null, cpVariants = [], cpIdx = 0, cpAnchorEl = null;
 function ensureChordPopup() {
   let el = document.getElementById('chord-popup');
   if (el) return el;
@@ -9989,16 +10070,16 @@ function ensureChordPopup() {
   el.innerHTML =
     '<div class="cp-name" id="cp-name"></div>' +
     '<div class="cp-dgm" id="cp-dgm"></div>' +
-    '<div class="cp-nav"><button class="cp-arrow" id="cp-prev" aria-label="' + escapeHtml(T('Vorherige Umkehrung')) + '">‹</button>' +
+    '<div class="cp-nav"><button class="cp-arrow" id="cp-prev" aria-label="' + escapeHtml(T('Zurück')) + '">‹</button>' +
     '<span class="cp-inv" id="cp-inv"></span>' +
-    '<button class="cp-arrow" id="cp-next" aria-label="' + escapeHtml(T('Nächste Umkehrung')) + '">›</button></div>' +
+    '<button class="cp-arrow" id="cp-next" aria-label="' + escapeHtml(T('Weiter')) + '">›</button></div>' +
     '<button class="cp-play" id="cp-play">▶ ' + escapeHtml(T('Abspielen')) + '</button>';
   document.body.appendChild(el);
   el.addEventListener('click', (e) => e.stopPropagation());
   el.querySelector('#cp-prev').addEventListener('click', (e) => { e.stopPropagation(); navChordPopup(-1); });
   el.querySelector('#cp-next').addEventListener('click', (e) => { e.stopPropagation(); navChordPopup(1); });
-  el.querySelector('#cp-play').addEventListener('click', (e) => { e.stopPropagation(); if (cpChord) playChordAudio(cpChord, cpInvs[cpIdx] && cpInvs[cpIdx].bassPc); });
-  // swipe left/right to change inversion
+  el.querySelector('#cp-play').addEventListener('click', (e) => { e.stopPropagation(); if (cpChord) { const v = cpVariants[cpIdx]; playChordAudio(cpChord, (v && v.kind === 'piano') ? v.bassPc : cpChord.rootPc); } });
+  // swipe left/right to change variant (inversion / shape)
   let sx = null;
   el.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
   el.addEventListener('touchend', (e) => {
@@ -10008,47 +10089,63 @@ function ensureChordPopup() {
   return el;
 }
 function chordPopupOpen() { const el = document.getElementById('chord-popup'); return !!el && el.classList.contains('show'); }
+function rebuildChordVariants() {
+  if (!cpChord) return;
+  cpVariants = chordVariants(cpChord, chordPanelInstrument);
+  if (cpIdx >= cpVariants.length) cpIdx = 0;
+}
 function renderChordPopup() {
   const el = document.getElementById('chord-popup'); if (!el || !cpChord) return;
-  const inv = cpInvs[cpIdx] || { bassPc: cpChord.rootPc, name: cpChord.display, label: '' };
-  el.querySelector('#cp-name').textContent = inv.name;
-  el.querySelector('#cp-inv').textContent = inv.label;
-  const inst = chordPanelInstrument;
-  el.querySelector('#cp-dgm').innerHTML = inst === 'piano' ? chordPianoSVG(cpChord, inv.bassPc) : chordFretSVG(cpChord, inst, inv.bassPc);
-  const multi = cpInvs.length > 1;
+  const v = cpVariants[cpIdx] || { kind: 'piano', bassPc: cpChord.rootPc, name: cpChord.display, label: '' };
+  el.querySelector('#cp-name').textContent = v.name;
+  el.querySelector('#cp-inv').textContent = v.label;
+  el.querySelector('#cp-dgm').innerHTML = v.kind === 'piano' ? chordPianoSVG(cpChord, v.bassPc) : renderFretDiagram(v.frets);
+  const multi = cpVariants.length > 1;
   el.querySelector('#cp-prev').style.visibility = multi ? '' : 'hidden';
   el.querySelector('#cp-next').style.visibility = multi ? '' : 'hidden';
 }
+// Position the popup relative to the CHORD ELEMENT (so it rides along while the
+// lyrics autoscroll). Closes itself if the chord scrolls out of the lyrics view.
 function positionChordPopup() {
-  const el = document.getElementById('chord-popup'); if (!el || !cpAnchor) return;
-  el.style.left = '0px'; el.style.top = '0px';   // measure unconstrained
-  const r = el.getBoundingClientRect();
+  const el = document.getElementById('chord-popup'); if (!el || !cpAnchorEl) return;
+  const a = cpAnchorEl.getBoundingClientRect();
+  const stage = document.getElementById('lyrics-stage');
+  if (stage) { const sr = stage.getBoundingClientRect(); if (a.bottom < sr.top + 2 || a.top > sr.bottom - 2) { closeChordPopup(); return; } }
+  const r = el.getBoundingClientRect();   // size is position-independent (fixed width), safe to read directly
   const vw = window.innerWidth, vh = window.innerHeight, M = 8, gap = 10;
-  let left = cpAnchor.left + cpAnchor.width / 2 - r.width / 2;
+  let left = a.left + a.width / 2 - r.width / 2;
   left = Math.max(M, Math.min(vw - M - r.width, left));
-  let top = cpAnchor.top - gap - r.height;                 // prefer above
-  if (top < M) top = cpAnchor.bottom + gap;                // not enough room → below
+  let top = a.top - gap - r.height;                 // prefer above the chord
+  if (top < M) top = a.bottom + gap;                // not enough room → below it
   top = Math.max(M, Math.min(vh - M - r.height, top));
   el.style.left = Math.round(left) + 'px';
   el.style.top = Math.round(top) + 'px';
 }
+function repositionChordPopup() { if (chordPopupOpen()) positionChordPopup(); }
 function navChordPopup(dir) {
-  if (!cpInvs.length) return;
-  cpIdx = (cpIdx + dir + cpInvs.length) % cpInvs.length;
+  if (!cpVariants.length) return;
+  cpIdx = (cpIdx + dir + cpVariants.length) % cpVariants.length;
   renderChordPopup();
-  requestAnimationFrame(positionChordPopup);   // size may change → keep on-screen
+  requestAnimationFrame(positionChordPopup);   // size may change → keep anchored & on-screen
 }
-function openChordPopup(parsed, anchorRect) {
+function openChordPopup(parsed, chipEl) {
   const el = ensureChordPopup();
-  cpChord = parsed; cpInvs = chordInversions(parsed); cpAnchor = anchorRect;
-  // start at the inversion matching the written bass (e.g. G/B), else root position
+  closeChordPopup();                               // clear any previous (incl. highlight)
+  cpChord = parsed; cpAnchorEl = chipEl;
+  cpVariants = chordVariants(parsed, chordPanelInstrument);
   cpIdx = 0;
-  if (parsed.bassPc != null) { const k = cpInvs.findIndex(v => v.bassPc === parsed.bassPc); if (k >= 0) cpIdx = k; }
+  // For piano, start on the inversion matching a written slash bass (e.g. G/B).
+  if (chordPanelInstrument === 'piano' && parsed.bassPc != null) { const k = cpVariants.findIndex(v => v.bassPc === parsed.bassPc); if (k >= 0) cpIdx = k; }
+  if (chipEl) chipEl.classList.add('chord-active');
   renderChordPopup();
   el.classList.add('show');
   requestAnimationFrame(positionChordPopup);
 }
-function closeChordPopup() { const el = document.getElementById('chord-popup'); if (el) el.classList.remove('show'); cpChord = null; }
+function closeChordPopup() {
+  const el = document.getElementById('chord-popup'); if (el) el.classList.remove('show');
+  if (cpAnchorEl) cpAnchorEl.classList.remove('chord-active');
+  cpChord = null; cpAnchorEl = null;
+}
 
 (function setupChordPopup() {
   // Tap a chord chip in the lyrics → open the popup for that chord.
@@ -10060,7 +10157,7 @@ function closeChordPopup() { const el = document.getElementById('chord-popup'); 
     e.stopPropagation();          // don't let the lyrics handler also react
     const txt = (chip.firstChild && chip.firstChild.nodeType === 3) ? chip.firstChild.textContent : chip.textContent;
     const parsed = parseChordForDiagram(txt);
-    if (parsed) openChordPopup(parsed, chip.getBoundingClientRect());
+    if (parsed) openChordPopup(parsed, chip);
   });
   // Click anywhere outside the popup (and not on a chip / the lyrics, which have
   // their own handlers) closes it.
