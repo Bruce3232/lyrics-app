@@ -8133,8 +8133,10 @@ function remeasureAfterPanelShift() {
 }
 
 function renderQuickSongsList() {
-  // Filter by active setlist if set
-  let list = [...state.songs];
+  // "Alle Songs" is scoped to the CURRENT folder/album (same as the library) so
+  // it doesn't list songs from every other album. An active setlist narrows it
+  // further below.
+  let list = songsInCurrentFolder();
   let setlistName = '';
   if (state.currentSetlistId) {
     const setlist = state.setlists.find(s => s.id === state.currentSetlistId);
@@ -9630,7 +9632,8 @@ document.getElementById('perf-restart').addEventListener('click', restartPerf);
 // Build the same ordered list that the quick-songs panel uses, so prev/next
 // follow the same context (setlist if active, otherwise full custom order).
 function getPerfSongOrder() {
-  let list = [...state.songs];
+  // Prev/next stays within the current folder/album (matches the "Alle Songs" panel).
+  let list = songsInCurrentFolder();
   if (state.currentSetlistId) {
     const setlist = state.setlists.find(s => s.id === state.currentSetlistId);
     if (setlist) {
