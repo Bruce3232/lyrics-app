@@ -8708,7 +8708,7 @@ function setSelection(keys) {
   selectedKeys = (keys || []).filter(Boolean);
   selectedPerfEl = selectedKeys.length ? elByKey(selectedKeys[selectedKeys.length - 1]) : null;
   perfEls().forEach(e => e.classList.toggle('selected', selectedKeys.includes(e.dataset.perfEl)));
-  updateSelectionUI();
+  updatePerfSelectionUI();
 }
 // Convenience single-select used by canvas taps and resets.
 function selectPerfEl(el) { setSelection(el ? [el.dataset.perfEl] : []); }
@@ -8717,7 +8717,9 @@ function toggleSelection(key) {
   if (i >= 0) selectedKeys.splice(i, 1); else selectedKeys.push(key);
   setSelection([...selectedKeys]);
 }
-function updateSelectionUI() {
+// NB: renamed from updateSelectionUI to avoid shadowing the LIBRARY's
+// updateSelectionUI (song multi-select) — both are top-level, last-defined wins.
+function updatePerfSelectionUI() {
   const resetSel = document.getElementById('perf-edit-reset-sel');
   const alignSec = document.getElementById('pep-align-sec');
   const box = document.getElementById('perf-sel-box');
