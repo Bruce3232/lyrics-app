@@ -3570,7 +3570,7 @@
       <div class="version-tabs" id="version-tabs"></div>
 
       <div class="speed-card">
-        <span class="speed-card-label">Scroll-Geschwindigkeit</span>
+        <span class="speed-card-label">Standard-Scroll-Geschwindigkeit</span>
         <div class="speed-slider-wrap">
           <input type="range" class="range-slider" id="ed-speed" min="5" max="40" step="1" value="20">
           <span class="speed-value" id="ed-speed-value">30 px/s</span>
@@ -4446,7 +4446,10 @@ function vid() {
 function migrateSong(song) {
   if (!song.versions || !Array.isArray(song.versions) || song.versions.length === 0) {
     const defaultVersion = {
-      id: vid(),
+      // DETERMINISTIC id derived from the song id (not random) so re-migrating the
+      // same legacy song always yields the SAME version id. Personal performance
+      // settings are keyed by version id, so a random id each open would lose them.
+      id: 'vorig_' + (song.id || vid()),
       name: 'Original',
       lyrics: song.lyrics || '',
       scrollSpeed: song.scrollSpeed || 30,
@@ -5007,6 +5010,7 @@ const I18N = {
     "Künstler / Band": "Artist / band",
     "In Setlists einsortieren": "Add to setlists",
     "Scroll-Geschwindigkeit": "Scroll speed",
+    "Standard-Scroll-Geschwindigkeit": "Default scroll speed",
     "30 px/s": "30 px/s",
     "Lyrics & Akkorde": "Lyrics & chords",
     "Song speichern": "Save song",
@@ -7538,12 +7542,122 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// =====================================================
+//   Personal performance settings — PER ACCOUNT + PER DEVICE, never shared
+//   These must stay independent for every collaborator on a shared album, so
+//   they live in localStorage keyed by the signed-in account (uid) — NOT on the
+//   synced song object. Covered: transpose, font size, scroll speed and AK
+//   chord size (per song version) + pinned chords (per song). On first read for
+//   a song they SEED from any value still embedded on the song/version (the old
+//   in-song model) so existing users keep their current setup; after that the
+//   personal store wins and changing them never touches the synced song.
+// =====================================================
+const PERSONAL_PERF_KEY = 'lyrics-personal-perf';
+function personalScopeId() {
+  try { return (cloud && cloud.user && cloud.user.uid) ? cloud.user.uid : 'local'; } catch (e) { return 'local'; }
+}
+function loadPersonalPerf() {
+  try { return JSON.parse(localStorage.getItem(PERSONAL_PERF_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+function savePersonalPerf(obj) {
+  try { localStorage.setItem(PERSONAL_PERF_KEY, JSON.stringify(obj)); } catch (e) {}
+}
+// This account's stored record for a song (or null), creating it when create=true.
+function personalSongRec(store, songId, create) {
+  const scope = personalScopeId();
+  if (create && !store[scope]) store[scope] = {};
+  const acct = store[scope];
+  if (!acct) return null;
+  if (create && !acct[songId]) acct[songId] = {};
+  return acct[songId] || null;
+}
+// Per-version { transpose, fontSize, scrollSpeed, chordScale }. Missing values
+// fall back to (seed from) the value still on the version, then hard defaults.
+function getPersonalVerSettings(song, ver) {
+  const seed = {
+    transpose: (typeof ver.transpose === 'number') ? ver.transpose : 0,
+    fontSize: ver.fontSize || 30,
+    scrollSpeed: ver.scrollSpeed || 30,
+    chordScale: (typeof ver.chordScale === 'number') ? ver.chordScale : 1,
+  };
+  const rec = personalSongRec(loadPersonalPerf(), song.id, false);
+  const saved = (rec && rec.versions && rec.versions[ver.id]) || null;
+  if (!saved) return seed;
+  const pick = (k) => (typeof saved[k] === 'number') ? saved[k] : seed[k];
+  return { transpose: pick('transpose'), fontSize: pick('fontSize'), scrollSpeed: pick('scrollSpeed'), chordScale: pick('chordScale') };
+}
+function setPersonalVerSetting(songId, versionId, key, value) {
+  if (!songId || !versionId) return;
+  const store = loadPersonalPerf();
+  const rec = personalSongRec(store, songId, true);
+  if (!rec.versions) rec.versions = {};
+  if (!rec.versions[versionId]) rec.versions[versionId] = {};
+  rec.versions[versionId][key] = value;
+  savePersonalPerf(store);
+}
+// Pinned chords are per song (not per version). Seed from the old song.pinnedChords.
+function getPersonalPins(song) {
+  const rec = personalSongRec(loadPersonalPerf(), song.id, false);
+  if (rec && Array.isArray(rec.pins)) return rec.pins.map(p => ({ ...p }));
+  if (Array.isArray(song.pinnedChords)) return song.pinnedChords.map(p => ({ ...p }));
+  return [];
+}
+function setPersonalPins(songId, pins) {
+  if (!songId) return;
+  const store = loadPersonalPerf();
+  const rec = personalSongRec(store, songId, true);
+  rec.pins = (pins || []).map(p => ({ ...p }));
+  savePersonalPerf(store);
+}
+
+// Debounced writer for the per-version personal settings (transpose / font / speed
+// / AK). It captures {songId, versionId, ...changed keys} at CHANGE time (not at
+// timer-fire time) so switching songs can flush the OUTGOING song's pending change
+// to the correct key instead of losing it or misfiring against the new song. Only
+// keys the user actually changed are written (no seed-pinning of unchanged values).
+let perfPendingWrite = null;
+let perfSaveDebounce = null;
+function flushPersonalSave() {
+  clearTimeout(perfSaveDebounce); perfSaveDebounce = null;
+  const w = perfPendingWrite; perfPendingWrite = null;
+  if (!w || !w.songId || !w.versionId) return;
+  ['transpose', 'fontSize', 'scrollSpeed', 'chordScale'].forEach(k => {
+    if (typeof w[k] === 'number') setPersonalVerSetting(w.songId, w.versionId, k, w[k]);
+  });
+}
+function queuePersonalSave(key, value) {
+  const s = state.currentSong, v = currentVersion();
+  if (!s || !s.id || !v || !v.id || typeof value !== 'number') return;
+  // A pending write for a different song/version must be flushed before reusing.
+  if (perfPendingWrite && (perfPendingWrite.songId !== s.id || perfPendingWrite.versionId !== v.id)) flushPersonalSave();
+  if (!perfPendingWrite) perfPendingWrite = { songId: s.id, versionId: v.id };
+  perfPendingWrite[key] = value;
+  clearTimeout(perfSaveDebounce);
+  perfSaveDebounce = setTimeout(flushPersonalSave, 300);
+}
+
 function openPerformance(song) {
+  // Flush the OUTGOING song's pending personal edits before switching away, so a
+  // change made within the debounce window isn't lost (covers EVERY switch path,
+  // incl. jumpSong / prev-next). Personal store only — never the synced song.
+  if (typeof flushPersonalSave === 'function') flushPersonalSave();
   // Persist any pending pinned-chord change for the OUTGOING song before we
   // replace state.currentSong — otherwise a quick switch could lose it.
   if (typeof flushPinsSave === 'function') flushPinsSave();
   state.currentSong = migrateSong({ ...song, versions: song.versions ? song.versions.map(v => ({ ...v })) : undefined });
   const ver = currentVersion();
+
+  // Load THIS account's personal performance settings (transpose / font / speed /
+  // AK chord size) into the working version, and this song's personal pinned
+  // chords — these are never read from the shared song from here on.
+  if (ver) {
+    const ps = getPersonalVerSettings(state.currentSong, ver);
+    ver.transpose = ps.transpose;
+    ver.fontSize = ps.fontSize;
+    ver.scrollSpeed = ps.scrollSpeed;
+    ver.chordScale = ps.chordScale;
+  }
+  state.currentSong.pinnedChords = getPersonalPins(state.currentSong);
 
   // Title shows song name + version name (if not "Original" / single version)
   const showVersion = state.currentSong.versions.length > 1 || (ver && ver.name && ver.name.toLowerCase() !== 'original');
@@ -7927,43 +8041,10 @@ function applyFontSizeLive(px) {
   adjustChordOverlaps();
 }
 
-let fontSaveDebounce = null;
-function saveCurrentFontSize() {
-  clearTimeout(fontSaveDebounce);
-  fontSaveDebounce = setTimeout(async () => {
-    if (state.currentSong && state.currentSong.id) {
-      const stored = await dbGet(state.currentSong.id);
-      if (stored) {
-        const migrated = migrateSong(stored);
-        const v = migrated.versions.find(x => x.id === state.currentSong.activeVersionId);
-        if (v) {
-          v.fontSize = currentVersion().fontSize;
-          migrated.activeVersionId = state.currentSong.activeVersionId;
-          await dbPut(migrated);
-        }
-      }
-    }
-  }, 500);
-}
-
-let speedSaveDebounce = null;
-function saveCurrentSpeed() {
-  clearTimeout(speedSaveDebounce);
-  speedSaveDebounce = setTimeout(async () => {
-    if (state.currentSong && state.currentSong.id) {
-      const stored = await dbGet(state.currentSong.id);
-      if (stored) {
-        const migrated = migrateSong(stored);
-        const v = migrated.versions.find(x => x.id === state.currentSong.activeVersionId);
-        if (v) {
-          v.scrollSpeed = currentVersion().scrollSpeed;
-          migrated.activeVersionId = state.currentSong.activeVersionId;
-          await dbPut(migrated);
-        }
-      }
-    }
-  }, 500);
-}
+// Font size, scroll speed, AK chord size and transpose are PERSONAL — queued to the
+// per-account/per-device personal store only (never the synced song).
+function saveCurrentFontSize() { const v = currentVersion(); if (v) queuePersonalSave('fontSize', v.fontSize); }
+function saveCurrentSpeed() { const v = currentVersion(); if (v) queuePersonalSave('scrollSpeed', v.scrollSpeed); }
 
 // Manual scroll override (mouse wheel). Scrolling never reveals the UI;
 // the user controls visibility via tap only.
@@ -8201,13 +8282,19 @@ document.getElementById('perf-back').addEventListener('click', () => {
   releaseWakeLock();
   showView('library');
 });
-document.getElementById('perf-edit').addEventListener('click', () => {
+// Edit from the performance view: re-read the STORED song so the editor works on the
+// shared content, NOT the in-memory copy whose version fields were overwritten with
+// this account's personal transpose/font/AK + pinned chords (those must not be saved
+// onto the synced song).
+document.getElementById('perf-edit').addEventListener('click', async () => {
   stopPerfScroll();
   releaseWakeLock();
-  openEditor(state.currentSong);
+  const stored = state.currentSong ? await dbGet(state.currentSong.id) : null;
+  openEditor(stored || state.currentSong);
 });
-document.getElementById('perf-edit-empty').addEventListener('click', () => {
-  openEditor(state.currentSong);
+document.getElementById('perf-edit-empty').addEventListener('click', async () => {
+  const stored = state.currentSong ? await dbGet(state.currentSong.id) : null;
+  openEditor(stored || state.currentSong);
 });
 
 // Quick Songs Panel
@@ -8348,14 +8435,13 @@ function renderQuickSongsList() {
         closeQuickSongs();
         return;
       }
-      await flushPendingSaves();
       const stored = await dbGet(songId);
       if (!stored) return;
       const migrated = migrateSong(stored);
       if (!migrated.versions.find(v => v.id === versionId)) return;
+      // Switch the viewed version LOCALLY only — performance is a personal view, so
+      // it must not dbPut/bump updatedAt/sync the song to collaborators.
       migrated.activeVersionId = versionId;
-      migrated.updatedAt = Date.now();
-      await dbPut(migrated);
       closeQuickSongs();
       stopPerfScroll();
       openPerformance(migrated);
@@ -8367,26 +8453,9 @@ document.getElementById('perf-quick-songs').addEventListener('click', openQuickS
 document.getElementById('quick-songs-close').addEventListener('click', closeQuickSongs);
 document.getElementById('quick-songs-backdrop').addEventListener('click', closeQuickSongs);
 
-// Flush debounced saves immediately so a song switch doesn't lose the latest speed/font changes
-async function flushPendingSaves() {
-  const cur = state.currentSong;
-  if (!cur || !cur.id) return;
-  clearTimeout(fontSaveDebounce);
-  clearTimeout(speedSaveDebounce);
-  try {
-    const stored = await dbGet(cur.id);
-    if (!stored) return;
-    const migrated = migrateSong(stored);
-    const v = migrated.versions.find(x => x.id === cur.activeVersionId);
-    const curVer = currentVersion();
-    if (v && curVer) {
-      v.fontSize = curVer.fontSize;
-      v.scrollSpeed = curVer.scrollSpeed;
-      migrated.activeVersionId = cur.activeVersionId;
-      await dbPut(migrated);
-    }
-  } catch (e) {}
-}
+// Flush pending PERSONAL edits immediately so a song switch doesn't lose the latest
+// transpose/font/speed/AK change. Personal store only — never the synced song.
+function flushPendingSaves() { flushPersonalSave(); }
 // Performance controls layout (right-side vs bottom), chosen in the perf Settings menu.
 const PERF_LAYOUT_KEY = 'lyrics-perf-layout';
 function getPerfLayout() {
@@ -9808,24 +9877,7 @@ function changeTranspose(delta) {
     if (typeof buildChordPanel === 'function') buildChordPanel();   // chords changed → refresh diagrams
   }
 }
-let transposeSaveDebounce = null;
-function saveCurrentTranspose() {
-  clearTimeout(transposeSaveDebounce);
-  transposeSaveDebounce = setTimeout(async () => {
-    if (state.currentSong && state.currentSong.id) {
-      const stored = await dbGet(state.currentSong.id);
-      if (stored) {
-        const migrated = migrateSong(stored);
-        const v = migrated.versions.find(x => x.id === state.currentSong.activeVersionId);
-        if (v) {
-          v.transpose = state.transpose;
-          migrated.activeVersionId = state.currentSong.activeVersionId;
-          await dbPut(migrated);
-        }
-      }
-    }
-  }, 500);
-}
+function saveCurrentTranspose() { queuePersonalSave('transpose', state.transpose); }
 document.getElementById('perf-transpose-down').addEventListener('click', () => changeTranspose(-1));
 document.getElementById('perf-transpose-up').addEventListener('click', () => changeTranspose(1));
 
@@ -10321,14 +10373,12 @@ function pinSizeClass(size) { return 'pin-' + (PIN_SIZES.indexOf(size) >= 0 ? si
 // lose its last change.
 let pinsSaveDebounce = null;
 let pinsPendingWrite = null;   // { songId, snapshot } awaiting the debounce
-async function flushPinsSave() {
+function flushPinsSave() {
   if (!pinsPendingWrite) return;
   clearTimeout(pinsSaveDebounce); pinsSaveDebounce = null;
   const { songId, snapshot } = pinsPendingWrite;
   pinsPendingWrite = null;
-  if (!songId) return;
-  const stored = await dbGet(songId);
-  if (stored) { stored.pinnedChords = snapshot; await dbPut(stored); }
+  setPersonalPins(songId, snapshot);   // PERSONAL — never the synced song
 }
 function saveCurrentPins() {
   clearTimeout(pinsSaveDebounce);
@@ -10651,24 +10701,7 @@ function changeChordSize(delta) {
   saveCurrentChordSize();
 }
 
-let chordSizeSaveDebounce = null;
-function saveCurrentChordSize() {
-  clearTimeout(chordSizeSaveDebounce);
-  chordSizeSaveDebounce = setTimeout(async () => {
-    if (state.currentSong && state.currentSong.id) {
-      const stored = await dbGet(state.currentSong.id);
-      if (stored) {
-        const migrated = migrateSong(stored);
-        const v = migrated.versions.find(x => x.id === state.currentSong.activeVersionId);
-        if (v) {
-          v.chordScale = currentVersion().chordScale;
-          migrated.activeVersionId = state.currentSong.activeVersionId;
-          await dbPut(migrated);
-        }
-      }
-    }
-  }, 500);
-}
+function saveCurrentChordSize() { const v = currentVersion(); if (v) queuePersonalSave('chordScale', v.chordScale); }
 
 document.getElementById('perf-chord-down').addEventListener('click', () => changeChordSize(-0.1));
 document.getElementById('perf-chord-up').addEventListener('click', () => changeChordSize(0.1));
