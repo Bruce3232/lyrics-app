@@ -2732,6 +2732,79 @@
   /* Chord chips are tappable to open the popup. */
   #lyrics-track .seg-chord-chip, #lyrics-track .chord-chip { cursor: pointer; }
 
+  /* ===== Pin button inside the chord popup ===== */
+  .cp-actions { display: flex; gap: 6px; }
+  .cp-actions .cp-play { flex: 1; width: auto; }
+  .cp-pin {
+    flex: 0 0 auto; padding: 7px 10px; border-radius: 9px;
+    border: 1px solid var(--border-strong); background: var(--surface);
+    color: var(--text-0); font-weight: 700; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px; line-height: 1;
+    transition: background 0.12s var(--ease), border-color 0.12s var(--ease), color 0.12s var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cp-pin:hover { border-color: var(--accent); }
+  .cp-pin.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ===== Pinned chord cards (floating, draggable; persist per song) ===== */
+  .pinned-layer { position: absolute; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
+  /* Don't clash with the layout editor (it has its own drag system). */
+  #performance-view.perf-editing .pinned-layer { display: none; }
+  .pinned-card {
+    position: absolute; left: 66%; top: 16%; width: 168px;
+    pointer-events: auto; touch-action: none;
+    background: var(--surface-strong);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-strong); border-radius: 14px;
+    box-shadow: 0 10px 34px rgba(0,0,0,0.40);
+    padding: 6px 8px 8px; text-align: center;
+    user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pinned-card.pin-dragging { box-shadow: 0 16px 46px rgba(0,0,0,0.55); opacity: 0.97; }
+  .pin-head { display: flex; align-items: center; gap: 4px; margin-bottom: 1px; }
+  .pin-handle {
+    flex: 0 0 auto; width: 18px; height: 22px; cursor: grab;
+    color: var(--text-2); font-size: 13px; line-height: 22px; text-align: center; touch-action: none;
+  }
+  .pin-handle:active { cursor: grabbing; }
+  .pin-name {
+    flex: 1; min-width: 0; font-weight: 800; color: var(--text-0); font-size: 15px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pin-x {
+    flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%;
+    border: none; background: transparent; color: var(--text-2);
+    font-size: 13px; line-height: 1; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .pin-x:hover { color: #ff4757; }
+  .pin-dgm { margin: 1px 0 3px; }
+  .pin-dgm .chord-dgm { max-height: 96px; }
+  .pin-foot { display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .pin-meta { font-size: 11px; font-weight: 600; color: var(--text-1); min-width: 34px; }
+  .pin-btn {
+    flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px;
+    border: 1px solid var(--border-strong); background: var(--surface);
+    color: var(--text-0); font-size: 13px; line-height: 1; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.12s var(--ease), color 0.12s var(--ease);
+  }
+  .pin-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .pin-btn.pin-play { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .pin-btn.pin-play:hover { filter: brightness(1.06); color: #fff; }
+  /* Three sizes: Small (quick reminder) · Medium (normal) · Large (learning view) */
+  .pinned-card.pin-small  { width: 116px; padding: 4px 6px 6px; }
+  .pinned-card.pin-small .pin-name { font-size: 13px; }
+  .pinned-card.pin-small .pin-meta { display: none; }
+  .pinned-card.pin-small .pin-btn { width: 21px; height: 21px; font-size: 12px; }
+  .pinned-card.pin-small .pin-dgm .chord-dgm { max-height: 70px; }
+  .pinned-card.pin-medium { width: 168px; }
+  .pinned-card.pin-large  { width: 238px; padding: 8px 12px 12px; }
+  .pinned-card.pin-large .pin-name { font-size: 18px; }
+  .pinned-card.pin-large .pin-btn { width: 28px; height: 28px; font-size: 15px; }
+  .pinned-card.pin-large .pin-dgm .chord-dgm { max-height: 142px; }
+
   /* ===== Focus mode: hide all chrome, keep only lyrics + chords + popup ===== */
   #performance-view.perf-focus .perf-overlay { opacity: 0 !important; pointer-events: none !important; }
   #performance-view.perf-focus .perf-controls > [data-perf-el]:not([data-perf-el="focus"]) { opacity: 0 !important; pointer-events: none !important; }
@@ -3604,6 +3677,9 @@
       </div>
     </div>
 
+    <!-- Pinned chord cards: floating, draggable, persist per song -->
+    <div class="pinned-layer" id="pinned-layer"></div>
+
     <div class="perf-controls" id="perf-controls">
       <div class="perf-settings-wrap" data-perf-el="settings">
         <button class="perf-icon-btn" id="perf-settings-btn" title="Steuerung &amp; Layout">
@@ -3620,6 +3696,9 @@
               <button class="perf-autohide-btn" data-autohide="on">An</button>
               <button class="perf-autohide-btn" data-autohide="off">Aus</button>
             </div>
+          </div>
+          <div class="perf-settings-group">
+            <button class="perf-edit-layout-btn" id="perf-clear-pins">Pin-Akkorde entfernen</button>
           </div>
           <div class="perf-settings-group">
             <button class="perf-edit-layout-btn" id="perf-edit-layout-btn">Layout bearbeiten</button>
@@ -5312,7 +5391,18 @@ const I18N = {
     "Umkehrung": "Inversion",
     "Abspielen": "Play",
     "Vorherige Umkehrung": "Previous inversion",
-    "Nächste Umkehrung": "Next inversion"
+    "Nächste Umkehrung": "Next inversion",
+    "Weiter": "Next",
+    "Anheften": "Pin",
+    "Angeheftet": "Pinned",
+    "Lösen": "Unpin",
+    "Ziehen zum Verschieben": "Drag to move",
+    "Grösse ändern": "Change size",
+    "Pin-Akkorde entfernen": "Remove pinned chords",
+    "Akkord angeheftet": "Chord pinned",
+    "Akkord gelöst": "Chord unpinned",
+    "Keine angehefteten Akkorde": "No pinned chords",
+    "Alle angehefteten Akkorde dieses Songs entfernen?": "Remove all pinned chords from this song?"
   }
 };
 let currentLang = 'de';
@@ -7482,6 +7572,8 @@ function openPerformance(song) {
     if (getPerfLayout() === 'custom') applyCustomLayout();
     // Detect this song's chords once and render the reference drawer.
     if (typeof buildChordPanel === 'function') buildChordPanel();
+    // Restore this song's pinned chord cards.
+    if (typeof renderPinnedChords === 'function') renderPinnedChords();
   }, 100);
   resetControlsTimer();
   requestWakeLock();
@@ -10066,6 +10158,7 @@ function setChordInstrument(inst) {
   try { localStorage.setItem(CHORD_INSTRUMENT_KEY, inst); } catch (e) {}
   document.querySelectorAll('.chord-inst').forEach(b => b.classList.toggle('active', b.dataset.inst === inst));
   renderChordPanel();
+  if (typeof renderPinnedChords === 'function') renderPinnedChords();   // pinned cards follow the selected instrument
   if (chordPopupOpen()) { rebuildChordVariants(); renderChordPopup(); requestAnimationFrame(positionChordPopup); }   // sync the open popup (inversions↔shapes)
 }
 
@@ -10082,11 +10175,15 @@ function ensureChordPopup() {
     '<div class="cp-nav"><button class="cp-arrow" id="cp-prev" aria-label="' + escapeHtml(T('Zurück')) + '">‹</button>' +
     '<span class="cp-inv" id="cp-inv"></span>' +
     '<button class="cp-arrow" id="cp-next" aria-label="' + escapeHtml(T('Weiter')) + '">›</button></div>' +
-    '<button class="cp-play" id="cp-play">▶ ' + escapeHtml(T('Abspielen')) + '</button>';
+    '<div class="cp-actions">' +
+      '<button class="cp-pin" id="cp-pin" title="' + escapeHtml(T('Anheften')) + '">📌 <span>' + escapeHtml(T('Anheften')) + '</span></button>' +
+      '<button class="cp-play" id="cp-play">▶ ' + escapeHtml(T('Abspielen')) + '</button>' +
+    '</div>';
   document.body.appendChild(el);
   el.addEventListener('click', (e) => e.stopPropagation());
   el.querySelector('#cp-prev').addEventListener('click', (e) => { e.stopPropagation(); navChordPopup(-1); });
   el.querySelector('#cp-next').addEventListener('click', (e) => { e.stopPropagation(); navChordPopup(1); });
+  el.querySelector('#cp-pin').addEventListener('click', (e) => { e.stopPropagation(); if (typeof togglePinCurrentChord === 'function') togglePinCurrentChord(); });
   el.querySelector('#cp-play').addEventListener('click', (e) => { e.stopPropagation(); if (cpChord) { const v = cpVariants[cpIdx]; playChordAudio(cpChord, (v && v.kind === 'piano') ? v.bassPc : cpChord.rootPc); } });
   // swipe left/right to change variant (inversion / shape)
   let sx = null;
@@ -10112,6 +10209,7 @@ function renderChordPopup() {
   const multi = cpVariants.length > 1;
   el.querySelector('#cp-prev').style.visibility = multi ? '' : 'hidden';
   el.querySelector('#cp-next').style.visibility = multi ? '' : 'hidden';
+  if (typeof updatePinButtonState === 'function') updatePinButtonState();
 }
 // Position the popup relative to the CHORD ELEMENT (so it rides along while the
 // lyrics autoscroll). Closes itself if the chord scrolls out of the lyrics view.
@@ -10180,6 +10278,227 @@ function closeChordPopup() {
   // Re-clamp on resize/rotation.
   window.addEventListener('resize', () => { if (chordPopupOpen()) positionChordPopup(); });
 })();
+
+// =====================================================
+//   Pinned chords — pin a chord from the popup so its diagram stays on screen
+//   while performing. Cards are floating, draggable, resizable (S/M/L), and
+//   always follow the currently selected instrument. Positions persist per song.
+// =====================================================
+function pinId() { return 'pin_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6); }
+// The working pin list lives on the current song; it persists with the song.
+function currentPins() {
+  if (!state.currentSong) return [];
+  if (!Array.isArray(state.currentSong.pinnedChords)) state.currentSong.pinnedChords = [];
+  return state.currentSong.pinnedChords;
+}
+const PIN_SIZES = ['small', 'medium', 'large'];
+function pinSizeClass(size) { return 'pin-' + (PIN_SIZES.indexOf(size) >= 0 ? size : 'medium'); }
+
+// Persist (debounced). Re-reads the stored song so a concurrent edit elsewhere
+// isn't clobbered — same pattern as saveCurrentTranspose.
+let pinsSaveDebounce = null;
+function saveCurrentPins() {
+  clearTimeout(pinsSaveDebounce);
+  const snapshot = currentPins().map(p => ({ ...p }));
+  const songId = state.currentSong && state.currentSong.id;
+  pinsSaveDebounce = setTimeout(async () => {
+    if (!songId) return;
+    const stored = await dbGet(songId);
+    if (stored) { stored.pinnedChords = snapshot; await dbPut(stored); }
+  }, 400);
+}
+
+// Render all pinned cards for the current song into the floating layer.
+function renderPinnedChords() {
+  const layer = document.getElementById('pinned-layer');
+  if (!layer) return;
+  const pins = currentPins();
+  layer.innerHTML = '';
+  pins.forEach(pin => {
+    const parsed = parseChordForDiagram(pin.token);
+    if (!parsed) return;
+    const variants = chordVariants(parsed, chordPanelInstrument);
+    if (!(pin.variantIdx >= 0 && pin.variantIdx < variants.length)) pin.variantIdx = 0;
+    const v = variants[pin.variantIdx] || variants[0];
+    const dgm = v ? (v.kind === 'piano' ? chordPianoSVG(parsed, v.bassPc) : renderFretDiagram(v.frets)) : '';
+    const name = (v && v.name) || parsed.display;
+    const label = (v && v.label) || '';
+    const multi = variants.length > 1;
+    const card = document.createElement('div');
+    card.className = 'pinned-card ' + pinSizeClass(pin.size);
+    card.dataset.id = pin.id;
+    card.style.left = (typeof pin.xPct === 'number' ? pin.xPct : 66) + '%';
+    card.style.top = (typeof pin.yPct === 'number' ? pin.yPct : 16) + '%';
+    card.innerHTML =
+      '<div class="pin-head">' +
+        '<span class="pin-handle" title="' + escapeHtml(T('Ziehen zum Verschieben')) + '">⠿</span>' +
+        '<span class="pin-name">' + escapeHtml(name) + '</span>' +
+        '<button class="pin-x" title="' + escapeHtml(T('Lösen')) + '" aria-label="' + escapeHtml(T('Lösen')) + '">✕</button>' +
+      '</div>' +
+      '<div class="pin-dgm">' + dgm + '</div>' +
+      '<div class="pin-foot">' +
+        (multi ? '<button class="pin-btn pin-prev" aria-label="' + escapeHtml(T('Zurück')) + '">‹</button>' : '') +
+        '<span class="pin-meta">' + escapeHtml(label) + '</span>' +
+        (multi ? '<button class="pin-btn pin-next" aria-label="' + escapeHtml(T('Weiter')) + '">›</button>' : '') +
+        '<button class="pin-btn pin-size" title="' + escapeHtml(T('Grösse ändern')) + '">⤢</button>' +
+        '<button class="pin-btn pin-play" title="' + escapeHtml(T('Abspielen')) + '">▶</button>' +
+      '</div>';
+    layer.appendChild(card);
+  });
+  requestAnimationFrame(clampPinnedCards);
+  if (chordPopupOpen()) updatePinButtonState();
+}
+
+// Keep every card fully inside the view (handles rotation / resize / size change).
+function clampPinnedCards() {
+  const layer = document.getElementById('pinned-layer'); if (!layer) return;
+  const lr = layer.getBoundingClientRect();
+  if (!lr.width || !lr.height) return;
+  let changed = false;
+  layer.querySelectorAll('.pinned-card').forEach(card => {
+    const pin = currentPins().find(p => p.id === card.dataset.id); if (!pin) return;
+    const maxXPct = Math.max(0, (lr.width - card.offsetWidth) / lr.width * 100);
+    const maxYPct = Math.max(0, (lr.height - card.offsetHeight) / lr.height * 100);
+    const x = Math.max(0, Math.min(maxXPct, typeof pin.xPct === 'number' ? pin.xPct : 66));
+    const y = Math.max(0, Math.min(maxYPct, typeof pin.yPct === 'number' ? pin.yPct : 16));
+    if (x !== pin.xPct || y !== pin.yPct) { pin.xPct = x; pin.yPct = y; changed = true; }
+    card.style.left = pin.xPct + '%';
+    card.style.top = pin.yPct + '%';
+  });
+  if (changed) saveCurrentPins();
+}
+
+// Drag a card. Starts immediately from the handle, or after a long-press on the
+// card body — so a normal tap on a button never moves the card (performance-safe).
+function startPinDrag(e, card, viaHandle) {
+  const layer = document.getElementById('pinned-layer'); if (!layer) return;
+  const pin = currentPins().find(p => p.id === card.dataset.id); if (!pin) return;
+  const lr = layer.getBoundingClientRect();
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  const cr = card.getBoundingClientRect();
+  const offX = e.clientX - cr.left, offY = e.clientY - cr.top;
+  const startX = e.clientX, startY = e.clientY;
+  let dragging = false, longTimer = null;
+  const begin = () => { dragging = true; card.classList.add('pin-dragging'); };
+  if (viaHandle) begin(); else longTimer = setTimeout(begin, 420);
+  const move = (ev) => {
+    if (!dragging) {
+      if (Math.abs(ev.clientX - startX) > 10 || Math.abs(ev.clientY - startY) > 10) { clearTimeout(longTimer); end(); }
+      return;
+    }
+    ev.preventDefault();
+    const left = Math.max(0, Math.min(lr.width - cw, ev.clientX - lr.left - offX));
+    const top = Math.max(0, Math.min(lr.height - ch, ev.clientY - lr.top - offY));
+    card.style.left = left + 'px'; card.style.top = top + 'px';
+    pin.xPct = lr.width ? (left / lr.width * 100) : pin.xPct;
+    pin.yPct = lr.height ? (top / lr.height * 100) : pin.yPct;
+  };
+  const end = () => {
+    clearTimeout(longTimer);
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', end);
+    document.removeEventListener('pointercancel', end);
+    if (dragging) {
+      card.classList.remove('pin-dragging');
+      card.style.left = pin.xPct + '%'; card.style.top = pin.yPct + '%';
+      saveCurrentPins();
+    }
+  };
+  document.addEventListener('pointermove', move, { passive: false });
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
+}
+
+function cyclePinVariant(pin, dir) {
+  const parsed = parseChordForDiagram(pin.token); if (!parsed) return;
+  const variants = chordVariants(parsed, chordPanelInstrument);
+  if (!variants.length) return;
+  pin.variantIdx = ((pin.variantIdx || 0) + dir + variants.length) % variants.length;
+  saveCurrentPins(); renderPinnedChords();
+}
+function cyclePinSize(pin) {
+  pin.size = PIN_SIZES[(PIN_SIZES.indexOf(pin.size) + 1 + PIN_SIZES.length) % PIN_SIZES.length] || 'medium';
+  saveCurrentPins(); renderPinnedChords();
+}
+function playPin(pin) {
+  const parsed = parseChordForDiagram(pin.token); if (!parsed) return;
+  const variants = chordVariants(parsed, chordPanelInstrument);
+  const v = variants[pin.variantIdx || 0];
+  playChordAudio(parsed, (v && v.kind === 'piano') ? v.bassPc : parsed.rootPc);
+}
+function removePin(id) {
+  if (!state.currentSong) return;
+  state.currentSong.pinnedChords = currentPins().filter(p => p.id !== id);
+  saveCurrentPins(); renderPinnedChords();
+}
+async function clearAllPins() {
+  if (!currentPins().length) { showToast(T('Keine angehefteten Akkorde')); return; }
+  const ok = await confirmDialog(T('Pin-Akkorde entfernen'), T('Alle angehefteten Akkorde dieses Songs entfernen?'));
+  if (!ok) return;
+  state.currentSong.pinnedChords = [];
+  saveCurrentPins(); renderPinnedChords();
+}
+
+// Toggle the chord currently shown in the popup (one pin per chord name).
+function togglePinCurrentChord() {
+  if (!cpChord || !state.currentSong) return;
+  const token = cpChord.display;
+  const pins = currentPins();
+  const idx = pins.findIndex(p => p.token === token);
+  if (idx >= 0) {
+    pins.splice(idx, 1);
+    showToast(T('Akkord gelöst'));
+  } else {
+    const i = pins.length, col = Math.floor(i / 6), row = i % 6;
+    pins.push({
+      id: pinId(), token, size: 'medium', variantIdx: cpIdx,
+      xPct: clampN(2, 72, 68 - col * 24),
+      yPct: clampN(12, 78, 16 + row * 13),
+    });
+    showToast(T('Akkord angeheftet'));
+  }
+  saveCurrentPins();
+  renderPinnedChords();
+  updatePinButtonState();
+}
+function updatePinButtonState() {
+  const btn = document.getElementById('cp-pin'); if (!btn) return;
+  const pinned = !!cpChord && currentPins().some(p => p.token === cpChord.display);
+  btn.classList.toggle('active', pinned);
+  const lbl = btn.querySelector('span');
+  if (lbl) lbl.textContent = pinned ? T('Angeheftet') : T('Anheften');
+}
+
+(function setupPinnedLayer() {
+  const layer = document.getElementById('pinned-layer');
+  if (!layer) return;
+  // Button clicks (event-delegated). stopPropagation so a tap doesn't also bubble
+  // to the document handlers (which would e.g. close the chord popup).
+  layer.addEventListener('click', (e) => {
+    const card = e.target.closest('.pinned-card'); if (!card) return;
+    const pin = currentPins().find(p => p.id === card.dataset.id); if (!pin) return;
+    if (e.target.closest('.pin-x'))   { e.stopPropagation(); removePin(pin.id); return; }
+    if (e.target.closest('.pin-prev')){ e.stopPropagation(); cyclePinVariant(pin, -1); return; }
+    if (e.target.closest('.pin-next')){ e.stopPropagation(); cyclePinVariant(pin, 1); return; }
+    if (e.target.closest('.pin-size')){ e.stopPropagation(); cyclePinSize(pin); return; }
+    if (e.target.closest('.pin-play')){ e.stopPropagation(); playPin(pin); return; }
+  });
+  // Drag start (event-delegated). Buttons never start a drag.
+  layer.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest('.pinned-card'); if (!card) return;
+    if (e.target.closest('.pin-btn') || e.target.closest('.pin-x')) return;
+    startPinDrag(e, card, !!e.target.closest('.pin-handle'));
+  });
+  // "Remove All Pinned Chords" lives in the performance settings popover.
+  const clearBtn = document.getElementById('perf-clear-pins');
+  if (clearBtn) clearBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const pop = document.getElementById('perf-settings-pop'); if (pop) pop.classList.remove('show');
+    clearAllPins();
+  });
+  window.addEventListener('resize', () => { if (currentPins().length) clampPinnedCards(); });
+})();
+
 function chordPanelOpen() { const d = document.getElementById('chord-drawer'); return !!d && d.classList.contains('open'); }
 function openChordPanel() { const d = document.getElementById('chord-drawer'); if (d) { applyChordWidth(); d.classList.add('open'); } }
 function closeChordPanel() { const d = document.getElementById('chord-drawer'); if (d) d.classList.remove('open'); }
