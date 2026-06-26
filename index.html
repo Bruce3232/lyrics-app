@@ -7407,12 +7407,13 @@ function renderMoveFolderList() {
   const listEl = document.getElementById('move-folder-list');
   if (!listEl) return;
   const folderSvg = '<svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
-  // Shared albums are NOT valid move/copy targets (content there is managed live
-  // inside the album, not by the generic private folder picker).
-  listEl.innerHTML = state.folders.filter(f => !f.shared).map(f => {
+  // Shared albums ARE valid targets now: moving/copying a song in adds it to the
+  // album (shared live with all members). Tagged so it's clear it's a shared one.
+  listEl.innerHTML = state.folders.map(f => {
     const active = f.id === moveFolderSelectedId ? ' active' : '';
     const isCurrent = f.id === state.currentFolderId ? ' <span class="folder-meta">(aktuell)</span>' : '';
-    return `<div class="folder-item${active}" data-id="${escapeHtml(f.id)}">${folderSvg}<span class="folder-name">${escapeHtml(f.name)}${isCurrent}</span></div>`;
+    const sharedTag = f.shared ? ' <span class="folder-shared-tag" title="Live geteiltes Album">👥</span>' : '';
+    return `<div class="folder-item${active}${f.shared ? ' shared' : ''}" data-id="${escapeHtml(f.id)}">${folderSvg}<span class="folder-name">${escapeHtml(f.name)}${sharedTag}${isCurrent}</span></div>`;
   }).join('');
   listEl.querySelectorAll('.folder-item').forEach(row => {
     row.addEventListener('click', () => {
@@ -7434,20 +7435,52 @@ async function resolveMoveTargetFolderId() {
   return null;
 }
 
-// MOVE: change folderId of each selected song in place.
+// Give a cloned song fresh version ids so they never collide with the original.
+function refreshVersionIds(dup) {
+  if (!Array.isArray(dup.versions)) return;
+  const map = {};
+  dup.versions.forEach(v => { const nv = vid(); map[v.id] = nv; v.id = nv; });
+  if (dup.activeVersionId && map[dup.activeVersionId]) dup.activeVersionId = map[dup.activeVersionId];
+}
+
+// MOVE: change folderId of each selected song in place. Into a SHARED album, a
+// "move" adds a shared copy (synced to all members) and removes the private
+// original — a private song can't simply change its folderId into a shared store.
 async function performMove() {
   const targetId = await resolveMoveTargetFolderId();
   if (targetId === null) return;
-  if (isSharedAlbumId(targetId)) { showToast(T('Songs können nicht hierher verschoben werden')); return; }
+  const intoShared = isSharedAlbumId(targetId);
   const folderIdField = targetId === MAIN_FOLDER_ID ? undefined : targetId;
   let moved = 0, skippedShared = 0;
   for (const id of moveFolderSongIds) {
     const song = state.songs.find(s => s.id === id);
     if (!song) continue;
-    // Songs that belong to a shared album can't be moved out via the generic picker
-    // (that would silently remove them from the album for everyone). Use copy instead.
+    // A song that ALREADY lives in a shared album can't be moved out via this picker
+    // (it would vanish for every member). Use copy instead.
     if (sharedSongIds.has(id)) { skippedShared++; continue; }
     if (effectiveFolderId(song) === targetId) continue;
+    if (intoShared) {
+      // Add a shared copy (new id, content-only via the shared push) ...
+      const dup = JSON.parse(JSON.stringify(song));
+      dup.id = uid();
+      dup.folderId = targetId;
+      dup.createdAt = Date.now();
+      dup.updatedAt = Date.now();
+      dup.position = Date.now() + moved;     // append at the end of the album
+      refreshVersionIds(dup);
+      await dbPut(dup);                       // → shared store + Firestore push
+      // ... then drop the private original (and its setlist references).
+      for (const sl of state.setlists) {
+        if ((sl.songIds || []).includes(id)) {
+          sl.songIds = sl.songIds.filter(x => x !== id);
+          sl.updatedAt = Date.now();
+          await setlistPut(sl);
+        }
+      }
+      await dbDelete(id);                     // private delete + tombstone
+      moved++;
+      continue;
+    }
     song.folderId = folderIdField;
     song.updatedAt = Date.now();
     await dbPut(song);
@@ -7470,11 +7503,13 @@ async function performMove() {
   if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
 }
 
-// COPY: make an independent duplicate (new id) in the target folder.
+// COPY: make an independent duplicate (new id) in the target folder. A shared
+// album is a valid target — dbPut routes the new song (folderId = album id) into
+// the shared store + Firestore, so it appears for every member.
 async function performCopy() {
   const targetId = await resolveMoveTargetFolderId();
   if (targetId === null) return;
-  if (isSharedAlbumId(targetId)) { showToast(T('Songs können nicht hierher kopiert werden')); return; }
+  const intoShared = isSharedAlbumId(targetId);
   const folderIdField = targetId === MAIN_FOLDER_ID ? undefined : targetId;
   let copied = 0;
   for (const id of moveFolderSongIds) {
@@ -7482,15 +7517,11 @@ async function performCopy() {
     if (!song) continue;
     const dup = JSON.parse(JSON.stringify(song));
     dup.id = uid();
-    dup.folderId = folderIdField;
+    dup.folderId = folderIdField;            // = album id for a shared target → routed by dbPut
     dup.createdAt = Date.now();
     dup.updatedAt = Date.now();
-    // give versions fresh ids so they don't collide
-    if (Array.isArray(dup.versions)) {
-      const map = {};
-      dup.versions.forEach(v => { const nv = vid(); map[v.id] = nv; v.id = nv; });
-      if (dup.activeVersionId && map[dup.activeVersionId]) dup.activeVersionId = map[dup.activeVersionId];
-    }
+    if (intoShared) dup.position = Date.now() + copied;   // append at the end of the album
+    refreshVersionIds(dup);
     await dbPut(dup);
     copied++;
   }
