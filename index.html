@@ -391,7 +391,10 @@
   .song-row-handle:active { cursor: grabbing; }
   .song-row-handle svg { width: 18px; height: 18px; }
   .song-list.editing .song-row-handle { display: flex; }
-  .song-list.editing .song-row { cursor: grab; }
+  /* The whole row is grabbable in edit mode (drag from anywhere). touch-action:none
+     so a touch-drag reorders instead of scrolling the page; a plain tap still opens
+     the position wheel. Use the fast-scroll lever to scroll the list here. */
+  .song-list.editing .song-row { cursor: grab; touch-action: none; }
   .song-list.editing .song-row:active { cursor: grabbing; }
   .song-list.editing .song-row-actions { display: none; }
   .song-list.editing .song-row-meta { display: none; }
@@ -6153,6 +6156,39 @@ function preventDefaultDuringDrag(e) {
   if (dragState) e.preventDefault();
 }
 
+// In list-edit mode the WHOLE row is grabbable. This decides between a TAP (→ open
+// the position wheel for that song) and a DRAG (→ reorder): a real move past a small
+// threshold starts the drag, anchored at the grab point; a clean release without
+// moving opens the Move-to-position dialog instead.
+function beginRowEditGesture(e, row, id) {
+  if (!listEditMode) return;
+  if (e.button != null && e.button > 0) return;          // left button / touch / pen
+  const pointerId = e.pointerId, sx = e.clientX, sy = e.clientY;
+  let started = false;
+  const cleanup = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+  };
+  const move = (ev) => {
+    if (ev.pointerId !== pointerId || started) return;
+    if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8) {
+      started = true;
+      cleanup();
+      startRowDrag({ pointerId, clientY: sy, preventDefault() {} }, row);   // begin the real drag
+      if (dragState) { dragState.lastClientY = ev.clientY; applyDragUpdate(); }
+    }
+  };
+  const up = (ev) => {
+    if (ev.pointerId !== pointerId) return;
+    cleanup();
+    if (!started) openMovePosition(id);                  // a tap → the position wheel
+  };
+  document.addEventListener('pointermove', move, { passive: false });
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
+}
+
 // Compute transforms + insertion index based on the current pointer position.
 // Pulled out of pointermove so auto-scroll can re-run it without a new event.
 function applyDragUpdate() {
@@ -6504,9 +6540,11 @@ function renderSongList() {
         const song = state.songs.find(s => s.id === id);
         if (song) openEditor(song);
       });
-      // Drag-to-reorder via the handle (only present in listEditMode)
-      const handle = row.querySelector('[data-action="drag-handle"]');
-      if (handle) handle.addEventListener('pointerdown', (e) => startRowDrag(e, row));
+      // List-edit mode: grab the WHOLE row to reorder (drag from anywhere), or
+      // tap once to open the position wheel. (The ⠿ handle is just a visual hint.)
+      if (listEditMode) {
+        row.addEventListener('pointerdown', (e) => beginRowEditGesture(e, row, id));
+      }
       row.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
         e.stopPropagation();
         deleteSongFlow(id);
