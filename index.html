@@ -2857,32 +2857,28 @@
   /* The dragged card dims while it's over the trash so the delete reads clearly. */
   .pinned-card.pin-over-trash { opacity: 0.4; }
 
-  /* ===== Song Quick Actions (long-press / right-click a song) ===== */
-  .qa-backdrop { position: fixed; inset: 0; z-index: 130; display: none; background: rgba(0,0,0,0.28); -webkit-tap-highlight-color: transparent; }
-  .qa-backdrop.show { display: block; }
-  .qa-menu {
-    position: fixed; min-width: 224px; max-width: 80vw;
-    background: var(--surface-strong); border: 1px solid var(--border-strong);
-    border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.46);
-    padding: 6px; animation: fadeIn 0.12s var(--ease);
+  /* ===== Fast-scroll lever (thick draggable scrollbar on the right of the list) ===== */
+  /* The native scrollbar is hidden/too thin on iPad; this is a chunky grab handle
+     so the user can fly through a long list — and scroll in select mode without
+     dragging over songs. position:fixed is safe here (the view uses no transform). */
+  .fast-scroll {
+    position: fixed; right: 0; top: 60px; bottom: 12px; width: 26px;
+    z-index: 45; display: none; touch-action: none;
+    pointer-events: none;          /* track is click-through; only the thumb grabs */
+    -webkit-tap-highlight-color: transparent;
   }
-  .qa-title {
-    font-size: 12px; font-weight: 700; color: var(--text-2);
-    padding: 7px 10px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  .fast-scroll.show { display: block; }
+  .fast-scroll-thumb {
+    position: absolute; right: 4px; width: 11px; min-height: 46px;
+    border-radius: 7px; background: var(--text-2); opacity: 0.5;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    pointer-events: auto; touch-action: none;
+    transition: opacity 0.15s var(--ease), width 0.12s var(--ease), background 0.12s var(--ease);
   }
-  .qa-item {
-    display: flex; align-items: center; gap: 12px; width: 100%;
-    padding: 12px; border: none; background: transparent;
-    color: var(--text-0); font-size: 15px; font-weight: 600; text-align: left;
-    border-radius: 9px; cursor: pointer; -webkit-tap-highlight-color: transparent;
-    transition: background 0.12s var(--ease);
-  }
-  .qa-item:hover { background: var(--surface); }
-  .qa-item:active { background: var(--surface); }
-  .qa-item svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--text-1); }
-  .qa-item.qa-danger { color: #ff4757; }
-  .qa-item.qa-danger svg { color: #ff4757; }
+  /* Invisible bigger grab zone around the slim visible thumb (easier to catch). */
+  .fast-scroll-thumb::before { content: ''; position: absolute; inset: -10px -12px -10px -16px; }
+  .fast-scroll:hover .fast-scroll-thumb { opacity: 0.75; }
+  .fast-scroll-thumb.grabbing { opacity: 1; width: 16px; background: var(--accent); }
 
   /* ===== Move-to-position: number field + iOS-style wheel ===== */
   .move-pos-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
@@ -3562,6 +3558,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           In Ordner
         </button>
+        <button class="btn" id="select-move-pos-btn" title="An eine Position verschieben" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 12 3 16 7"/><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          An Position
+        </button>
+        <button class="btn" id="select-duplicate-btn" title="Song duplizieren" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Duplizieren
+        </button>
         <button class="btn btn-danger" id="select-delete-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
           Löschen
@@ -3611,6 +3615,10 @@
           </button>
         </div>
       </div>
+    </div>
+    <!-- Thick draggable fast-scroll lever on the right edge of the song list -->
+    <div class="fast-scroll" id="fast-scroll" aria-hidden="true">
+      <div class="fast-scroll-thumb" id="fast-scroll-thumb"></div>
     </div>
   </div>
 
@@ -4124,33 +4132,6 @@
       <button class="btn" id="move-folder-copy">Kopieren</button>
       <button class="btn btn-primary" id="move-folder-move">Verschieben</button>
     </div>
-  </div>
-</div>
-
-<!-- Song quick-actions menu (long-press / right-click a song) -->
-<div class="qa-backdrop" id="qa-backdrop">
-  <div class="qa-menu" id="qa-menu" role="menu">
-    <div class="qa-title" id="qa-title" data-no-i18n></div>
-    <button class="qa-item" data-qa="select" role="menuitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      Mehrere auswählen
-    </button>
-    <button class="qa-item" data-qa="move" role="menuitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 12 3 16 7"/><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-      An Position verschieben
-    </button>
-    <button class="qa-item" data-qa="duplicate" role="menuitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-      Duplizieren
-    </button>
-    <button class="qa-item" data-qa="album" role="menuitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      Zu Album hinzufügen
-    </button>
-    <button class="qa-item qa-danger" data-qa="delete" role="menuitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
-      <span class="qa-del-label">Löschen</span>
-    </button>
   </div>
 </div>
 
@@ -5178,6 +5159,9 @@ const I18N = {
     "Zum Verschieben zuerst Filter & Suche zurücksetzen": "Reset filters & search first to reorder",
     "Für alle löschen?": "Delete for everyone?",
     "\"{x}\" wird für ALLE Mitglieder dieses geteilten Albums gelöscht.": "\"{x}\" will be deleted for ALL members of this shared album.",
+    "An Position": "To position",
+    "An eine Position verschieben": "Move to a position",
+    "Song duplizieren": "Duplicate song",
     "Songs aus JSON importieren": "Import songs from JSON",
     "Alle Songs exportieren": "Export all songs",
     "Einstellungen, Cloud-Sync & Profil": "Settings, cloud sync & profile",
@@ -6529,6 +6513,8 @@ function renderSongList() {
       });
     }
   });
+  // Refresh the fast-scroll lever for the new content height / mode.
+  if (window.__updateFastScroll) requestAnimationFrame(window.__updateFastScroll);
 }
 
 // Delete (library) or remove-from-setlist (setlist view) — shared by the row
@@ -6584,6 +6570,10 @@ function updateSelectionUI() {
   });
   // Disable delete if nothing selected
   document.getElementById('select-delete-btn').style.opacity = count === 0 ? '0.5' : '1';
+  // Single-song actions (move-to-position, duplicate) only when exactly one song.
+  const single = count === 1 ? '' : 'none';
+  const mp = document.getElementById('select-move-pos-btn'); if (mp) mp.style.display = single;
+  const dp = document.getElementById('select-duplicate-btn'); if (dp) dp.style.display = single;
 }
 
 function enterSelectionMode() {
@@ -6624,6 +6614,24 @@ document.getElementById('select-none-btn').addEventListener('click', () => {
   selection.ids.clear();
   renderSongList();
   updateSelectionUI();
+});
+
+// Single-song actions in the selection bar (shown only when exactly one is selected).
+document.getElementById('select-move-pos-btn').addEventListener('click', () => {
+  if (selection.ids.size !== 1) return;
+  if (filterState.search.trim() || filterState.artist || filterState.letter) {
+    showToast(T('Zum Verschieben zuerst Filter & Suche zurücksetzen'));
+    return;
+  }
+  const id = [...selection.ids][0];
+  exitSelectionMode();
+  openMovePosition(id);
+});
+document.getElementById('select-duplicate-btn').addEventListener('click', async () => {
+  if (selection.ids.size !== 1) return;
+  const id = [...selection.ids][0];
+  exitSelectionMode();
+  await duplicateSong(id);
 });
 
 // =====================================================
@@ -7296,102 +7304,149 @@ document.getElementById('move-folder-move').addEventListener('click', performMov
 document.getElementById('move-folder-copy').addEventListener('click', performCopy);
 
 // =====================================================
-//   Song Quick Actions (long-press / right-click) + Move-to-position
-//   Long-pressing a song (≈0.5s) — or right-clicking — opens a small action
-//   menu: Select multiple, Move to position, Duplicate, Add to album, Delete.
-//   Replaces the old dedicated "Select" button. Move-to-position offers a number
-//   field AND an iOS-style wheel, kept in sync, so large lists reorder instantly.
+//   Long-press → drag-select (Samsung-Gallery style) + fast-scroll lever
+//   Hold a song ~0.5s → selection mode turns on with that song selected, and
+//   while STILL holding, dragging up/down paints a contiguous selection (the list
+//   is locked so it can't scroll). A quick swipe still scrolls normally (the hold
+//   is cancelled by movement). The thick lever on the right scrolls a long list
+//   fast — and lets you scroll in select mode without dragging over songs.
+//   Single-song actions (Move to position, Duplicate) live in the selection bar.
 // =====================================================
-// The trailing click after a long-press is eaten globally by swallowNextClick().
-let qaTargetId = null;
+let dragSelecting = false;          // true while a hold-and-drag selection is live
+let dragSelAnchorId = null;         // the row the drag started from
+let dragSelBase = null;             // selection that existed before this drag
 
-// Attach long-press (touch + mouse hold) and right-click to a song row.
+function songRowIdsInOrder() {
+  return [...document.querySelectorAll('#song-list .song-row')].map(r => r.dataset.id);
+}
+function syncSelectedRowClasses() {
+  document.querySelectorAll('#song-list .song-row').forEach(r => {
+    r.classList.toggle('selected', selection.ids.has(r.dataset.id));
+  });
+}
+// Paint the contiguous range anchor…current on top of whatever was selected before.
+function applyDragSelectTo(currentId) {
+  const ids = songRowIdsInOrder();
+  const a = ids.indexOf(dragSelAnchorId), c = ids.indexOf(currentId);
+  if (a < 0 || c < 0) return;
+  const lo = Math.min(a, c), hi = Math.max(a, c);
+  selection.ids.clear();
+  dragSelBase.forEach(x => selection.ids.add(x));
+  for (let i = lo; i <= hi; i++) selection.ids.add(ids[i]);
+  updateSelectionUI();
+}
+function beginDragSelect(id) {
+  if (!selection.active) enterSelectionMode();   // re-renders the list (clears ids)
+  dragSelBase = new Set(selection.ids);          // keep any prior selections
+  dragSelAnchorId = id;
+  dragSelecting = true;
+  swallowNextClick();                            // the release tap must not toggle a row
+  applyDragSelectTo(id);                         // select the anchor
+}
+
+// Per-row: start the hold timer + drive the drag from document-level listeners so
+// it survives the re-render that entering selection mode causes.
 function attachSongLongPress(row, id) {
-  let timer = null, sx = 0, sy = 0;
-  const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
   row.addEventListener('pointerdown', (e) => {
-    if (selection.active || listEditMode) return;        // not in select/reorder modes
-    if (e.button != null && e.button > 0) return;        // primary button / touch / pen only
+    if (listEditMode) return;                              // reorder mode owns the row
+    if (e.button != null && e.button > 0) return;          // left/touch/pen only
     if (e.target.closest('.song-row-action, .song-row-handle')) return;
-    sx = e.clientX; sy = e.clientY;
-    clear();
-    timer = setTimeout(() => {
-      timer = null;
-      swallowNextClick();                                // eat the release click globally
-      openSongActions(id, sx, sy);
-    }, 500);
+    startLongPressSelect(e, id);
   });
-  row.addEventListener('pointermove', (e) => {
-    if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) clear();
-  });
-  row.addEventListener('pointerup', clear);
-  row.addEventListener('pointercancel', clear);
+  // Desktop right-click: just toggle selection mode + select that song (no drag).
   row.addEventListener('contextmenu', (e) => {
-    if (selection.active || listEditMode) return;
+    if (listEditMode) return;
     if (e.target.closest('.song-row-action, .song-row-handle')) return;
     e.preventDefault();
-    clear();
-    openSongActions(id, e.clientX, e.clientY);            // right-click: no trailing click
+    if (!selection.active) enterSelectionMode();
+    selection.ids.add(id);
+    updateSelectionUI();
+    syncSelectedRowClasses();
   });
 }
 
-function openSongActions(id, x, y) {
-  const song = state.songs.find(s => s.id === id);
-  if (!song) return;
-  qaTargetId = id;
-  document.getElementById('qa-title').textContent = song.title || T('Ohne Titel');
-  // Delete vs remove-from-setlist label, depending on the current view.
-  const delLabel = document.querySelector('#qa-menu .qa-del-label');
-  if (delLabel) delLabel.textContent = state.currentSetlistId ? T('Aus Setlist entfernen') : T('Löschen');
-  const backdrop = document.getElementById('qa-backdrop');
-  const menu = document.getElementById('qa-menu');
-  backdrop.classList.add('show');
-  // Position near the press point, clamped on-screen (measure once visible).
-  menu.style.left = '0px'; menu.style.top = '0px';
-  const mw = menu.offsetWidth, mh = menu.offsetHeight, M = 10;
-  const left = Math.max(M, Math.min(window.innerWidth - mw - M, x));
-  let top = y + 6;
-  if (top + mh > window.innerHeight - M) top = y - mh - 6;
-  top = Math.max(M, Math.min(window.innerHeight - mh - M, top));
-  menu.style.left = left + 'px';
-  menu.style.top = top + 'px';
-}
-function closeSongActions() {
-  document.getElementById('qa-backdrop').classList.remove('show');
-  qaTargetId = null;
-}
-
-(function setupSongActions() {
-  const backdrop = document.getElementById('qa-backdrop');
-  const menu = document.getElementById('qa-menu');
-  if (!backdrop || !menu) return;
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSongActions(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && backdrop.classList.contains('show')) closeSongActions(); });
-  menu.addEventListener('click', async (e) => {
-    const item = e.target.closest('.qa-item'); if (!item) return;
-    const action = item.dataset.qa;
-    const id = qaTargetId;
-    closeSongActions();
-    if (!id) return;
-    if (action === 'select') {
-      enterSelectionMode();
-      selection.ids.add(id);
-      renderSongList();
-      updateSelectionUI();
-    } else if (action === 'move') {
-      if (filterState.search.trim() || filterState.artist || filterState.letter) {
-        showToast(T('Zum Verschieben zuerst Filter & Suche zurücksetzen'));
-        return;
-      }
-      openMovePosition(id);
-    } else if (action === 'duplicate') {
-      await duplicateSong(id);
-    } else if (action === 'album') {
-      openMoveFolderModal([id]);
-    } else if (action === 'delete') {
-      await deleteSongFlow(id);
+function startLongPressSelect(e, id) {
+  const pointerId = e.pointerId;
+  const sx = e.clientX, sy = e.clientY;
+  let fired = false;
+  const timer = setTimeout(() => { fired = true; beginDragSelect(id); }, 500);
+  const move = (ev) => {
+    if (ev.pointerId !== pointerId) return;
+    if (!fired) {
+      // Before the hold fires, real movement means the user is scrolling → bail
+      // (don't preventDefault, so the native scroll runs).
+      if (Math.abs(ev.clientX - sx) > 10 || Math.abs(ev.clientY - sy) > 10) end();
+      return;
     }
+    if (ev.cancelable) ev.preventDefault();
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const r = el && el.closest && el.closest('#song-list .song-row');
+    if (r) applyDragSelectTo(r.dataset.id);
+  };
+  const end = (ev) => {
+    if (ev && ev.pointerId != null && ev.pointerId !== pointerId) return;
+    clearTimeout(timer);
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', end);
+    document.removeEventListener('pointercancel', end);
+    if (fired) dragSelecting = false;
+  };
+  document.addEventListener('pointermove', move, { passive: false });
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
+}
+
+// Lock page scrolling while a hold-and-drag selection is in progress, so the list
+// stays fixed and the user doesn't accidentally select a screenful of songs.
+document.addEventListener('touchmove', (e) => {
+  if (dragSelecting && e.cancelable) e.preventDefault();
+}, { passive: false });
+
+// ----- Fast-scroll lever (thick draggable scrollbar on the right) -----
+(function setupFastScroll() {
+  const view = document.getElementById('library-view');
+  const bar = document.getElementById('fast-scroll');
+  const thumb = document.getElementById('fast-scroll-thumb');
+  if (!view || !bar || !thumb) return;
+  const MIN_THUMB = 44;
+  const maxScrollOf = () => Math.max(0, view.scrollHeight - view.clientHeight);
+  function update() {
+    const maxScroll = maxScrollOf();
+    if (maxScroll <= 4 || state.view !== 'library') { bar.classList.remove('show'); return; }
+    bar.classList.add('show');
+    const trackH = bar.clientHeight;
+    const thumbH = Math.max(MIN_THUMB, (view.clientHeight / view.scrollHeight) * trackH);
+    const top = (view.scrollTop / maxScroll) * (trackH - thumbH);
+    thumb.style.height = thumbH + 'px';
+    thumb.style.top = top + 'px';
+  }
+  window.__updateFastScroll = update;
+  view.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', () => requestAnimationFrame(update));
+
+  let dragging = false, pid = null, grab = 0;
+  thumb.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dragging = true; pid = e.pointerId; thumb.classList.add('grabbing');
+    grab = e.clientY - thumb.getBoundingClientRect().top;
+    try { thumb.setPointerCapture(pid); } catch (_) {}
   });
+  thumb.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerId !== pid) return;
+    e.preventDefault();
+    const trackH = bar.clientHeight, thumbH = thumb.offsetHeight, maxScroll = maxScrollOf();
+    let top = e.clientY - bar.getBoundingClientRect().top - grab;
+    top = Math.max(0, Math.min(trackH - thumbH, top));
+    view.scrollTop = (trackH - thumbH > 0) ? (top / (trackH - thumbH)) * maxScroll : 0;
+  });
+  const endDrag = (e) => {
+    if (e.pointerId != null && e.pointerId !== pid) return;
+    dragging = false; thumb.classList.remove('grabbing');
+    try { thumb.releasePointerCapture(pid); } catch (_) {}
+  };
+  thumb.addEventListener('pointerup', endDrag);
+  thumb.addEventListener('pointercancel', endDrag);
+  update();
 })();
 
 // Duplicate a song in place: an independent copy (new id) placed directly after
