@@ -2860,12 +2860,66 @@
   /* The dragged card dims while it's over the trash so the delete reads clearly. */
   .pinned-card.pin-over-trash { opacity: 0.4; }
 
+  /* ===== Permanent right-side action panel (library view) ===== */
+  /* Always-visible action hub so the top doesn't fill up with buttons. Wide screens
+     show icon+label; narrow/portrait collapses to a compact icon strip. The song
+     list gets right padding so it never goes under the panel. */
+  :root { --ap-w: 214px; }
+  @media (max-width: 900px) { :root { --ap-w: 60px; } }
+
+  .action-panel {
+    position: fixed; right: 0; top: var(--lib-topbar-h, 76px); bottom: 0; width: var(--ap-w);
+    z-index: 38; display: flex; flex-direction: column; gap: 3px;
+    padding: 10px 8px calc(env(safe-area-inset-bottom) + 14px);
+    overflow-y: auto; overscroll-behavior: contain;
+    background: var(--surface-strong);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-left: 1px solid var(--border-strong);
+  }
+  .action-panel::-webkit-scrollbar { width: 0; }
+  .ap-group { display: flex; flex-direction: column; gap: 3px; padding-bottom: 7px; margin-bottom: 5px; border-bottom: 1px solid var(--border); }
+  .ap-group:last-child { border-bottom: none; margin-bottom: 0; }
+  .ap-group-title { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-2); padding: 5px 6px 2px; }
+  .ap-btn {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    padding: 10px 10px; border: 1px solid transparent; background: transparent;
+    border-radius: 10px; color: var(--text-0); font-size: 14px; font-weight: 600;
+    text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s var(--ease), border-color 0.12s var(--ease), color 0.12s var(--ease), opacity 0.12s var(--ease);
+  }
+  .ap-btn:hover { background: var(--surface); border-color: var(--border); }
+  .ap-btn:active { transform: scale(0.98); }
+  .ap-btn svg { width: 19px; height: 19px; flex: 0 0 auto; color: var(--text-1); }
+  .ap-btn .ap-label { overflow: hidden; text-overflow: ellipsis; }
+  .ap-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ap-btn.active svg { color: #fff; }
+  .ap-btn.ap-danger:hover { color: #ff4757; background: rgba(255,71,87,0.1); border-color: rgba(255,71,87,0.4); }
+  .ap-btn.ap-danger:hover svg { color: #ff4757; }
+  /* Selection actions are dimmed until you're actually selecting songs. */
+  .action-panel.not-selecting .ap-sel { opacity: 0.55; }
+  /* The song list resizes so the panel never overlaps it. */
+  #library-view .body { padding-right: var(--ap-w); }
+  /* Decluttered: these now live in the action panel. */
+  #library-view .topbar #new-song-btn { display: none; }
+  #library-view .filter-bar #list-edit-btn { display: none; }
+  /* Narrow / portrait: compact icon-only strip. */
+  @media (max-width: 900px) {
+    .action-panel { padding-left: 5px; padding-right: 5px; gap: 4px; }
+    .ap-group { padding-bottom: 5px; margin-bottom: 4px; gap: 4px; }
+    .ap-group-title { display: none; }
+    .ap-btn .ap-label { display: none; }
+    .ap-btn { justify-content: center; padding: 12px 0; gap: 0; }
+    .ap-btn svg { width: 22px; height: 22px; }
+  }
+
   /* ===== Fast-scroll lever (thick draggable scrollbar on the right of the list) ===== */
   /* The native scrollbar is hidden/too thin on iPad; this is a chunky grab handle
      so the user can fly through a long list — and scroll in select mode without
-     dragging over songs. position:fixed is safe here (the view uses no transform). */
+     dragging over songs. position:fixed is safe here (the view uses no transform).
+     Sits just LEFT of the action panel (right: var(--ap-w)). */
   .fast-scroll {
-    position: fixed; right: 0; top: 60px; bottom: 12px; width: 26px;
+    position: fixed; right: var(--ap-w); top: var(--lib-topbar-h, 76px); bottom: 12px; width: 24px;
     z-index: 45; display: none; touch-action: none;
     pointer-events: none;          /* track is click-through; only the thumb grabs */
     -webkit-tap-highlight-color: transparent;
@@ -3623,6 +3677,63 @@
     <div class="fast-scroll" id="fast-scroll" aria-hidden="true">
       <div class="fast-scroll-thumb" id="fast-scroll-thumb"></div>
     </div>
+
+    <!-- Permanent right-side action panel: common actions always available -->
+    <aside class="action-panel not-selecting" id="action-panel" aria-label="Aktionen">
+      <div class="ap-group">
+        <div class="ap-group-title">Erstellen</div>
+        <button class="ap-btn" id="ap-new-song" title="Neuer Song">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span class="ap-label">Neuer Song</span>
+        </button>
+        <button class="ap-btn" id="ap-new-album" title="Neues Album">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          <span class="ap-label">Neues Album</span>
+        </button>
+        <button class="ap-btn" id="ap-new-setlist" title="Neue Setlist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="13" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          <span class="ap-label">Neue Setlist</span>
+        </button>
+      </div>
+      <div class="ap-group">
+        <div class="ap-group-title">Ansicht</div>
+        <button class="ap-btn" id="ap-search" title="Suchen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span class="ap-label">Suchen</span>
+        </button>
+        <button class="ap-btn" id="ap-filter" title="Filter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span class="ap-label">Filter</span>
+        </button>
+        <button class="ap-btn" id="ap-sort" title="Sortieren / Reihenfolge bearbeiten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="7 4 4 8 7 12" fill="none" opacity="0"/></svg>
+          <span class="ap-label">Sortieren</span>
+        </button>
+      </div>
+      <div class="ap-group">
+        <div class="ap-group-title">Auswahl</div>
+        <button class="ap-btn ap-sel" id="ap-move-pos" title="An Position verschieben">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 12 3 16 7"/><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          <span class="ap-label">An Position</span>
+        </button>
+        <button class="ap-btn ap-sel" id="ap-duplicate" title="Duplizieren">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span class="ap-label">Duplizieren</span>
+        </button>
+        <button class="ap-btn ap-sel" id="ap-to-album" title="In Album verschieben/kopieren">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="ap-label">In Album</span>
+        </button>
+        <button class="ap-btn ap-sel" id="ap-to-setlist" title="Zu Setlist hinzufügen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span class="ap-label">Zu Setlist</span>
+        </button>
+        <button class="ap-btn ap-sel ap-danger" id="ap-delete" title="Löschen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+          <span class="ap-label">Löschen</span>
+        </button>
+      </div>
+    </aside>
   </div>
 
   <!-- ============= EDITOR ============= -->
@@ -5165,6 +5276,17 @@ const I18N = {
     "An Position": "To position",
     "An eine Position verschieben": "Move to a position",
     "Song duplizieren": "Duplicate song",
+    "Neues Album": "New album",
+    "Neue Setlist": "New setlist",
+    "Ansicht": "View",
+    "Sortieren": "Sort",
+    "Auswahl": "Selection",
+    "In Album": "To album",
+    "Sortieren / Reihenfolge bearbeiten": "Sort / edit order",
+    "In Album verschieben/kopieren": "Move/copy to album",
+    "Zu Setlist hinzufügen": "Add to setlist",
+    "Songs antippen zum Auswählen, dann Aktion erneut tippen": "Tap songs to select, then tap the action again",
+    "Dafür bitte genau einen Song auswählen": "Select exactly one song for this",
     "Songs aus JSON importieren": "Import songs from JSON",
     "Alle Songs exportieren": "Export all songs",
     "Einstellungen, Cloud-Sync & Profil": "Settings, cloud sync & profile",
@@ -6553,6 +6675,7 @@ function renderSongList() {
   });
   // Refresh the fast-scroll lever for the new content height / mode.
   if (window.__updateFastScroll) requestAnimationFrame(window.__updateFastScroll);
+  if (typeof updateActionPanelState === 'function') updateActionPanelState();
 }
 
 // Delete (library) or remove-from-setlist (setlist view) — shared by the row
@@ -6612,6 +6735,7 @@ function updateSelectionUI() {
   const single = count === 1 ? '' : 'none';
   const mp = document.getElementById('select-move-pos-btn'); if (mp) mp.style.display = single;
   const dp = document.getElementById('select-duplicate-btn'); if (dp) dp.style.display = single;
+  if (typeof updateActionPanelState === 'function') updateActionPanelState();
 }
 
 function enterSelectionMode() {
@@ -6671,6 +6795,55 @@ document.getElementById('select-duplicate-btn').addEventListener('click', async 
   exitSelectionMode();
   await duplicateSong(id);
 });
+
+// =====================================================
+//   Permanent right-side action panel (library)
+//   Create + view actions fire directly. The selection actions turn ON selection
+//   mode when nothing is selected yet (tap again after picking songs), and
+//   otherwise delegate to the existing selection-bar handlers — one source of truth.
+// =====================================================
+function updateActionPanelState() {
+  const panel = document.getElementById('action-panel'); if (!panel) return;
+  panel.classList.toggle('not-selecting', !selection.active);
+  const sortBtn = document.getElementById('ap-sort');
+  if (sortBtn) sortBtn.classList.toggle('active', listEditMode);
+}
+function apRunSelection(runBtnId, needsOne) {
+  if (!selection.active) {                       // not selecting yet → turn it on
+    enterSelectionMode();
+    updateActionPanelState();
+    showToast(T('Songs antippen zum Auswählen, dann Aktion erneut tippen'));
+    return;
+  }
+  if (selection.ids.size === 0) { showToast(T('Keine Songs ausgewählt')); return; }
+  if (needsOne && selection.ids.size !== 1) { showToast(T('Dafür bitte genau einen Song auswählen')); return; }
+  const btn = document.getElementById(runBtnId);
+  if (btn) btn.click();                          // reuse the existing selection-bar handler
+}
+(function setupActionPanel() {
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  // Create
+  on('ap-new-song', () => openEditor(null));
+  on('ap-new-album', () => openFolderModal());
+  on('ap-new-setlist', () => { if (typeof createNewSetlistInline === 'function') createNewSetlistInline(); });
+  // View
+  on('ap-search', () => {
+    const lv = document.getElementById('library-view'); if (lv) lv.scrollTop = 0;
+    const inp = document.getElementById('search-input'); if (inp) { inp.focus(); try { inp.select(); } catch (e) {} }
+  });
+  on('ap-filter', () => {
+    const lv = document.getElementById('library-view'); if (lv) lv.scrollTop = 0;
+    const sel = document.getElementById('artist-filter'); if (sel) sel.focus();
+  });
+  on('ap-sort', () => { const b = document.getElementById('list-edit-btn'); if (b) b.click(); updateActionPanelState(); });
+  // Selection (tap turns on select mode the first time; then delegates)
+  on('ap-move-pos', () => apRunSelection('select-move-pos-btn', true));
+  on('ap-duplicate', () => apRunSelection('select-duplicate-btn', true));
+  on('ap-to-album', () => apRunSelection('select-move-folder-btn', false));
+  on('ap-to-setlist', () => apRunSelection('select-add-to-setlist-btn', false));
+  on('ap-delete', () => apRunSelection('select-delete-btn', false));
+  updateActionPanelState();
+})();
 
 // =====================================================
 //          Setlist Picker (für Add to Setlist)
