@@ -2713,14 +2713,12 @@
   .chord-card-pin:hover { opacity: 1; border-color: var(--accent); }
   .chord-card-pin.active { opacity: 1; filter: none; background: var(--accent); border-color: var(--accent); }
   .chord-card-name { font-size: 14px; font-weight: 700; color: var(--text-0); margin-bottom: 4px; }
-  /* EVERY chord diagram (drawer, popup, pinned cards) scales with the AK chord-size
-     control, so all of them stay the same size and grow/shrink together. */
-  .chord-dgm { display: block; width: 100%; height: auto; max-height: calc(118px * var(--chord-scale, 1)); }
+  .chord-dgm { display: block; width: 100%; height: auto; max-height: 118px; }
   .chord-empty { color: var(--text-2); font-size: 13px; text-align: center; padding: 26px 14px; line-height: 1.5; }
 
   /* ===== Floating chord popup (tap a chord in the lyrics) ===== */
   .chord-popup {
-    position: fixed; z-index: 95; left: 0; top: 0; width: calc(204px * var(--chord-scale, 1));
+    position: fixed; z-index: 95; left: 0; top: 0; width: 204px;
     padding: 10px 12px 12px;
     background: var(--surface-strong);
     backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
@@ -2733,7 +2731,7 @@
   .chord-popup.show { opacity: 1; transform: scale(1); pointer-events: auto; }
   .cp-name { font-size: 18px; font-weight: 800; color: var(--text-0); margin-bottom: 6px; }
   .cp-dgm { margin-bottom: 4px; }
-  .cp-dgm .chord-dgm { max-height: calc(118px * var(--chord-scale, 1)); }
+  .cp-dgm .chord-dgm { max-height: 124px; }
   .cp-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 0 8px; }
   .cp-arrow {
     width: 30px; height: 30px; flex: 0 0 auto; border-radius: 50%;
@@ -2773,7 +2771,7 @@
   /* Don't clash with the layout editor (it has its own drag system). */
   #performance-view.perf-editing .pinned-layer { display: none; }
   .pinned-card {
-    position: absolute; left: 66%; top: 16%; width: calc(196px * var(--chord-scale, 1));
+    position: absolute; left: 66%; top: 16%; width: 168px;
     pointer-events: auto; touch-action: none; cursor: grab;
     background: var(--surface-strong);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -2803,7 +2801,7 @@
   }
   .pin-x:hover { color: #ff4757; }
   .pin-dgm { margin: 1px 0 3px; }
-  .pin-dgm .chord-dgm { max-height: calc(118px * var(--chord-scale, 1)); }
+  .pin-dgm .chord-dgm { max-height: 96px; }
   .pin-foot { display: flex; align-items: center; justify-content: center; gap: 4px; }
   .pin-meta { font-size: 11px; font-weight: 600; color: var(--text-1); min-width: 34px; }
   .pin-btn {
@@ -2817,8 +2815,17 @@
   .pin-btn:hover { border-color: var(--accent); color: var(--accent); }
   .pin-btn.pin-play { color: #fff; background: var(--accent); border-color: var(--accent); }
   .pin-btn.pin-play:hover { filter: brightness(1.06); color: #fff; }
-  /* Size is no longer per-pin: every pinned card uses the one AK chord-size, so
-     standalone cards always match the diagrams shown over the lyrics. */
+  /* Three sizes: Small (quick reminder) · Medium (normal) · Large (learning view) */
+  .pinned-card.pin-small  { width: 116px; padding: 4px 6px 6px; }
+  .pinned-card.pin-small .pin-name { font-size: 13px; }
+  .pinned-card.pin-small .pin-meta { display: none; }
+  .pinned-card.pin-small .pin-btn { width: 21px; height: 21px; font-size: 12px; }
+  .pinned-card.pin-small .pin-dgm .chord-dgm { max-height: 70px; }
+  .pinned-card.pin-medium { width: 168px; }
+  .pinned-card.pin-large  { width: 238px; padding: 8px 12px 12px; }
+  .pinned-card.pin-large .pin-name { font-size: 18px; }
+  .pinned-card.pin-large .pin-btn { width: 28px; height: 28px; font-size: 15px; }
+  .pinned-card.pin-large .pin-dgm .chord-dgm { max-height: 142px; }
 
   /* ===== Focus mode: hide all chrome, keep only lyrics + chords + popup ===== */
   #performance-view.perf-focus .perf-overlay { opacity: 0 !important; pointer-events: none !important; }
@@ -7852,10 +7859,7 @@ function openPerformance(song) {
   document.getElementById('perf-font-value').textContent = fontSize;
   document.getElementById('lyrics-track').style.fontSize = fontSize + 'px';
   const chordScale = (typeof ver.chordScale === 'number') ? ver.chordScale : 1;
-  // Set on <body> (not just the lyrics track) so chord chips AND every chord
-  // diagram — the popup, the pinned cards and the drawer, which all live outside
-  // the lyrics track — inherit the same AK chord-size.
-  document.body.style.setProperty('--chord-scale', chordScale);
+  document.getElementById('lyrics-track').style.setProperty('--chord-scale', chordScale);
   document.getElementById('perf-chord-value').textContent = Math.round(chordScale * 100) + '%';
   state.transpose = (typeof ver.transpose === 'number') ? ver.transpose : 0;
   updateTransposeDisplay();
@@ -10537,9 +10541,8 @@ function closeChordPopup() {
 
 // =====================================================
 //   Pinned chords — pin a chord from the popup so its diagram stays on screen
-//   while performing. Cards are floating and draggable, always follow the current
-//   instrument, and size with the AK chord-size control (same as every other
-//   chord diagram). Positions persist per song.
+//   while performing. Cards are floating, draggable, resizable (S/M/L), and
+//   always follow the currently selected instrument. Positions persist per song.
 // =====================================================
 function pinId() { return 'pin_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6); }
 // The working pin list lives on the current song; it persists with the song.
@@ -10548,6 +10551,8 @@ function currentPins() {
   if (!Array.isArray(state.currentSong.pinnedChords)) state.currentSong.pinnedChords = [];
   return state.currentSong.pinnedChords;
 }
+const PIN_SIZES = ['small', 'medium', 'large'];
+function pinSizeClass(size) { return 'pin-' + (PIN_SIZES.indexOf(size) >= 0 ? size : 'medium'); }
 
 // Persist (debounced). Re-reads the stored song so a concurrent edit elsewhere
 // isn't clobbered. The pending write is held in pinsPendingWrite (with its own
@@ -10593,7 +10598,7 @@ function renderPinnedChords() {
     const label = (v && v.label) || '';
     const multi = variants.length > 1;
     const card = document.createElement('div');
-    card.className = 'pinned-card';
+    card.className = 'pinned-card ' + pinSizeClass(pin.size);
     card.dataset.id = pin.id;
     card.style.left = (typeof pin.xPct === 'number' ? pin.xPct : 66) + '%';
     card.style.top = (typeof pin.yPct === 'number' ? pin.yPct : 16) + '%';
@@ -10608,6 +10613,7 @@ function renderPinnedChords() {
         (multi ? '<button class="pin-btn pin-prev" aria-label="' + escapeHtml(T('Zurück')) + '">‹</button>' : '') +
         '<span class="pin-meta">' + escapeHtml(label) + '</span>' +
         (multi ? '<button class="pin-btn pin-next" aria-label="' + escapeHtml(T('Weiter')) + '">›</button>' : '') +
+        '<button class="pin-btn pin-size" title="' + escapeHtml(T('Grösse ändern')) + '">⤢</button>' +
         '<button class="pin-btn pin-play" title="' + escapeHtml(T('Abspielen')) + '">▶</button>' +
       '</div>';
     layer.appendChild(card);
@@ -10695,6 +10701,10 @@ function cyclePinVariant(pin, dir) {
   pin.variantIdx = ((pin.variantIdx || 0) + dir + variants.length) % variants.length;
   saveCurrentPins(); renderPinnedChords();
 }
+function cyclePinSize(pin) {
+  pin.size = PIN_SIZES[(PIN_SIZES.indexOf(pin.size) + 1 + PIN_SIZES.length) % PIN_SIZES.length] || 'medium';
+  saveCurrentPins(); renderPinnedChords();
+}
 function playPin(pin) {
   const parsed = parseChordForDiagram(pin.token); if (!parsed) return;
   const variants = chordVariants(parsed, chordPanelInstrument);
@@ -10773,6 +10783,7 @@ function updatePinButtonState() {
     if (e.target.closest('.pin-x'))   { e.stopPropagation(); removePin(pin.id); return; }
     if (e.target.closest('.pin-prev')){ e.stopPropagation(); cyclePinVariant(pin, -1); return; }
     if (e.target.closest('.pin-next')){ e.stopPropagation(); cyclePinVariant(pin, 1); return; }
+    if (e.target.closest('.pin-size')){ e.stopPropagation(); cyclePinSize(pin); return; }
     if (e.target.closest('.pin-play')){ e.stopPropagation(); playPin(pin); return; }
   });
   // Drag start (event-delegated): grab the card from ANYWHERE on it. The movement
@@ -10867,16 +10878,13 @@ function changeChordSize(delta) {
   const next = Math.max(0.6, Math.min(2.0, Math.round((cur + delta) * 20) / 20));
   if (next === cur) return;
   ver.chordScale = next;
-  document.body.style.setProperty('--chord-scale', next);
+  document.getElementById('lyrics-track').style.setProperty('--chord-scale', next);
   document.getElementById('perf-chord-value').textContent = Math.round(next * 100) + '%';
   setTimeout(() => {
     adjustChordOverlaps();
     measureMaxScroll();
     perfScrollPos = Math.min(perfScrollPos, perfMaxScroll);
     applyScroll();
-    // Pinned cards and the popup also resized with AK now → keep them on-screen.
-    if (typeof clampPinnedCards === 'function') clampPinnedCards();
-    if (typeof repositionChordPopup === 'function') repositionChordPopup();
   }, 50);
   saveCurrentChordSize();
 }
