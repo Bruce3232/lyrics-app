@@ -10919,16 +10919,34 @@ function toggleFullscreen() {
 document.getElementById('library-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
 
 
+// Double-tap anywhere on the lyrics → play/pause the auto-scroll, so the user
+// doesn't have to reach for the Play button mid-song. Tracked across click
+// events so it works for both mouse and touch (a tap fires a click).
+let lastStageTapTime = 0, lastStageTapX = 0, lastStageTapY = 0;
 document.getElementById('lyrics-stage').addEventListener('click', (e) => {
   if (state.view !== 'performance') return;
   // While editing the layout, a tap on empty space just clears the selection.
   if (perfEditing) { selectPerfEl(null); return; }
-  // A tap on the lyrics dismisses an open chord popup / chord drawer first.
+
+  // A quick second tap near the first toggles the scroll. Skipped while a chord
+  // popup/drawer is open so the tap that DISMISSES it (below) doesn't also
+  // play/pause; the first dismissing tap resets the timer anyway.
+  const popupOpen = (typeof chordPopupOpen === 'function' && chordPopupOpen()) ||
+                    (typeof chordPanelOpen === 'function' && chordPanelOpen());
+  const now = performance.now();
+  const dx = e.clientX - lastStageTapX, dy = e.clientY - lastStageTapY;
+  if (!popupOpen && now - lastStageTapTime < 320 && dx * dx + dy * dy < 60 * 60) {
+    lastStageTapTime = 0;          // consume the pair so a 3rd tap starts fresh
+    togglePerfScroll();
+    return;
+  }
+  lastStageTapTime = now; lastStageTapX = e.clientX; lastStageTapY = e.clientY;
+
+  // A single tap on the lyrics dismisses an open chord popup / chord drawer first.
   if (typeof chordPopupOpen === 'function' && chordPopupOpen()) { closeChordPopup(); return; }
   if (typeof chordPanelOpen === 'function' && chordPanelOpen()) { closeChordPanel(); return; }
-  // Tapping the lyrics never starts/stops the song. It no longer HIDES the UI
-  // either (that was removed — use the Focus button); a tap only WAKES the
-  // controls if the idle auto-hide has tucked them away.
+  // Otherwise a single tap only WAKES the controls if the idle auto-hide has
+  // tucked them away (it never hides them — use the Focus button for that).
   if (controlsAreHidden()) { showControlsUI(); scheduleControlsHide(); }
 });
 
