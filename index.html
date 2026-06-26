@@ -4016,11 +4016,13 @@
       <input class="field-input" id="sam-invite-name" placeholder="Benutzername einladen…" style="flex:1;" autocomplete="off">
       <button class="btn btn-primary" id="sam-invite-btn">Einladen</button>
     </div>
-    <div class="modal-actions" style="justify-content:space-between; gap:8px;">
-      <div>
-        <button class="btn" id="sam-leave" style="display:none;">Album verlassen</button>
-        <button class="btn" id="sam-unshare" style="display:none;">Teilen beenden</button>
-      </div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+      <button class="btn btn-mini" id="sam-rename" style="display:none;">Umbenennen</button>
+      <button class="btn btn-mini" id="sam-unshare" style="display:none;">Teilen beenden</button>
+      <button class="btn btn-mini" id="sam-delete" style="display:none;">Album löschen</button>
+      <button class="btn btn-mini" id="sam-leave" style="display:none;">Album verlassen</button>
+    </div>
+    <div class="modal-actions">
       <button class="btn btn-primary" id="sam-close">Fertig</button>
     </div>
   </div>
@@ -5523,7 +5525,20 @@ const I18N = {
     "Songs können nicht hierher kopiert werden": "Songs can't be copied here",
     "Songs aus geteilten Alben wurden übersprungen": "Songs from shared albums were skipped",
     "Setlists werden nicht mit geteilten Alben geteilt": "Setlists aren't shared with shared albums",
-    "Dieser Song wurde gerade von einem anderen Mitglied geändert": "This song was just edited by another member"
+    "Dieser Song wurde gerade von einem anderen Mitglied geändert": "This song was just edited by another member",
+    "Teilen fehlgeschlagen – nichts wurde geändert": "Sharing failed – nothing was changed",
+    "Manager": "Manager",
+    "Editor": "Editor",
+    "Nur Besitzer/Manager können einladen": "Only owners/managers can invite",
+    "Deine Rolle": "Your role",
+    "Album umbenennen": "Rename album",
+    "Albumname": "Album name",
+    "Umbenennen": "Rename",
+    "Album löschen": "Delete album",
+    "Album löschen?": "Delete album?",
+    "Das geteilte Album und seine Songs werden für ALLE endgültig gelöscht.": "The shared album and its songs are permanently deleted for EVERYONE.",
+    "Album gelöscht": "Album deleted",
+    "Das geteilte Album wird zu einem normalen Album. Deine Songs bleiben bei dir; die anderen Mitglieder verlieren den Zugriff.": "The shared album becomes a normal album. Your songs stay with you; the other members lose access."
   }
 };
 let currentLang = 'de';
@@ -12169,14 +12184,16 @@ async function pushSharedSong(album, song) {
   try { await sharedSongsColRef(album.ownerUid, album.id).doc(song.id).set(stripUndefinedDeep(data)); }
   catch (e) { sharedPermCheck(e); }
 }
+function sharedAlbumDocData(folder) {
+  return {
+    id: folder.id, name: folder.name, ownerUid: folder.ownerUid, ownerName: folder.ownerName,
+    memberUids: folder.memberUids, members: folder.members,
+    createdAt: folder.createdAt, updatedAt: Date.now(),
+  };
+}
 async function writeSharedAlbumDoc(folder) {
-  try {
-    await sharedAlbumDocRef(folder.ownerUid, folder.id).set(stripUndefinedDeep({
-      id: folder.id, name: folder.name, ownerUid: folder.ownerUid, ownerName: folder.ownerName,
-      memberUids: folder.memberUids, members: folder.members,
-      createdAt: folder.createdAt, updatedAt: Date.now(),
-    }));
-  } catch (e) { sharedPermCheck(e); }
+  try { await sharedAlbumDocRef(folder.ownerUid, folder.id).set(stripUndefinedDeep(sharedAlbumDocData(folder))); }
+  catch (e) { sharedPermCheck(e); }
 }
 
 // ---- live listeners (Firestore -> local) ----
@@ -12282,12 +12299,15 @@ async function createSharedAlbum(name) {
   const folder = {
     id: albumId, name: (name || '').trim() || T('Geteiltes Album'), shared: true,
     ownerUid: uid, ownerName: myDisplayName(),
-    memberUids: [uid], members: [{ uid, username: cloud.username || '' }],
+    memberUids: [uid], members: [{ uid, username: cloud.username || '', role: 'owner' }],
     createdAt: Date.now(), updatedAt: Date.now(),
   };
+  // Verify the cloud write works FIRST — if the rules block it, don't create a
+  // local-only album that could never sync.
+  try { await sharedAlbumDocRef(uid, albumId).set(stripUndefinedDeep(sharedAlbumDocData(folder))); }
+  catch (e) { sharedPermCheck(e); showToast(T('Teilen fehlgeschlagen – nichts wurde geändert'), 'error'); return null; }
   await storePutRaw(SHARED_FOLDER_STORE, folder);
   sharedAlbumIds.add(albumId);
-  await writeSharedAlbumDoc(folder);
   await loadSongs();
   startSharedAlbumListener(folder);
   return folder;
@@ -12302,10 +12322,20 @@ async function convertFolderToShared(folderId) {
   const songs = state.songs.filter(s => effectiveFolderId(s) === folderId && !sharedSongIds.has(s.id)).map(s => ({ ...s }));
   const folder = {
     id: folderId, name: f.name, shared: true, ownerUid: uid, ownerName: myDisplayName(),
-    memberUids: [uid], members: [{ uid, username: cloud.username || '' }],
+    memberUids: [uid], members: [{ uid, username: cloud.username || '', role: 'owner' }],
     createdAt: f.createdAt || Date.now(), updatedAt: Date.now(),
   };
-  // Move folder + songs from private stores to shared stores.
+  // CLOUD FIRST: write the album doc + every song to Firestore. If this is blocked
+  // (rules) or fails, ABORT and leave the private library completely untouched —
+  // never tombstone/remove private content before it's safely in the cloud.
+  try {
+    await sharedAlbumDocRef(uid, folderId).set(stripUndefinedDeep(sharedAlbumDocData(folder)));
+    for (const s of songs) {
+      const data = projectSharedSong(s); data.updatedAt = s.updatedAt || Date.now(); data.updatedBy = uid;
+      await sharedSongsColRef(uid, folderId).doc(s.id).set(stripUndefinedDeep(data));
+    }
+  } catch (e) { sharedPermCheck(e); showToast(T('Teilen fehlgeschlagen – nichts wurde geändert'), 'error'); return null; }
+  // Cloud writes succeeded → NOW move local private → shared.
   await storePutRaw(SHARED_FOLDER_STORE, folder);
   sharedAlbumIds.add(folderId);
   await storeDeleteRaw(FOLDER_STORE, folderId);
@@ -12321,9 +12351,6 @@ async function convertFolderToShared(folderId) {
   // empty their songIds (the moved songs are tombstoned above).
   const folderSetlists = state.setlists.filter(sl => effectiveFolderId(sl) === folderId);
   for (const sl of folderSetlists) { try { await setlistDelete(sl.id); } catch (e) {} }
-  // Push to Firestore.
-  await writeSharedAlbumDoc(folder);
-  for (const s of songs) await pushSharedSong(folder, s);
   maybeScheduleAutoSync();   // propagate the private-side removals
   await loadSongs();
   startSharedAlbumListener(folder);
@@ -12374,6 +12401,18 @@ async function leaveSharedAlbum(albumId) {
   } catch (e) { sharedPermCheck(e); }
   await leaveSharedAlbumLocal(albumId);
 }
+// ---- roles ----
+// owner = full control; manager = invite + edit; editor = edit songs only.
+function memberRole(album, uid) {
+  if (!album) return null;
+  if (uid === album.ownerUid) return 'owner';
+  const m = (album.members || []).find(x => x.uid === uid);
+  return (m && m.role) || 'editor';
+}
+function myRole(album) { return memberRole(album, myUid()); }
+function canManageShared(album) { const r = myRole(album); return r === 'owner' || r === 'manager'; }
+function roleLabel(role) { return role === 'owner' ? T('Besitzer') : role === 'manager' ? T('Manager') : T('Editor'); }
+
 // Owner removes a member.
 async function removeSharedMember(albumId, memberUid) {
   const album = getSharedAlbum(albumId);
@@ -12384,17 +12423,50 @@ async function removeSharedMember(albumId, memberUid) {
   await writeSharedAlbumDoc(album);
   renderSharedAlbumModalIfOpen();
 }
+// Owner changes a member's role (manager <-> editor).
+async function setMemberRole(albumId, memberUid, role) {
+  const album = getSharedAlbum(albumId);
+  if (!album || !isAlbumOwner(album) || memberUid === album.ownerUid) return;
+  album.members = (album.members || []).map(m => m.uid === memberUid ? { ...m, role } : m);
+  await storePutRaw(SHARED_FOLDER_STORE, album);
+  await writeSharedAlbumDoc(album);
+  renderSharedAlbumModalIfOpen();
+}
+// Owner renames the shared album (syncs to everyone via the album doc).
+async function renameSharedAlbum(albumId) {
+  const album = getSharedAlbum(albumId);
+  if (!album || !isAlbumOwner(album)) return;
+  const name = await promptDialog(T('Album umbenennen'), { value: album.name, placeholder: T('Albumname') });
+  if (!name || !name.trim()) return;
+  album.name = name.trim();
+  await storePutRaw(SHARED_FOLDER_STORE, album);
+  await writeSharedAlbumDoc(album);
+  await loadSongs();
+  if (state.view === 'library') renderLibrary();
+  renderFolderListIfOpen(); renderFolderSwitcher(); renderSharedAlbumModalIfOpen();
+}
+// Owner deletes the WHOLE shared album for everyone (content is removed).
+async function deleteSharedAlbum(albumId) {
+  const album = getSharedAlbum(albumId);
+  if (!album || !isAlbumOwner(album)) return;
+  const songs = (await sharedStoreAllSongs()).filter(s => s.folderId === albumId);
+  try {
+    for (const s of songs) await sharedSongsColRef(album.ownerUid, albumId).doc(s.id).delete();
+    await sharedAlbumDocRef(album.ownerUid, albumId).delete();
+  } catch (e) { sharedPermCheck(e); }
+  await leaveSharedAlbumLocal(albumId);   // drop locally too (members' listeners get the doc-gone event)
+}
 
 // ---- invite / accept ----
 async function inviteToSharedAlbum(albumId, rawUsername) {
   const album = getSharedAlbum(albumId);
   if (!album) return;
-  if (!isAlbumOwner(album)) { showToast(T('Nur der Besitzer kann einladen')); return; }
+  if (!canManageShared(album)) { showToast(T('Nur Besitzer/Manager können einladen')); return; }
   const found = await lookupUsername(rawUsername);
   if (!found) { showToast(T('Benutzername nicht gefunden')); return; }
   if ((album.memberUids || []).includes(found.uid)) { showToast(T('Ist bereits Mitglied')); return; }
   album.memberUids = [...(album.memberUids || []), found.uid];
-  album.members = [...(album.members || []), { uid: found.uid, username: found.username }];
+  album.members = [...(album.members || []), { uid: found.uid, username: found.username, role: 'editor' }];
   await storePutRaw(SHARED_FOLDER_STORE, album);
   await writeSharedAlbumDoc(album);
   // Deliver an invite via the existing inbox cross-user write.
@@ -12447,6 +12519,17 @@ async function initSharedAlbums() {
       const songsSnap = await sharedSongsColRef(meUid, d.id).get();
       for (const s of songsSnap.docs) await reconcileSharedSongUpsert(d.id, s.data());
     }
+    // RECOVERY: re-push any LOCAL owned album not yet in the cloud (e.g. a convert
+    // whose writes were blocked before the Firestore rule was added). This is what
+    // brings a lost album back onto the owner's other devices once sharing works.
+    const remoteIds = new Set(snap.docs.map(d => d.id));
+    for (const f of (await sharedStoreAllFolders()).filter(x => x.ownerUid === meUid && !remoteIds.has(x.id))) {
+      await sharedAlbumDocRef(meUid, f.id).set(stripUndefinedDeep(sharedAlbumDocData(f)));
+      for (const s of (await sharedStoreAllSongs()).filter(x => x.folderId === f.id)) {
+        const data = projectSharedSong(s); data.updatedAt = s.updatedAt || Date.now(); data.updatedBy = meUid;
+        await sharedSongsColRef(meUid, f.id).doc(s.id).set(stripUndefinedDeep(data));
+      }
+    }
   } catch (e) {
     sharedPermCheck(e);
     // Transient failure: retry so the owner's other device recovers converted
@@ -12480,23 +12563,30 @@ function closeSharedAlbumModal() { sharedAlbumModalId = null; document.getElemen
 function renderSharedAlbumModalIfOpen() { const m = document.getElementById('shared-album-modal'); if (sharedAlbumModalId && m && m.classList.contains('show')) renderSharedAlbumModal(); }
 function renderSharedAlbumModal() {
   const album = getSharedAlbum(sharedAlbumModalId); if (!album) { closeSharedAlbumModal(); return; }
-  const owner = isAlbumOwner(album), me = myUid();
+  const owner = isAlbumOwner(album), manage = canManageShared(album), me = myUid();
   document.getElementById('sam-title').textContent = album.name;
   document.getElementById('sam-sub').textContent =
-    (owner ? T('Du bist Besitzer') : (T('Besitzer') + ': @' + (album.ownerName || '?'))) +
+    (owner ? T('Du bist Besitzer') : (T('Besitzer') + ': @' + (album.ownerName || '?') + ' · ' + T('Deine Rolle') + ': ' + roleLabel(myRole(album)))) +
     ' · ' + (album.members || []).length + ' ' + T('Mitglieder');
   document.getElementById('sam-members').innerHTML = (album.members || []).map(m => {
     const isOwn = m.uid === album.ownerUid;
-    const tags = (isOwn ? ' · ' + escapeHtml(T('Besitzer')) : '') + (m.uid === me ? ' · ' + escapeHtml(T('du')) : '');
+    const role = isOwn ? 'owner' : (m.role || 'editor');
+    const youTag = (m.uid === me) ? ' · ' + escapeHtml(T('du')) : '';
+    // Owner gets a role dropdown for non-owner members; everyone else a static label.
+    const roleCtrl = (owner && !isOwn)
+      ? `<select class="field-input sam-role" data-uid="${escapeHtml(m.uid)}" style="width:auto; padding:4px 8px; font-size:13px;"><option value="editor"${role==='editor'?' selected':''}>${escapeHtml(T('Editor'))}</option><option value="manager"${role==='manager'?' selected':''}>${escapeHtml(T('Manager'))}</option></select>`
+      : `<span class="folder-shared-tag" style="background:var(--bg-2); border-color:var(--border); color:var(--text-1);">${escapeHtml(roleLabel(role))}</span>`;
     const rm = (owner && !isOwn) ? `<button class="btn btn-mini" data-act="remove" data-uid="${escapeHtml(m.uid)}">${escapeHtml(T('Entfernen'))}</button>` : '';
-    return `<div class="friend-row"><span class="f-avatar">${escapeHtml((m.username || '?')[0] || '?')}</span><div style="flex:1; min-width:0;"><div class="f-name">@${escapeHtml(m.username || '?')}${tags}</div></div>${rm}</div>`;
+    return `<div class="friend-row"><span class="f-avatar">${escapeHtml((m.username || '?')[0] || '?')}</span><div style="flex:1; min-width:0;"><div class="f-name">@${escapeHtml(m.username || '?')}${youTag}</div></div>${roleCtrl}${rm}</div>`;
   }).join('');
-  document.getElementById('sam-invite-row').style.display = owner ? 'flex' : 'none';
+  document.getElementById('sam-invite-row').style.display = manage ? 'flex' : 'none';
   document.getElementById('sam-leave').style.display = owner ? 'none' : '';
+  document.getElementById('sam-rename').style.display = owner ? '' : 'none';
   document.getElementById('sam-unshare').style.display = owner ? '' : 'none';
-  document.getElementById('sam-members').querySelectorAll('button[data-act="remove"]').forEach(b => {
-    b.onclick = () => removeSharedMember(album.id, b.dataset.uid);
-  });
+  document.getElementById('sam-delete').style.display = owner ? '' : 'none';
+  const memEl = document.getElementById('sam-members');
+  memEl.querySelectorAll('button[data-act="remove"]').forEach(b => { b.onclick = () => removeSharedMember(album.id, b.dataset.uid); });
+  memEl.querySelectorAll('select.sam-role').forEach(sel => { sel.onchange = () => setMemberRole(album.id, sel.dataset.uid, sel.value); });
 }
 (function wireSharedAlbumModal() {
   const closeBtn = document.getElementById('sam-close');
@@ -12509,6 +12599,7 @@ function renderSharedAlbumModal() {
     await inviteToSharedAlbum(sharedAlbumModalId, v);
   });
   document.getElementById('sam-invite-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('sam-invite-btn').click(); } });
+  document.getElementById('sam-rename').addEventListener('click', () => renameSharedAlbum(sharedAlbumModalId));
   document.getElementById('sam-leave').addEventListener('click', async () => {
     const id = sharedAlbumModalId;
     const ok = await confirmDialog(T('Album verlassen?'), T('Du verlässt dieses geteilte Album. Es verschwindet aus deiner Bibliothek.'));
@@ -12516,8 +12607,13 @@ function renderSharedAlbumModal() {
   });
   document.getElementById('sam-unshare').addEventListener('click', async () => {
     const id = sharedAlbumModalId;
-    const ok = await confirmDialog(T('Teilen beenden?'), T('Das geteilte Album wird für alle aufgelöst. Deine Songs bleiben bei dir privat erhalten.'));
+    const ok = await confirmDialog(T('Teilen beenden?'), T('Das geteilte Album wird zu einem normalen Album. Deine Songs bleiben bei dir; die anderen Mitglieder verlieren den Zugriff.'));
     if (ok) { await unshareAlbum(id); closeSharedAlbumModal(); showToast(T('Teilen beendet')); }
+  });
+  document.getElementById('sam-delete').addEventListener('click', async () => {
+    const id = sharedAlbumModalId;
+    const ok = await confirmDialog(T('Album löschen?'), T('Das geteilte Album und seine Songs werden für ALLE endgültig gelöscht.'));
+    if (ok) { await deleteSharedAlbum(id); closeSharedAlbumModal(); showToast(T('Album gelöscht')); }
   });
 })();
 
