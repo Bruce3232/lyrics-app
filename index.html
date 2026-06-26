@@ -2829,6 +2829,31 @@
   .pinned-card.pin-large .pin-btn { width: 28px; height: 28px; font-size: 15px; }
   .pinned-card.pin-large .pin-dgm .chord-dgm { max-height: 142px; }
 
+  /* ===== Drag a pinned card to the corner to delete it =====
+     A soft trash target fades in from the bottom-right corner ONLY while a card
+     is being dragged. Drop the card on it to unpin — much easier than the tiny ✕. */
+  .pin-trash {
+    position: fixed; right: 0; bottom: 0; z-index: 120;
+    width: 150px; height: 150px;
+    display: flex; align-items: flex-end; justify-content: flex-end;
+    padding: 0 20px 20px 0;
+    pointer-events: none;                 /* purely visual — never blocks taps */
+    opacity: 0; transform: translate(22px, 22px) scale(0.92);
+    transition: opacity 0.4s var(--ease), transform 0.4s var(--ease), background 0.18s var(--ease);
+    background: radial-gradient(135px 135px at 100% 100%, rgba(255,71,87,0.26), rgba(255,71,87,0) 72%);
+  }
+  .pin-trash.show { opacity: 1; transform: translate(0, 0) scale(1); }
+  .pin-trash-icon {
+    width: 44px; height: 44px; color: #ff4757; opacity: 0.6;
+    filter: drop-shadow(0 2px 10px rgba(0,0,0,0.45));
+    transition: transform 0.18s var(--ease), opacity 0.18s var(--ease);
+  }
+  /* Card held over the corner → brighten + enlarge: "let go to delete". */
+  .pin-trash.armed { background: radial-gradient(175px 175px at 100% 100%, rgba(255,71,87,0.5), rgba(255,71,87,0) 74%); }
+  .pin-trash.armed .pin-trash-icon { opacity: 1; transform: scale(1.42); }
+  /* The dragged card dims while it's over the trash so the delete reads clearly. */
+  .pinned-card.pin-over-trash { opacity: 0.4; }
+
   /* ===== Focus mode: hide all chrome, keep only lyrics + chords + popup ===== */
   #performance-view.perf-focus .perf-overlay { opacity: 0 !important; pointer-events: none !important; }
   #performance-view.perf-focus .perf-controls > [data-perf-el]:not([data-perf-el="focus"]) { opacity: 0 !important; pointer-events: none !important; }
@@ -10644,6 +10669,40 @@ function clampPinnedCards() {
   if (changed) saveCurrentPins();
 }
 
+// --- Drag-to-corner trash: drop a pinned card on the bottom-right corner to
+//     delete it (easier than the tiny ✕). The target only appears while dragging. ---
+let pinTrashDrags = 0;   // active drags showing the trash (multi-touch safe counter)
+function ensurePinTrash() {
+  let el = document.getElementById('pin-trash');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pin-trash'; el.className = 'pin-trash'; el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<svg class="pin-trash-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function pinTrashShow() { pinTrashDrags++; ensurePinTrash().classList.add('show'); }
+function pinTrashHide() {
+  pinTrashDrags = Math.max(0, pinTrashDrags - 1);
+  if (pinTrashDrags === 0) { const el = document.getElementById('pin-trash'); if (el) el.classList.remove('show', 'armed'); }
+}
+function pinTrashArm(on) { const el = document.getElementById('pin-trash'); if (el) el.classList.toggle('armed', !!on); }
+// Does the dragged card overlap the corner trash target?
+function cardOverPinTrash(card) {
+  const el = document.getElementById('pin-trash'); if (!el) return false;
+  const a = card.getBoundingClientRect(), b = el.getBoundingClientRect();
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+// After a drag-delete the finger may release over a control (e.g. next-song) →
+// swallow exactly one trailing click so the release can't trigger it.
+function swallowNextClick() {
+  const h = (e) => { e.stopPropagation(); e.preventDefault(); cleanup(); };
+  const cleanup = () => document.removeEventListener('click', h, true);
+  document.addEventListener('click', h, true);
+  setTimeout(cleanup, 600);
+}
+
 // Drag a card from ANYWHERE on it (big grab area). The drag begins only once the
 // pointer moves past a small threshold, so a plain tap — even on a button — never
 // moves the card and can't block autoscroll. A finished drag suppresses the
@@ -10664,12 +10723,14 @@ function startPinDrag(e, card) {
   const startX = e.clientX, startY = e.clientY;
   const THRESH = 6;
   let dragging = false;
+  let overTrash = false;
   try { card.setPointerCapture(id); } catch (_) {}   // route this pointer to the card
   const move = (ev) => {
     if (ev.pointerId !== id) return;                 // ignore other fingers (multi-touch)
     if (!dragging) {
       if (Math.abs(ev.clientX - startX) <= THRESH && Math.abs(ev.clientY - startY) <= THRESH) return;
       dragging = true; card.classList.add('pin-dragging');
+      pinTrashShow();                                // reveal the corner trash target
     }
     ev.preventDefault();
     const left = Math.max(0, Math.min(lr.width - cw, ev.clientX - lr.left - offX));
@@ -10677,6 +10738,9 @@ function startPinDrag(e, card) {
     card.style.left = left + 'px'; card.style.top = top + 'px';
     pin.xPct = lr.width ? (left / lr.width * 100) : pin.xPct;
     pin.yPct = lr.height ? (top / lr.height * 100) : pin.yPct;
+    overTrash = cardOverPinTrash(card);              // hovering the corner trash?
+    pinTrashArm(overTrash);
+    card.classList.toggle('pin-over-trash', overTrash);
   };
   const end = (ev) => {
     if (ev && ev.pointerId !== id) return;           // only end on this pointer's up/cancel
@@ -10685,10 +10749,19 @@ function startPinDrag(e, card) {
     document.removeEventListener('pointercancel', end);
     try { card.releasePointerCapture(id); } catch (_) {}
     if (dragging) {
-      card.classList.remove('pin-dragging');
+      card.classList.remove('pin-dragging', 'pin-over-trash');
+      // Dropped on the corner trash (and not an interrupted/cancelled gesture) → unpin.
+      if (overTrash && !(ev && ev.type === 'pointercancel')) {
+        swallowNextClick();        // the release tap mustn't trigger a control underneath
+        pinTrashHide();
+        removePin(pin.id);         // saves + re-renders (this card is removed)
+        showToast(T('Akkord gelöst'));
+        return;
+      }
       card.style.left = pin.xPct + '%'; card.style.top = pin.yPct + '%';
       pinSuppressClick = true;   // eat the click this drag would otherwise trigger
       saveCurrentPins();
+      pinTrashHide();
     }
   };
   document.addEventListener('pointermove', move, { passive: false });
