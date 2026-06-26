@@ -162,6 +162,9 @@
     -webkit-user-select: none;
     user-select: none;
   }
+  /* Long-pressing a song opens our Quick Actions menu — stop iOS from showing its
+     own text-selection callout/magnifier on the hold. */
+  .song-row, .song-row * { -webkit-touch-callout: none; }
 
   body::before {
     content: "";
@@ -2854,6 +2857,61 @@
   /* The dragged card dims while it's over the trash so the delete reads clearly. */
   .pinned-card.pin-over-trash { opacity: 0.4; }
 
+  /* ===== Song Quick Actions (long-press / right-click a song) ===== */
+  .qa-backdrop { position: fixed; inset: 0; z-index: 130; display: none; background: rgba(0,0,0,0.28); -webkit-tap-highlight-color: transparent; }
+  .qa-backdrop.show { display: block; }
+  .qa-menu {
+    position: fixed; min-width: 224px; max-width: 80vw;
+    background: var(--surface-strong); border: 1px solid var(--border-strong);
+    border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.46);
+    padding: 6px; animation: fadeIn 0.12s var(--ease);
+  }
+  .qa-title {
+    font-size: 12px; font-weight: 700; color: var(--text-2);
+    padding: 7px 10px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  }
+  .qa-item {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 12px; border: none; background: transparent;
+    color: var(--text-0); font-size: 15px; font-weight: 600; text-align: left;
+    border-radius: 9px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s var(--ease);
+  }
+  .qa-item:hover { background: var(--surface); }
+  .qa-item:active { background: var(--surface); }
+  .qa-item svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--text-1); }
+  .qa-item.qa-danger { color: #ff4757; }
+  .qa-item.qa-danger svg { color: #ff4757; }
+
+  /* ===== Move-to-position: number field + iOS-style wheel ===== */
+  .move-pos-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .move-pos-row label { font-weight: 600; color: var(--text-1); }
+  #move-pos-input { width: 96px; text-align: center; font-size: 18px; font-weight: 700; }
+  .move-pos-total { color: var(--text-2); font-weight: 600; }
+  .wheel-wrap { position: relative; height: 200px; margin-bottom: 4px; }
+  .wheel-wrap::before, .wheel-wrap::after { content: ''; position: absolute; left: 0; right: 0; height: 70px; pointer-events: none; z-index: 2; }
+  .wheel-wrap::before { top: 0; background: linear-gradient(var(--surface-strong), rgba(0,0,0,0)); }
+  .wheel-wrap::after { bottom: 0; background: linear-gradient(rgba(0,0,0,0), var(--surface-strong)); }
+  .wheel {
+    height: 100%; overflow-y: auto; scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-1);
+  }
+  .wheel::-webkit-scrollbar { width: 0; height: 0; }
+  .wheel-highlight {
+    position: absolute; left: 0; right: 0; top: 50%; height: 40px;
+    transform: translateY(-50%); pointer-events: none; z-index: 1;
+    border-top: 1px solid var(--accent); border-bottom: 1px solid var(--accent);
+    background: var(--accent-glow);
+  }
+  .wheel-item {
+    height: 40px; display: flex; align-items: center; justify-content: center;
+    scroll-snap-align: center; font-size: 17px; font-weight: 600; color: var(--text-2);
+    cursor: pointer; transition: color 0.12s var(--ease), font-size 0.12s var(--ease);
+  }
+  .wheel-item.active { color: var(--accent); font-weight: 800; font-size: 22px; }
+
   /* ===== Focus mode: hide all chrome, keep only lyrics + chords + popup ===== */
   #performance-view.perf-focus .perf-overlay { opacity: 0 !important; pointer-events: none !important; }
   #performance-view.perf-focus .perf-controls > [data-perf-el]:not([data-perf-el="focus"]) { opacity: 0 !important; pointer-events: none !important; }
@@ -3444,10 +3502,6 @@
             <span class="profile-item-label">Freunde</span>
           </button>
           <div class="profile-divider"></div>
-          <button class="profile-item" id="select-btn" title="Mehrere Songs auswählen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            <span class="profile-item-label">Songs auswählen</span>
-          </button>
           <button class="profile-item" id="export-btn" title="Alle Songs exportieren">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span class="profile-item-label">Exportieren</span>
@@ -4069,6 +4123,57 @@
       <div style="flex:1;"></div>
       <button class="btn" id="move-folder-copy">Kopieren</button>
       <button class="btn btn-primary" id="move-folder-move">Verschieben</button>
+    </div>
+  </div>
+</div>
+
+<!-- Song quick-actions menu (long-press / right-click a song) -->
+<div class="qa-backdrop" id="qa-backdrop">
+  <div class="qa-menu" id="qa-menu" role="menu">
+    <div class="qa-title" id="qa-title" data-no-i18n></div>
+    <button class="qa-item" data-qa="select" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Mehrere auswählen
+    </button>
+    <button class="qa-item" data-qa="move" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 12 3 16 7"/><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+      An Position verschieben
+    </button>
+    <button class="qa-item" data-qa="duplicate" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Duplizieren
+    </button>
+    <button class="qa-item" data-qa="album" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Zu Album hinzufügen
+    </button>
+    <button class="qa-item qa-danger" data-qa="delete" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+      <span class="qa-del-label">Löschen</span>
+    </button>
+  </div>
+</div>
+
+<!-- Move a song to a chosen position (type the number or flick the wheel) -->
+<div class="modal-backdrop" id="move-pos-modal">
+  <div class="modal">
+    <h3>Song verschieben</h3>
+    <p id="move-pos-sub" style="margin-bottom:14px;"><b id="move-pos-songname" data-no-i18n></b><span id="move-pos-posinfo"></span></p>
+    <div class="move-pos-row">
+      <label for="move-pos-input">Neue Position</label>
+      <input class="field-input" type="number" id="move-pos-input" min="1" inputmode="numeric" autocomplete="off">
+      <span class="move-pos-total" id="move-pos-total"></span>
+    </div>
+    <div class="wheel-wrap">
+      <div class="wheel" id="move-pos-wheel">
+        <div class="wheel-track" id="move-pos-wheel-track"></div>
+      </div>
+      <div class="wheel-highlight"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="move-pos-cancel">Abbrechen</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" id="move-pos-confirm">Verschieben</button>
     </div>
   </div>
 </div>
@@ -5060,6 +5165,19 @@ const I18N = {
     "Hell/Dunkel umschalten": "Toggle light/dark",
     "Mehrere Songs auswählen": "Select multiple songs",
     "Auswählen": "Select",
+    "Mehrere auswählen": "Select multiple",
+    "An Position verschieben": "Move to position",
+    "Duplizieren": "Duplicate",
+    "Zu Album hinzufügen": "Add to album",
+    "Song verschieben": "Move song",
+    "Neue Position": "New position",
+    "Aus Setlist entfernen": "Remove from setlist",
+    "Aktuelle Position {x} von {x}": "Current position {x} of {x}",
+    "Dupliziert": "Duplicated",
+    "Verschoben": "Moved",
+    "Zum Verschieben zuerst Filter & Suche zurücksetzen": "Reset filters & search first to reorder",
+    "Für alle löschen?": "Delete for everyone?",
+    "\"{x}\" wird für ALLE Mitglieder dieses geteilten Albums gelöscht.": "\"{x}\" will be deleted for ALL members of this shared album.",
     "Songs aus JSON importieren": "Import songs from JSON",
     "Alle Songs exportieren": "Export all songs",
     "Einstellungen, Cloud-Sync & Profil": "Settings, cloud sync & profile",
@@ -6248,7 +6366,10 @@ async function applyReorderDataOnly(fromIdx, toIdx) {
     await setlistPut(setlist);
   } else {
     const base = Date.now();
-    filtered.forEach((s, i) => { s.position = base + i; });
+    // Bump updatedAt alongside the new position so the reorder is seen as NEWER
+    // and actually propagates to other members in shared albums (the per-song
+    // last-write-wins guard drops changes that aren't strictly newer).
+    filtered.forEach((s, i) => { s.position = base + i; s.updatedAt = Date.now(); });
     for (const s of filtered) await dbPut(s);
     state.songs = state.songs.map(s => filtered.find(x => x.id === s.id) || s);
   }
@@ -6270,7 +6391,10 @@ async function applyReorder(fromIdx, toIdx) {
     await setlistPut(setlist);
   } else {
     const base = Date.now();
-    filtered.forEach((s, i) => { s.position = base + i; });
+    // Bump updatedAt alongside the new position so the reorder is seen as NEWER
+    // and actually propagates to other members in shared albums (the per-song
+    // last-write-wins guard drops changes that aren't strictly newer).
+    filtered.forEach((s, i) => { s.position = base + i; s.updatedAt = Date.now(); });
     for (const s of filtered) await dbPut(s);
     state.songs = state.songs.map(s => filtered.find(x => x.id === s.id) || s);
   }
@@ -6384,6 +6508,7 @@ function renderSongList() {
       const song = state.songs.find(s => s.id === id);
       if (song) openPerformance(song);
     });
+    attachSongLongPress(row, id);
     if (!selection.active) {
       const shareBtn = row.querySelector('[data-action="share"]');
       if (shareBtn) shareBtn.addEventListener('click', (e) => {
@@ -6398,47 +6523,56 @@ function renderSongList() {
       // Drag-to-reorder via the handle (only present in listEditMode)
       const handle = row.querySelector('[data-action="drag-handle"]');
       if (handle) handle.addEventListener('pointerdown', (e) => startRowDrag(e, row));
-      row.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
+      row.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
         e.stopPropagation();
-        const song = state.songs.find(s => s.id === id);
-        if (!song) return;
-
-        // Context-aware: in setlist view, remove from setlist only
-        if (state.currentSetlistId) {
-          const sl = state.setlists.find(s => s.id === state.currentSetlistId);
-          if (!sl) return;
-          const ok = await confirmDialog(
-            `Aus Setlist entfernen?`,
-            `"${song.title || 'Ohne Titel'}" wird aus "${sl.name}" entfernt. Der Song bleibt in deiner Bibliothek.`
-          );
-          if (ok) {
-            sl.songIds = (sl.songIds || []).filter(sid => sid !== id);
-            sl.updatedAt = Date.now();
-            await setlistPut(sl);
-            showToast(`Aus "${sl.name}" entfernt`, 'success');
-            await renderLibrary();
-          }
-          return;
-        }
-
-        // "Alle Songs" view: delete from DB and clean up from all setlists
-        const ok = await confirmDialog('Song löschen?', `"${song.title || 'Ohne Titel'}" wird endgültig aus deiner Bibliothek entfernt.`);
-        if (ok) {
-          await dbDelete(id);
-          // Remove from all setlists
-          for (const sl of state.setlists) {
-            if ((sl.songIds || []).includes(id)) {
-              sl.songIds = sl.songIds.filter(sid => sid !== id);
-              sl.updatedAt = Date.now();
-              await setlistPut(sl);
-            }
-          }
-          showToast('Gelöscht', 'success');
-          await renderLibrary();
-        }
+        deleteSongFlow(id);
       });
     }
   });
+}
+
+// Delete (library) or remove-from-setlist (setlist view) — shared by the row
+// delete button and the Quick Actions menu. Context-aware on the current view.
+async function deleteSongFlow(id) {
+  const song = state.songs.find(s => s.id === id);
+  if (!song) return;
+  // Context-aware: in setlist view, remove from setlist only
+  if (state.currentSetlistId) {
+    const sl = state.setlists.find(s => s.id === state.currentSetlistId);
+    if (!sl) return;
+    const ok = await confirmDialog(
+      `Aus Setlist entfernen?`,
+      `"${song.title || 'Ohne Titel'}" wird aus "${sl.name}" entfernt. Der Song bleibt in deiner Bibliothek.`
+    );
+    if (ok) {
+      sl.songIds = (sl.songIds || []).filter(sid => sid !== id);
+      sl.updatedAt = Date.now();
+      await setlistPut(sl);
+      showToast(`Aus "${sl.name}" entfernt`, 'success');
+      await renderLibrary();
+    }
+    return;
+  }
+  // "Alle Songs" view: delete from DB and clean up from all setlists. A song that
+  // lives in a SHARED album is deleted for every member — say so explicitly
+  // instead of the misleading "your library" wording.
+  const isShared = (typeof isSharedAlbumId === 'function' && isSharedAlbumId(song.folderId))
+                || (typeof sharedSongIds !== 'undefined' && sharedSongIds.has && sharedSongIds.has(id));
+  const ok = isShared
+    ? await confirmDialog('Für alle löschen?', `"${song.title || 'Ohne Titel'}" wird für ALLE Mitglieder dieses geteilten Albums gelöscht.`)
+    : await confirmDialog('Song löschen?', `"${song.title || 'Ohne Titel'}" wird endgültig aus deiner Bibliothek entfernt.`);
+  if (ok) {
+    await dbDelete(id);
+    for (const sl of state.setlists) {
+      if ((sl.songIds || []).includes(id)) {
+        sl.songIds = sl.songIds.filter(sid => sid !== id);
+        sl.updatedAt = Date.now();
+        await setlistPut(sl);
+      }
+    }
+    showToast('Gelöscht', 'success');
+    await renderLibrary();
+  }
 }
 
 function updateSelectionUI() {
@@ -6475,11 +6609,6 @@ function exitSelectionMode() {
   document.getElementById('alpha-bar').style.pointerEvents = '';
   renderSongList();
 }
-
-document.getElementById('select-btn').addEventListener('click', () => {
-  if (selection.active) exitSelectionMode();
-  else enterSelectionMode();
-});
 
 document.getElementById('select-cancel-btn').addEventListener('click', exitSelectionMode);
 
@@ -7165,6 +7294,257 @@ document.getElementById('move-folder-modal').addEventListener('click', (e) => {
 });
 document.getElementById('move-folder-move').addEventListener('click', performMove);
 document.getElementById('move-folder-copy').addEventListener('click', performCopy);
+
+// =====================================================
+//   Song Quick Actions (long-press / right-click) + Move-to-position
+//   Long-pressing a song (≈0.5s) — or right-clicking — opens a small action
+//   menu: Select multiple, Move to position, Duplicate, Add to album, Delete.
+//   Replaces the old dedicated "Select" button. Move-to-position offers a number
+//   field AND an iOS-style wheel, kept in sync, so large lists reorder instantly.
+// =====================================================
+// The trailing click after a long-press is eaten globally by swallowNextClick().
+let qaTargetId = null;
+
+// Attach long-press (touch + mouse hold) and right-click to a song row.
+function attachSongLongPress(row, id) {
+  let timer = null, sx = 0, sy = 0;
+  const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  row.addEventListener('pointerdown', (e) => {
+    if (selection.active || listEditMode) return;        // not in select/reorder modes
+    if (e.button != null && e.button > 0) return;        // primary button / touch / pen only
+    if (e.target.closest('.song-row-action, .song-row-handle')) return;
+    sx = e.clientX; sy = e.clientY;
+    clear();
+    timer = setTimeout(() => {
+      timer = null;
+      swallowNextClick();                                // eat the release click globally
+      openSongActions(id, sx, sy);
+    }, 500);
+  });
+  row.addEventListener('pointermove', (e) => {
+    if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) clear();
+  });
+  row.addEventListener('pointerup', clear);
+  row.addEventListener('pointercancel', clear);
+  row.addEventListener('contextmenu', (e) => {
+    if (selection.active || listEditMode) return;
+    if (e.target.closest('.song-row-action, .song-row-handle')) return;
+    e.preventDefault();
+    clear();
+    openSongActions(id, e.clientX, e.clientY);            // right-click: no trailing click
+  });
+}
+
+function openSongActions(id, x, y) {
+  const song = state.songs.find(s => s.id === id);
+  if (!song) return;
+  qaTargetId = id;
+  document.getElementById('qa-title').textContent = song.title || T('Ohne Titel');
+  // Delete vs remove-from-setlist label, depending on the current view.
+  const delLabel = document.querySelector('#qa-menu .qa-del-label');
+  if (delLabel) delLabel.textContent = state.currentSetlistId ? T('Aus Setlist entfernen') : T('Löschen');
+  const backdrop = document.getElementById('qa-backdrop');
+  const menu = document.getElementById('qa-menu');
+  backdrop.classList.add('show');
+  // Position near the press point, clamped on-screen (measure once visible).
+  menu.style.left = '0px'; menu.style.top = '0px';
+  const mw = menu.offsetWidth, mh = menu.offsetHeight, M = 10;
+  const left = Math.max(M, Math.min(window.innerWidth - mw - M, x));
+  let top = y + 6;
+  if (top + mh > window.innerHeight - M) top = y - mh - 6;
+  top = Math.max(M, Math.min(window.innerHeight - mh - M, top));
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}
+function closeSongActions() {
+  document.getElementById('qa-backdrop').classList.remove('show');
+  qaTargetId = null;
+}
+
+(function setupSongActions() {
+  const backdrop = document.getElementById('qa-backdrop');
+  const menu = document.getElementById('qa-menu');
+  if (!backdrop || !menu) return;
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSongActions(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && backdrop.classList.contains('show')) closeSongActions(); });
+  menu.addEventListener('click', async (e) => {
+    const item = e.target.closest('.qa-item'); if (!item) return;
+    const action = item.dataset.qa;
+    const id = qaTargetId;
+    closeSongActions();
+    if (!id) return;
+    if (action === 'select') {
+      enterSelectionMode();
+      selection.ids.add(id);
+      renderSongList();
+      updateSelectionUI();
+    } else if (action === 'move') {
+      if (filterState.search.trim() || filterState.artist || filterState.letter) {
+        showToast(T('Zum Verschieben zuerst Filter & Suche zurücksetzen'));
+        return;
+      }
+      openMovePosition(id);
+    } else if (action === 'duplicate') {
+      await duplicateSong(id);
+    } else if (action === 'album') {
+      openMoveFolderModal([id]);
+    } else if (action === 'delete') {
+      await deleteSongFlow(id);
+    }
+  });
+})();
+
+// Duplicate a song in place: an independent copy (new id) placed directly after
+// the original. Placement is robust against tied / absent positions (the default
+// state of a fresh or freshly-imported library): slot the copy into the numeric
+// gap when there is one, else renumber from the original onward so the copy still
+// lands right beneath it.
+async function duplicateSong(id) {
+  const song = state.songs.find(s => s.id === id);
+  if (!song) return;
+  const dup = JSON.parse(JSON.stringify(song));
+  dup.id = uid();
+  dup.createdAt = Date.now();
+  dup.updatedAt = Date.now();
+  dup.title = (song.title || T('Ohne Titel')) + (currentLang === 'en' ? ' (Copy)' : ' (Kopie)');
+  // fresh version ids so they don't collide with the original
+  if (Array.isArray(dup.versions)) {
+    const map = {};
+    dup.versions.forEach(v => { const nv = vid(); map[v.id] = nv; v.id = nv; });
+    if (dup.activeVersionId && map[dup.activeVersionId]) dup.activeVersionId = map[dup.activeVersionId];
+  }
+  // Effective sort key matches getFilteredSongs(): position, else createdAt.
+  const keyOf = s => (typeof s.position === 'number') ? s.position : (s.createdAt || 0);
+  const folder = songsInCurrentFolder().slice().sort((a, b) => keyOf(a) - keyOf(b));
+  const oi = folder.findIndex(s => s.id === id);
+  const next = (oi >= 0) ? folder[oi + 1] : null;
+  const baseKey = keyOf(song);
+  if (next && keyOf(next) > baseKey + 1e-6) {
+    // Clean numeric gap → drop the copy between the two, touch nothing else.
+    dup.position = (baseKey + keyOf(next)) / 2;
+    await dbPut(dup);
+  } else {
+    // Tie with the next song (or the original is last) → renumber from the
+    // original onward with clean integer positions so the copy lands right after
+    // it. Only re-write songs whose position actually changes, and bump updatedAt
+    // so the change also syncs in shared albums.
+    const tail = (oi >= 0 ? folder.slice(oi) : [song]);
+    tail.splice(1, 0, dup);                       // copy right after the original
+    const base = Date.now();
+    for (let i = 0; i < tail.length; i++) {
+      const s = tail[i];
+      const np = base + i;
+      if (s === dup) { s.position = np; continue; }
+      if (s.position !== np) { s.position = np; s.updatedAt = Date.now(); await dbPut(s); }
+    }
+    await dbPut(dup);
+  }
+  // In a setlist view, also drop the copy right after the original in the setlist.
+  if (state.currentSetlistId) {
+    const sl = state.setlists.find(s => s.id === state.currentSetlistId);
+    if (sl) {
+      const ids = sl.songIds || [];
+      const i = ids.indexOf(id);
+      if (i >= 0) ids.splice(i + 1, 0, dup.id); else ids.push(dup.id);
+      sl.songIds = ids; sl.updatedAt = Date.now();
+      await setlistPut(sl);
+    }
+  }
+  await renderLibrary();
+  showToast(T('Dupliziert'), 'success');
+  if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
+}
+
+// ----- Move-to-position: number field + wheel picker, kept in sync -----
+const WHEEL_ITEM_H = 40, WHEEL_H = 200;
+let movePosState = null;                 // { id, fromIdx, count, target }
+let wheelSyncing = false, wheelSyncTimer = null;
+
+function openMovePosition(id) {
+  const filtered = getFilteredSongs();
+  const fromIdx = filtered.findIndex(s => s.id === id);
+  if (fromIdx < 0) return;
+  const count = filtered.length;
+  const song = filtered[fromIdx];
+  movePosState = { id, fromIdx, count, target: fromIdx };
+  document.getElementById('move-pos-songname').textContent = song.title || T('Ohne Titel');
+  document.getElementById('move-pos-posinfo').textContent =
+    ' · ' + T('Aktuelle Position ' + (fromIdx + 1) + ' von ' + count);
+  const input = document.getElementById('move-pos-input');
+  input.min = 1; input.max = count; input.value = fromIdx + 1;
+  document.getElementById('move-pos-total').textContent = '/ ' + count;
+  buildMovePosWheel(count, fromIdx);
+  document.getElementById('move-pos-modal').classList.add('show');
+  requestAnimationFrame(() => setMovePosWheel(fromIdx, false));
+}
+function buildMovePosWheel(count, currentIdx) {
+  const track = document.getElementById('move-pos-wheel-track');
+  const pad = (WHEEL_H - WHEEL_ITEM_H) / 2;   // lets the first/last number reach the centre
+  let html = `<div style="height:${pad}px"></div>`;
+  for (let i = 0; i < count; i++) {
+    html += `<div class="wheel-item ${i === currentIdx ? 'active' : ''}" data-idx="${i}">${i + 1}</div>`;
+  }
+  html += `<div style="height:${pad}px"></div>`;
+  track.innerHTML = html;
+}
+function markMovePosActive(idx) {
+  document.querySelectorAll('#move-pos-wheel-track .wheel-item').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.idx, 10) === idx);
+  });
+}
+function setMovePosWheel(idx, smooth) {
+  const wheel = document.getElementById('move-pos-wheel');
+  wheelSyncing = true;                       // ignore the scroll events we cause
+  wheel.scrollTo({ top: idx * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
+  markMovePosActive(idx);
+  clearTimeout(wheelSyncTimer);
+  wheelSyncTimer = setTimeout(() => { wheelSyncing = false; }, smooth ? 360 : 70);
+}
+
+(function setupMovePos() {
+  const modal = document.getElementById('move-pos-modal');
+  const wheel = document.getElementById('move-pos-wheel');
+  const input = document.getElementById('move-pos-input');
+  if (!modal || !wheel || !input) return;
+  const close = () => { modal.classList.remove('show'); movePosState = null; };
+  wheel.addEventListener('scroll', () => {
+    if (wheelSyncing || !movePosState) return;
+    const idx = Math.max(0, Math.min(movePosState.count - 1, Math.round(wheel.scrollTop / WHEEL_ITEM_H)));
+    if (idx !== movePosState.target) {
+      movePosState.target = idx;
+      markMovePosActive(idx);
+      input.value = idx + 1;
+    }
+  });
+  wheel.addEventListener('click', (e) => {
+    const item = e.target.closest('.wheel-item'); if (!item || !movePosState) return;
+    const idx = parseInt(item.dataset.idx, 10);
+    movePosState.target = idx;
+    input.value = idx + 1;
+    setMovePosWheel(idx, true);
+  });
+  input.addEventListener('input', () => {
+    if (!movePosState) return;
+    let v = parseInt(input.value, 10);
+    if (isNaN(v)) return;
+    v = Math.max(1, Math.min(movePosState.count, v));
+    movePosState.target = v - 1;
+    setMovePosWheel(v - 1, false);
+  });
+  input.addEventListener('change', () => { if (movePosState) input.value = movePosState.target + 1; });
+  document.getElementById('move-pos-cancel').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('show')) close(); });
+  document.getElementById('move-pos-confirm').addEventListener('click', async () => {
+    if (!movePosState) return;
+    const { fromIdx, target } = movePosState;
+    close();
+    if (target !== fromIdx) {
+      await applyReorder(fromIdx, target);
+      showToast(T('Verschoben'), 'success');
+    }
+  });
+})();
 
 // Filter event listeners
 document.getElementById('search-input').addEventListener('input', (e) => {
