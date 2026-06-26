@@ -4322,6 +4322,7 @@ const SHARED_FOLDER_STORE = 'sharedFolders';
 const SHARED_SONG_STORE = 'sharedSongs';
 let sharedAlbumIds = new Set();   // folder ids that are shared albums
 let sharedSongIds = new Set();    // song ids that belong to a shared album
+let sharedSetlistIds = new Set(); // setlist ids that belong to a shared album
 function isSharedAlbumId(id) { return !!id && sharedAlbumIds.has(id); }
 
 // The default folder every existing song/setlist (and anything without a
@@ -4402,8 +4403,12 @@ async function storeDelete(storeName, id) {
 // Setlist CRUD
 const setlistAll = () => storeAll(SETLIST_STORE);
 const setlistGet = (id) => storeGet(SETLIST_STORE, id);
-const setlistPut = (sl) => storePut(SETLIST_STORE, sl);
-const setlistDelete = (id) => storeDelete(SETLIST_STORE, id);
+// A setlist inside a shared album lives in the album doc (synced to all members),
+// NOT the private SETLIST_STORE. Route by folderId / id.
+const setlistPut = (sl) => (sl && isSharedAlbumId(sl.folderId) && typeof sharedSetlistSaveAndPush === 'function')
+  ? sharedSetlistSaveAndPush(sl) : storePut(SETLIST_STORE, sl);
+const setlistDelete = (id) => (sharedSetlistIds.has(id) && typeof sharedSetlistDeleteAndPush === 'function')
+  ? sharedSetlistDeleteAndPush(id) : storeDelete(SETLIST_STORE, id);
 
 // Folder CRUD. The MAIN folder is virtual (not stored) and always exists.
 const folderAll = () => storeAll(FOLDER_STORE);
@@ -5795,10 +5800,14 @@ async function loadSongs() {
   const myFolders = meUid ? allSharedFolders.filter(f => f.ownerUid === meUid || (f.memberUids || []).includes(meUid)) : [];
   const myAlbumIds = new Set(myFolders.map(f => f.id));
   const mySongs = allSharedSongs.filter(s => myAlbumIds.has(s.folderId));
+  // Shared setlists live inside the album doc (folder.setlists).
+  const mySharedSetlists = [];
+  myFolders.forEach(f => (f.setlists || []).forEach(sl => mySharedSetlists.push({ ...sl, folderId: f.id, shared: true })));
   sharedAlbumIds = myAlbumIds;
   sharedSongIds = new Set(mySongs.map(s => s.id));
+  sharedSetlistIds = new Set(mySharedSetlists.map(s => s.id));
   state.songs = [...privSongs, ...mySongs];
-  state.setlists = await setlistAll();
+  state.setlists = [...(await setlistAll()), ...mySharedSetlists];
   state.folders = [...(await foldersWithMain()), ...myFolders];
   // If the currently selected folder no longer exists (deleted elsewhere),
   // fall back to the main library.
@@ -5813,8 +5822,11 @@ async function loadSongs() {
   try { deletedIds = new Set((getTombstones().songs) || []); }
   catch { deletedIds = new Set(); }
   for (const sl of state.setlists) {
+    if (sl.shared) continue;   // shared setlists are managed via the album doc, not tombstones
     const before = (sl.songIds || []).length;
-    const filtered = (sl.songIds || []).filter(id => !deletedIds.has(id));
+    // Keep shared-album song ids even if they look "deleted" in the private tombstones
+    // (they were moved into a shared album, not really deleted).
+    const filtered = (sl.songIds || []).filter(id => !deletedIds.has(id) || sharedSongIds.has(id));
     if (filtered.length !== before) {
       sl.songIds = filtered;
       sl.updatedAt = Date.now();
@@ -12188,12 +12200,37 @@ function sharedAlbumDocData(folder) {
   return {
     id: folder.id, name: folder.name, ownerUid: folder.ownerUid, ownerName: folder.ownerName,
     memberUids: folder.memberUids, members: folder.members,
+    setlists: folder.setlists || [],
     createdAt: folder.createdAt, updatedAt: Date.now(),
   };
 }
 async function writeSharedAlbumDoc(folder) {
   try { await sharedAlbumDocRef(folder.ownerUid, folder.id).set(stripUndefinedDeep(sharedAlbumDocData(folder))); }
   catch (e) { sharedPermCheck(e); }
+}
+// A setlist in a shared album is stored in the album doc's `setlists` array (small;
+// just name + songIds) and synced to every member with the album doc.
+async function sharedSetlistSaveAndPush(sl) {
+  const album = getSharedAlbum(sl.folderId);
+  if (!album) return storePut(SETLIST_STORE, sl);   // album gone → fall back to private
+  const entry = { id: sl.id, name: sl.name || '', songIds: (sl.songIds || []).slice(), folderId: album.id, shared: true, updatedAt: Date.now() };
+  album.setlists = (album.setlists || []).filter(x => x.id !== sl.id).concat([entry]);
+  sharedSetlistIds.add(sl.id);
+  await storePutRaw(SHARED_FOLDER_STORE, album);
+  const i = (state.setlists || []).findIndex(x => x.id === sl.id);
+  if (i >= 0) state.setlists[i] = { ...entry }; else state.setlists.push({ ...entry });
+  await writeSharedAlbumDoc(album);
+}
+async function sharedSetlistDeleteAndPush(id) {
+  const album = (state.folders || []).find(f => f.shared && (f.setlists || []).some(s => s.id === id));
+  sharedSetlistIds.delete(id);
+  const j = (state.setlists || []).findIndex(x => x.id === id);
+  if (j >= 0) state.setlists.splice(j, 1);
+  if (album) {
+    album.setlists = (album.setlists || []).filter(s => s.id !== id);
+    await storePutRaw(SHARED_FOLDER_STORE, album);
+    await writeSharedAlbumDoc(album);
+  }
 }
 
 // ---- live listeners (Firestore -> local) ----
@@ -12216,7 +12253,10 @@ function startSharedAlbumListener(album) {
     local.members = d.members || local.members;
     local.memberUids = d.memberUids || local.memberUids;
     local.ownerName = d.ownerName || local.ownerName;
+    local.setlists = Array.isArray(d.setlists) ? d.setlists : (local.setlists || []);
     await storePutRaw(SHARED_FOLDER_STORE, local);
+    await loadSongs();   // rebuild state incl. this album's shared setlists
+    if (state.view === 'library') renderLibrary();
     renderFolderListIfOpen(); renderFolderSwitcher(); renderSharedAlbumModalIfOpen();
   }, e => sharedPermCheck(e)));
   subs.push(sharedSongsColRef(album.ownerUid, album.id).onSnapshot(async (snap) => {
@@ -12320,9 +12360,12 @@ async function convertFolderToShared(folderId) {
   const f = state.folders.find(x => x.id === folderId && !x.shared);
   if (!f) return null;
   const songs = state.songs.filter(s => effectiveFolderId(s) === folderId && !sharedSongIds.has(s.id)).map(s => ({ ...s }));
+  const folderSetlists = state.setlists.filter(sl => effectiveFolderId(sl) === folderId && !sl.shared);
   const folder = {
     id: folderId, name: f.name, shared: true, ownerUid: uid, ownerName: myDisplayName(),
     memberUids: [uid], members: [{ uid, username: cloud.username || '', role: 'owner' }],
+    // Setlists move INTO the shared album (stored in the album doc, synced to all).
+    setlists: folderSetlists.map(sl => ({ id: sl.id, name: sl.name || '', songIds: (sl.songIds || []).slice(), folderId: folderId, shared: true, updatedAt: Date.now() })),
     createdAt: f.createdAt || Date.now(), updatedAt: Date.now(),
   };
   // CLOUD FIRST: write the album doc + every song to Firestore. If this is blocked
@@ -12346,15 +12389,16 @@ async function convertFolderToShared(folderId) {
     await storeDeleteRaw(STORE, s.id);
     if (typeof addTombstone === 'function') addTombstone('songs', s.id);
   }
-  // Setlists can't follow into a shared album (v1 shares songs only). Remove them
-  // explicitly BEFORE loadSongs, otherwise its tombstone-cleanup would silently
-  // empty their songIds (the moved songs are tombstoned above).
-  const folderSetlists = state.setlists.filter(sl => effectiveFolderId(sl) === folderId);
-  for (const sl of folderSetlists) { try { await setlistDelete(sl.id); } catch (e) {} }
+  // The setlists are now in the shared album doc → remove the private copies
+  // (tombstone so they leave the private library/sync) and mark them shared.
+  for (const sl of folderSetlists) {
+    await storeDeleteRaw(SETLIST_STORE, sl.id);
+    if (typeof addTombstone === 'function') addTombstone('setlists', sl.id);
+    sharedSetlistIds.add(sl.id);
+  }
   maybeScheduleAutoSync();   // propagate the private-side removals
   await loadSongs();
   startSharedAlbumListener(folder);
-  if (folderSetlists.length) showToast(T('Setlists werden nicht mit geteilten Alben geteilt'));
   return folder;
 }
 // Owner stops sharing: delete the shared album everywhere, move its songs back
@@ -12363,6 +12407,7 @@ async function unshareAlbum(albumId) {
   const album = getSharedAlbum(albumId);
   if (!album || !isAlbumOwner(album)) return;
   const songs = (await sharedStoreAllSongs()).filter(s => s.folderId === albumId);
+  const setlists = (album.setlists || []).map(s => ({ ...s }));
   // delete remote songs + album doc
   try {
     for (const s of songs) await sharedSongsColRef(album.ownerUid, albumId).doc(s.id).delete();
@@ -12372,13 +12417,20 @@ async function unshareAlbum(albumId) {
   stopSharedAlbumListener(albumId);
   const priv = { id: 'folder_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8), name: album.name, createdAt: Date.now(), updatedAt: Date.now() };
   await folderPut(priv);
+  const idMap = {};
   for (const s of songs) {
     await storeDeleteRaw(SHARED_SONG_STORE, s.id); sharedSongIds.delete(s.id);
     // Mint a FRESH id: a converted song's original id may be permanently tombstoned
     // in the private library, which would make runSync silently drop it again.
-    const fresh = { ...s, id: uid(), folderId: priv.id, createdAt: s.createdAt || Date.now(), updatedAt: Date.now() };
-    delete fresh.updatedBy;
+    const newId = uid(); idMap[s.id] = newId;
+    const fresh = { ...s, id: newId, folderId: priv.id, createdAt: s.createdAt || Date.now(), updatedAt: Date.now() };
+    delete fresh.updatedBy; delete fresh.shared;
     await dbPut(fresh);   // routes to private (folder not shared)
+  }
+  // Recreate the setlists as PRIVATE in the new folder, remapping to the new ids.
+  for (const sl of setlists) {
+    sharedSetlistIds.delete(sl.id);
+    await setlistPut({ id: uid(), name: sl.name || '', folderId: priv.id, songIds: (sl.songIds || []).map(id => idMap[id]).filter(Boolean), createdAt: Date.now(), updatedAt: Date.now() });
   }
   await storeDeleteRaw(SHARED_FOLDER_STORE, albumId); sharedAlbumIds.delete(albumId);
   if (state.currentFolderId === albumId) state.currentFolderId = priv.id;
@@ -12491,6 +12543,7 @@ async function acceptSharedAlbumInvite(item) {
       id: item.albumId, name: d.name || item.title || T('Geteiltes Album'), shared: true,
       ownerUid: item.ownerUid, ownerName: d.ownerName || item.ownerName || '',
       memberUids: d.memberUids || [], members: d.members || [],
+      setlists: d.setlists || [],
       createdAt: d.createdAt || Date.now(), updatedAt: Date.now(),
     };
     await storePutRaw(SHARED_FOLDER_STORE, folder);
