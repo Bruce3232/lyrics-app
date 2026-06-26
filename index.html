@@ -1621,9 +1621,11 @@
     border-radius: 5px;
     padding: 1px 6px;
     font-weight: 600;
-    /* Honour the AK (chord size) control just like the over-lyric chips, so
-       EVERY chord scales together. */
-    font-size: calc(0.78em * var(--chord-scale, 1));
+    /* Same base size (0.62em) as the over-lyric chips (.seg-chord-chip) and the
+       compact paired chips, and the same AK (--chord-scale) factor — so a chord
+       standing alone on its own line is exactly the same size as one sitting over
+       the lyrics, and the AK control moves all of them together. */
+    font-size: calc(0.62em * var(--chord-scale, 1));
     white-space: nowrap;
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
   }
