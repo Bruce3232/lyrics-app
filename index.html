@@ -709,6 +709,13 @@
   .folder-item.active { border-color: var(--accent); background: rgba(255,140,26,0.08); }
   .folder-item .folder-icon { color: var(--accent-soft); flex-shrink: 0; }
   .folder-item .folder-name { flex: 1; font-weight: 600; }
+  .folder-item.shared .folder-icon { color: var(--accent); }
+  .folder-item .folder-shared-tag {
+    flex-shrink: 0; font-size: 11px; font-weight: 700; line-height: 1;
+    padding: 3px 7px; border-radius: 999px;
+    background: rgba(255,140,26,0.16); color: var(--accent-soft);
+    border: 1px solid var(--accent-soft);
+  }
   .folder-item .folder-meta { color: var(--text-2); font-size: 13px; }
   .folder-item .folder-actions { display: flex; gap: 4px; flex-shrink: 0; }
   .folder-item .folder-act {
@@ -3989,8 +3996,32 @@
       <input class="field-input" id="folder-new-name" placeholder="Neuer Ordner-Name" maxlength="40" autocomplete="off">
       <button class="btn btn-primary" id="folder-new-btn">Erstellen</button>
     </div>
+    <div class="folder-new-row" style="margin-top:8px;">
+      <input class="field-input" id="shared-new-name" placeholder="Name des geteilten Albums" maxlength="40" autocomplete="off">
+      <button class="btn" id="shared-new-btn" title="Live mit anderen Konten teilen">+ Geteiltes Album</button>
+    </div>
     <div class="modal-actions" style="margin-top:18px;">
       <button class="btn" id="folder-close">Schliessen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shared album: members / invite / leave / unshare -->
+<div class="modal-backdrop" id="shared-album-modal">
+  <div class="modal modal-large">
+    <h3 id="sam-title">Geteiltes Album</h3>
+    <p id="sam-sub" style="color:var(--text-1); margin-bottom:14px;"></p>
+    <div id="sam-members" style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px; max-height:240px; overflow-y:auto;"></div>
+    <div id="sam-invite-row" style="display:flex; gap:8px; margin-bottom:16px;">
+      <input class="field-input" id="sam-invite-name" placeholder="Benutzername einladen…" style="flex:1;" autocomplete="off">
+      <button class="btn btn-primary" id="sam-invite-btn">Einladen</button>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between; gap:8px;">
+      <div>
+        <button class="btn" id="sam-leave" style="display:none;">Album verlassen</button>
+        <button class="btn" id="sam-unshare" style="display:none;">Teilen beenden</button>
+      </div>
+      <button class="btn btn-primary" id="sam-close">Fertig</button>
     </div>
   </div>
 </div>
@@ -4278,10 +4309,18 @@
 //                   IndexedDB
 // =====================================================
 const DB_NAME = 'LyricsViewerDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE = 'songs';
 const SETLIST_STORE = 'setlists';
 const FOLDER_STORE = 'folders';
+// Shared albums (live collaboration) live in SEPARATE stores so the private
+// library sync (runSync) never touches them. Songs/folders here mirror a shared
+// Firestore album. Routing sets are populated by loadSongs from these stores.
+const SHARED_FOLDER_STORE = 'sharedFolders';
+const SHARED_SONG_STORE = 'sharedSongs';
+let sharedAlbumIds = new Set();   // folder ids that are shared albums
+let sharedSongIds = new Set();    // song ids that belong to a shared album
+function isSharedAlbumId(id) { return !!id && sharedAlbumIds.has(id); }
 
 // The default folder every existing song/setlist (and anything without a
 // folderId) belongs to. It is virtual — always present, can't be deleted.
@@ -4301,6 +4340,12 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains(FOLDER_STORE)) {
         db.createObjectStore(FOLDER_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(SHARED_FOLDER_STORE)) {
+        db.createObjectStore(SHARED_FOLDER_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(SHARED_SONG_STORE)) {
+        db.createObjectStore(SHARED_SONG_STORE, { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -4374,6 +4419,8 @@ function effectiveFolderId(item) {
 }
 
 async function dbGet(id) {
+  // Shared-album songs live in their own store.
+  if (sharedSongIds.has(id) && typeof sharedStoreGet === 'function') return sharedStoreGet(id);
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readonly');
@@ -4384,6 +4431,11 @@ async function dbGet(id) {
 }
 
 async function dbPut(song) {
+  // A song in a shared album is saved to the shared store + pushed to Firestore
+  // (NOT the private library / autosync).
+  if (song && isSharedAlbumId(song.folderId) && typeof sharedSongSaveLocalAndPush === 'function') {
+    return sharedSongSaveLocalAndPush(song);
+  }
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
@@ -4394,6 +4446,9 @@ async function dbPut(song) {
 }
 
 async function dbDelete(id) {
+  if (sharedSongIds.has(id) && typeof sharedSongDeleteLocalAndPush === 'function') {
+    return sharedSongDeleteLocalAndPush(id);
+  }
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
@@ -5421,7 +5476,54 @@ const I18N = {
     "Akkord angeheftet": "Chord pinned",
     "Akkord gelöst": "Chord unpinned",
     "Keine angehefteten Akkorde": "No pinned chords",
-    "Alle angehefteten Akkorde dieses Songs entfernen?": "Remove all pinned chords from this song?"
+    "Alle angehefteten Akkorde dieses Songs entfernen?": "Remove all pinned chords from this song?",
+    "Geteiltes Album": "Shared album",
+    "Name des geteilten Albums": "Name of the shared album",
+    "+ Geteiltes Album": "+ Shared album",
+    "Benutzername einladen…": "Invite username…",
+    "Einladen": "Invite",
+    "Album verlassen": "Leave album",
+    "Teilen beenden": "Stop sharing",
+    "Live mit anderen Konten teilen": "Share live with other accounts",
+    "Geteiltes Album verwalten": "Manage shared album",
+    "Als Live-Album teilen": "Share as live album",
+    "Kopie an Freund senden": "Send a copy to a friend",
+    "Live geteiltes Album": "Live shared album",
+    "Bitte zuerst anmelden, um zu teilen": "Please sign in first to share",
+    "Die Hauptbibliothek kann nicht geteilt werden": "The main library can't be shared",
+    "Du wurdest aus dem geteilten Album entfernt": "You were removed from the shared album",
+    "Ein geteiltes Album wurde aufgelöst": "A shared album was dissolved",
+    "Nur der Besitzer kann einladen": "Only the owner can invite",
+    "Benutzername nicht gefunden": "Username not found",
+    "Ist bereits Mitglied": "Already a member",
+    "Einladung gesendet an": "Invitation sent to",
+    "Das geteilte Album existiert nicht mehr": "The shared album no longer exists",
+    "Geteiltem Album beigetreten": "Joined shared album",
+    "Beitreten fehlgeschlagen": "Failed to join",
+    "Du bist Besitzer": "You are the owner",
+    "Besitzer": "Owner",
+    "Mitglieder": "members",
+    "du": "you",
+    "Entfernen": "Remove",
+    "Album verlassen?": "Leave album?",
+    "Du verlässt dieses geteilte Album. Es verschwindet aus deiner Bibliothek.": "You're leaving this shared album. It will disappear from your library.",
+    "Teilen beenden?": "Stop sharing?",
+    "Das geteilte Album wird für alle aufgelöst. Deine Songs bleiben bei dir privat erhalten.": "The shared album will be dissolved for everyone. Your songs stay with you privately.",
+    "Teilen beendet": "Sharing stopped",
+    "Geteiltes Album erstellt": "Shared album created",
+    "Album wird jetzt geteilt": "Album is now shared",
+    "Als Live-Album teilen?": "Share as live album?",
+    "Die Songs dieses Ordners werden live mit eingeladenen Mitspielern geteilt. Persönliche Einstellungen bleiben für jeden privat.": "This folder's songs are shared live with invited bandmates. Personal settings stay private for each person.",
+    "Einladung zum geteilten Album": "Shared album invitation",
+    "Beitreten": "Join",
+    "Übernehmen": "Accept",
+    "Ablehnen": "Decline",
+    "Geteilte Alben sind in deinen Firebase-Regeln blockiert — Details in der Konsole": "Shared albums are blocked by your Firebase rules — details in the console",
+    "Songs können nicht hierher verschoben werden": "Songs can't be moved here",
+    "Songs können nicht hierher kopiert werden": "Songs can't be copied here",
+    "Songs aus geteilten Alben wurden übersprungen": "Songs from shared albums were skipped",
+    "Setlists werden nicht mit geteilten Alben geteilt": "Setlists aren't shared with shared albums",
+    "Dieser Song wurde gerade von einem anderen Mitglied geändert": "This song was just edited by another member"
   }
 };
 let currentLang = 'de';
@@ -5666,9 +5768,23 @@ const selection = {
 };
 
 async function loadSongs() {
-  state.songs = await dbAll();
+  const privSongs = await dbAll();
+  // Shared-album content lives in separate stores (never in the private sync).
+  const allSharedSongs = (typeof sharedStoreAllSongs === 'function') ? await sharedStoreAllSongs() : [];
+  const allSharedFolders = (typeof sharedStoreAllFolders === 'function') ? await sharedStoreAllFolders() : [];
+  // Only the CURRENTLY signed-in account's shared albums are active (visible,
+  // editable, routed). Logged out → none. Another account's cached albums stay on
+  // disk but are NOT shown — so a different user on the same device can't see or
+  // edit them, and a re-login restores only their own.
+  const meUid = (typeof cloud !== 'undefined' && cloud.user) ? cloud.user.uid : null;
+  const myFolders = meUid ? allSharedFolders.filter(f => f.ownerUid === meUid || (f.memberUids || []).includes(meUid)) : [];
+  const myAlbumIds = new Set(myFolders.map(f => f.id));
+  const mySongs = allSharedSongs.filter(s => myAlbumIds.has(s.folderId));
+  sharedAlbumIds = myAlbumIds;
+  sharedSongIds = new Set(mySongs.map(s => s.id));
+  state.songs = [...privSongs, ...mySongs];
   state.setlists = await setlistAll();
-  state.folders = await foldersWithMain();
+  state.folders = [...(await foldersWithMain()), ...myFolders];
   // If the currently selected folder no longer exists (deleted elsewhere),
   // fall back to the main library.
   if (!state.folders.some(f => f.id === state.currentFolderId)) {
@@ -6697,16 +6813,32 @@ function renderFolderList() {
   const folderSvg = '<svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
 
   const shareSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+  const peopleSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
   listEl.innerHTML = state.folders.map(f => {
     const active = f.id === state.currentFolderId ? ' active' : '';
     const count = songCountForFolder(f.id);
     const isMain = f.id === MAIN_FOLDER_ID;
-    // Every folder (incl. main) can be SHARED; only non-main can be renamed/deleted.
-    const shareAct = count > 0 ? `<button class="folder-act" data-act="share" data-id="${escapeHtml(f.id)}" title="Bibliothek an Freund senden">${shareSvg}</button>` : '';
+    let actBtns = '';
+    if (f.shared) {
+      // A live shared album: manage members / invite / leave (handled in the modal).
+      const n = (f.members || []).length;
+      actBtns = `<button class="folder-act" data-act="manage" data-id="${escapeHtml(f.id)}" title="Geteiltes Album verwalten">${peopleSvg}</button>`;
+      const badge = `<span class="folder-shared-tag" title="Live geteiltes Album">👥 ${n}</span>`;
+      return `<div class="folder-item shared${active}" data-id="${escapeHtml(f.id)}">
+        ${folderSvg}
+        <span class="folder-name">${escapeHtml(f.name)}</span>
+        ${badge}
+        <span class="folder-meta">${count} Song${count === 1 ? '' : 's'}</span>
+        <div class="folder-actions">${actBtns}</div>
+      </div>`;
+    }
+    // Private folder: one-time copy share, make-live-shared, rename, delete.
+    const shareAct = count > 0 ? `<button class="folder-act" data-act="share" data-id="${escapeHtml(f.id)}" title="Kopie an Freund senden">${shareSvg}</button>` : '';
+    const makeShared = isMain ? '' : `<button class="folder-act" data-act="makeshared" data-id="${escapeHtml(f.id)}" title="Als Live-Album teilen">${peopleSvg}</button>`;
     const editDel = isMain ? '' :
       `<button class="folder-act" data-act="rename" data-id="${escapeHtml(f.id)}" title="Umbenennen">${editSvg}</button>
        <button class="folder-act" data-act="delete" data-id="${escapeHtml(f.id)}" title="Löschen">${delSvg}</button>`;
-    const actions = (shareAct || editDel) ? `<div class="folder-actions">${shareAct}${editDel}</div>` : '';
+    const actions = (shareAct || makeShared || editDel) ? `<div class="folder-actions">${shareAct}${makeShared}${editDel}</div>` : '';
     return `<div class="folder-item${active}" data-id="${escapeHtml(f.id)}">
       ${folderSvg}
       <span class="folder-name">${escapeHtml(f.name)}</span>
@@ -6725,10 +6857,18 @@ function renderFolderList() {
   listEl.querySelectorAll('.folder-act').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const id = btn.dataset.id;
-      if (btn.dataset.act === 'rename') await renameFolder(id);
-      else if (btn.dataset.act === 'delete') await deleteFolder(id);
-      else if (btn.dataset.act === 'share') { closeFolderModal(); openShareModal({ kind: 'library', folderId: id }); }
+      const id = btn.dataset.id, act = btn.dataset.act;
+      if (act === 'rename') await renameFolder(id);
+      else if (act === 'delete') await deleteFolder(id);
+      else if (act === 'share') { closeFolderModal(); openShareModal({ kind: 'library', folderId: id }); }
+      else if (act === 'manage') openSharedAlbumModal(id);
+      else if (act === 'makeshared') {
+        if (!myUid()) { showToast(T('Bitte zuerst anmelden, um zu teilen')); return; }
+        const ok = await confirmDialog(T('Als Live-Album teilen?'), T('Die Songs dieses Ordners werden live mit eingeladenen Mitspielern geteilt. Persönliche Einstellungen bleiben für jeden privat.'));
+        if (!ok) return;
+        const folder = await convertFolderToShared(id);
+        if (folder) { openSharedAlbumModal(folder.id); showToast(T('Album wird jetzt geteilt')); }
+      }
     });
   });
 }
@@ -6829,6 +6969,19 @@ document.getElementById('folder-new-btn').addEventListener('click', async () => 
 document.getElementById('folder-new-name').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); document.getElementById('folder-new-btn').click(); }
 });
+document.getElementById('shared-new-btn').addEventListener('click', async () => {
+  if (!myUid()) { showToast(T('Bitte zuerst anmelden, um zu teilen')); return; }
+  const input = document.getElementById('shared-new-name');
+  const folder = await createSharedAlbum(input.value);
+  if (!folder) return;
+  input.value = '';
+  switchFolder(folder.id);             // jump into it (closes the folder modal)
+  openSharedAlbumModal(folder.id);     // open manage so they can invite right away
+  showToast(`${T('Geteiltes Album erstellt')}: ${folder.name}`, 'success');
+});
+document.getElementById('shared-new-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('shared-new-btn').click(); }
+});
 
 // ===== Move / copy selected songs to another folder =====
 let moveFolderSelectedId = null;   // target folder chosen in the move modal
@@ -6852,7 +7005,9 @@ function renderMoveFolderList() {
   const listEl = document.getElementById('move-folder-list');
   if (!listEl) return;
   const folderSvg = '<svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
-  listEl.innerHTML = state.folders.map(f => {
+  // Shared albums are NOT valid move/copy targets (content there is managed live
+  // inside the album, not by the generic private folder picker).
+  listEl.innerHTML = state.folders.filter(f => !f.shared).map(f => {
     const active = f.id === moveFolderSelectedId ? ' active' : '';
     const isCurrent = f.id === state.currentFolderId ? ' <span class="folder-meta">(aktuell)</span>' : '';
     return `<div class="folder-item${active}" data-id="${escapeHtml(f.id)}">${folderSvg}<span class="folder-name">${escapeHtml(f.name)}${isCurrent}</span></div>`;
@@ -6881,11 +7036,15 @@ async function resolveMoveTargetFolderId() {
 async function performMove() {
   const targetId = await resolveMoveTargetFolderId();
   if (targetId === null) return;
+  if (isSharedAlbumId(targetId)) { showToast(T('Songs können nicht hierher verschoben werden')); return; }
   const folderIdField = targetId === MAIN_FOLDER_ID ? undefined : targetId;
-  let moved = 0;
+  let moved = 0, skippedShared = 0;
   for (const id of moveFolderSongIds) {
     const song = state.songs.find(s => s.id === id);
     if (!song) continue;
+    // Songs that belong to a shared album can't be moved out via the generic picker
+    // (that would silently remove them from the album for everyone). Use copy instead.
+    if (sharedSongIds.has(id)) { skippedShared++; continue; }
     if (effectiveFolderId(song) === targetId) continue;
     song.folderId = folderIdField;
     song.updatedAt = Date.now();
@@ -6905,6 +7064,7 @@ async function performMove() {
   exitSelectionMode();
   await renderLibrary();
   showToast(`${moved} Song${moved === 1 ? '' : 's'} nach „${tName}“ verschoben`, 'success');
+  if (skippedShared > 0) showToast(T('Songs aus geteilten Alben wurden übersprungen'));
   if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
 }
 
@@ -6912,6 +7072,7 @@ async function performMove() {
 async function performCopy() {
   const targetId = await resolveMoveTargetFolderId();
   if (targetId === null) return;
+  if (isSharedAlbumId(targetId)) { showToast(T('Songs können nicht hierher kopiert werden')); return; }
   const folderIdField = targetId === MAIN_FOLDER_ID ? undefined : targetId;
   let copied = 0;
   for (const id of moveFolderSongIds) {
@@ -10914,8 +11075,10 @@ let pendingImport = null;
 function fillImportTargetSelect() {
   const sel = document.getElementById('import-target-folder');
   if (!sel) return;
-  const opts = state.folders.map(f =>
-    `<option value="${escapeHtml(f.id)}"${f.id === state.currentFolderId ? ' selected' : ''}>${escapeHtml(f.name)}</option>`
+  // Shared albums can't be an import target (import would mass-write to all members).
+  const curFolderShared = isSharedAlbumId(state.currentFolderId);
+  const opts = state.folders.filter(f => !f.shared).map(f =>
+    `<option value="${escapeHtml(f.id)}"${(!curFolderShared && f.id === state.currentFolderId) ? ' selected' : ''}>${escapeHtml(f.name)}</option>`
   ).join('');
   sel.innerHTML = opts + `<option value="__new__">+ Neuen Ordner erstellen…</option>`;
   toggleImportNewFolderField();
@@ -11765,14 +11928,17 @@ function initFirebase() {
     cloud.auth.onAuthStateChanged(async (user) => {
       cloud.user = user;
       updateCloudUI();
-      if (user && isAutoSyncOn()) {
-        await runSync({ silent: true });
-      }
       if (user) {
         await loadMyProfile();
         startFriendsListeners();
+        // Materialise this account's shared albums BEFORE the private sync, so the
+        // private library's tombstones (from a convert on another device) can't
+        // momentarily wipe the content before it's restored into the shared store.
+        if (typeof initSharedAlbums === 'function') await initSharedAlbums();
+        if (isAutoSyncOn()) await runSync({ silent: true });
       } else {
         stopFriendsListeners();
+        if (typeof teardownSharedAlbums === 'function') await teardownSharedAlbums();
         cloud.username = null; cloud.friends = []; cloud.incoming = []; cloud.outgoing = []; cloud.inbox = [];
         updateFriendsBadge();
       }
@@ -11909,6 +12075,451 @@ function startFriendsListeners() {
 function stopFriendsListeners() {
   if (cloud.friendsUnsub) { cloud.friendsUnsub(); cloud.friendsUnsub = null; }
 }
+
+// =====================================================
+//   Shared Albums (live multi-user collaboration)
+//   A shared album lives under the OWNER's Firestore path
+//   users/{ownerUid}/sharedAlbums/{albumId}, one doc per song under
+//   .../songs/{songId}. All members read+write there (the same cross-user write
+//   capability the friends/inbox features already use — no new rules needed if
+//   the deployed rules allow authed users to write users/{uid}/**). CONTENT only;
+//   personal performance settings stay local (phase 1). Locally a shared album is
+//   a folder in SHARED_FOLDER_STORE + its songs in SHARED_SONG_STORE, kept OUT of
+//   the private library sync (runSync).
+// =====================================================
+
+// ---- raw store IO (no autosync / no tombstones) ----
+function storeAllRaw(name) { return openDB().then(db => new Promise((res, rej) => { const r = db.transaction(name, 'readonly').objectStore(name).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); })); }
+function storeGetRaw(name, id) { return openDB().then(db => new Promise((res, rej) => { const r = db.transaction(name, 'readonly').objectStore(name).get(id); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); })); }
+function storePutRaw(name, item) { return openDB().then(db => new Promise((res, rej) => { const tx = db.transaction(name, 'readwrite'); tx.objectStore(name).put(item); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); })); }
+function storeDeleteRaw(name, id) { return openDB().then(db => new Promise((res, rej) => { const tx = db.transaction(name, 'readwrite'); tx.objectStore(name).delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); })); }
+const sharedStoreAllSongs = () => storeAllRaw(SHARED_SONG_STORE);
+const sharedStoreAllFolders = () => storeAllRaw(SHARED_FOLDER_STORE);
+const sharedStoreGet = (id) => storeGetRaw(SHARED_SONG_STORE, id);
+
+function myUid() { try { return cloud.user ? cloud.user.uid : null; } catch (e) { return null; } }
+function myDisplayName() { return cloud.username || ((cloud.user && cloud.user.email) ? cloud.user.email.split('@')[0] : 'me'); }
+function getSharedAlbum(albumId) { return (state.folders || []).find(f => f.id === albumId && f.shared) || null; }
+function isAlbumOwner(album) { return !!album && album.ownerUid === myUid(); }
+function sharedAlbumDocRef(ownerUid, albumId) { return cloud.db.collection('users').doc(ownerUid).collection('sharedAlbums').doc(albumId); }
+function sharedSongsColRef(ownerUid, albumId) { return sharedAlbumDocRef(ownerUid, albumId).collection('songs'); }
+
+// Project a local song to shared CONTENT only (no personal perf fields).
+function projectSharedSong(song) {
+  return {
+    id: song.id,
+    title: song.title || '',
+    artist: song.artist || '',
+    versions: (song.versions || []).map(v => ({ id: v.id, name: v.name || 'Original', lyrics: v.lyrics || '' })),
+    activeVersionId: song.activeVersionId || ((song.versions && song.versions[0] && song.versions[0].id) || null),
+    notes: song.notes || '',
+    position: (typeof song.position === 'number') ? song.position : (song.createdAt || 0),
+    folderId: song.folderId,
+    createdAt: song.createdAt || Date.now(),
+  };
+}
+
+// ---- permission-denied detection (rules too strict) ----
+let sharedRulesWarned = false;
+function sharedPermCheck(e) {
+  console.warn('[Shared Albums] firestore op failed', e);
+  const code = ((e && (e.code || e.message)) || '').toString();
+  if (!sharedRulesWarned && /permission-denied|insufficient permissions|PERMISSION_DENIED/i.test(code)) {
+    sharedRulesWarned = true;
+    showToast(T('Geteilte Alben sind in deinen Firebase-Regeln blockiert — Details in der Konsole'), 'error');
+    console.error('[Shared Albums] Firestore rules block users/{uid}/sharedAlbums/**. Add a rule allowing authenticated users to read/write that path (match /users/{uid}/sharedAlbums/{doc=**} { allow read, write: if request.auth != null; }).');
+  }
+}
+
+// ---- routed writes coming from dbPut/dbDelete (a shared song was edited) ----
+let sharedPushTimers = {};
+async function sharedSongSaveLocalAndPush(song) {
+  await storePutRaw(SHARED_SONG_STORE, song);
+  sharedSongIds.add(song.id);
+  const i = (state.songs || []).findIndex(s => s.id === song.id);
+  if (i >= 0) state.songs[i] = song; else state.songs.push(song);
+  const album = getSharedAlbum(song.folderId);
+  if (album && cloud.ready && cloud.user) {
+    clearTimeout(sharedPushTimers[song.id]);
+    sharedPushTimers[song.id] = setTimeout(() => pushSharedSong(album, song), 400);
+  }
+}
+async function sharedSongDeleteLocalAndPush(id) {
+  clearTimeout(sharedPushTimers[id]); delete sharedPushTimers[id];   // cancel any pending push so it can't resurrect the doc
+  const song = await sharedStoreGet(id);
+  await storeDeleteRaw(SHARED_SONG_STORE, id);
+  sharedSongIds.delete(id);
+  const i = (state.songs || []).findIndex(s => s.id === id);
+  if (i >= 0) state.songs.splice(i, 1);
+  const album = song ? getSharedAlbum(song.folderId) : null;
+  if (album && cloud.ready && cloud.user) {
+    try { await sharedSongsColRef(album.ownerUid, album.id).doc(id).delete(); } catch (e) { sharedPermCheck(e); }
+  }
+}
+async function pushSharedSong(album, song) {
+  if (!cloud.ready || !cloud.user) return;
+  // Re-read the latest stored copy: no-op if the song was deleted meanwhile (so a
+  // late timer can't recreate it), and push the freshest content + its own
+  // updatedAt (NOT a new timestamp) so our own echo is recognisable as not-newer.
+  const live = await sharedStoreGet(song.id);
+  if (!live) return;
+  const data = projectSharedSong(live);
+  data.updatedAt = live.updatedAt || Date.now();
+  data.updatedBy = cloud.user.uid;
+  try { await sharedSongsColRef(album.ownerUid, album.id).doc(song.id).set(stripUndefinedDeep(data)); }
+  catch (e) { sharedPermCheck(e); }
+}
+async function writeSharedAlbumDoc(folder) {
+  try {
+    await sharedAlbumDocRef(folder.ownerUid, folder.id).set(stripUndefinedDeep({
+      id: folder.id, name: folder.name, ownerUid: folder.ownerUid, ownerName: folder.ownerName,
+      memberUids: folder.memberUids, members: folder.members,
+      createdAt: folder.createdAt, updatedAt: Date.now(),
+    }));
+  } catch (e) { sharedPermCheck(e); }
+}
+
+// ---- live listeners (Firestore -> local) ----
+const sharedListeners = {};   // albumId -> teardown fn
+function startSharedAlbumListener(album) {
+  if (!cloud.ready || !cloud.user) return;
+  stopSharedAlbumListener(album.id);
+  const subs = [];
+  subs.push(sharedAlbumDocRef(album.ownerUid, album.id).onSnapshot(async (doc) => {
+    if (!doc.exists) { await handleAlbumGoneRemotely(album.id); return; }
+    const d = doc.data();
+    const local = getSharedAlbum(album.id); if (!local) return;
+    // Removed from members (and not the owner) → drop locally.
+    if (Array.isArray(d.memberUids) && cloud.user && !d.memberUids.includes(cloud.user.uid) && local.ownerUid !== cloud.user.uid) {
+      await leaveSharedAlbumLocal(album.id);
+      showToast(T('Du wurdest aus dem geteilten Album entfernt'));
+      return;
+    }
+    local.name = d.name || local.name;
+    local.members = d.members || local.members;
+    local.memberUids = d.memberUids || local.memberUids;
+    local.ownerName = d.ownerName || local.ownerName;
+    await storePutRaw(SHARED_FOLDER_STORE, local);
+    renderFolderListIfOpen(); renderFolderSwitcher(); renderSharedAlbumModalIfOpen();
+  }, e => sharedPermCheck(e)));
+  subs.push(sharedSongsColRef(album.ownerUid, album.id).onSnapshot(async (snap) => {
+    for (const ch of snap.docChanges()) {
+      if (ch.type === 'removed') await reconcileSharedSongRemoved(ch.doc.id);
+      else await reconcileSharedSongUpsert(album.id, ch.doc.data());
+    }
+    if (state.view === 'library') renderLibrary();
+    const qp = document.getElementById('quick-songs-panel');
+    if (qp && qp.classList.contains('show') && typeof renderQuickSongsList === 'function') renderQuickSongsList();
+  }, e => sharedPermCheck(e)));
+  sharedListeners[album.id] = () => subs.forEach(fn => { try { fn(); } catch (e) {} });
+}
+function stopSharedAlbumListener(albumId) { if (sharedListeners[albumId]) { sharedListeners[albumId](); delete sharedListeners[albumId]; } }
+function stopAllSharedListeners() { Object.keys(sharedListeners).forEach(stopSharedAlbumListener); }
+
+async function reconcileSharedSongUpsert(albumId, data) {
+  if (!data || !data.id) return;
+  // Never shadow a PRIVATE song that happens to share this id (id-collision guard).
+  if (!sharedSongIds.has(data.id)) {
+    const priv = await storeGetRaw(STORE, data.id);
+    if (priv) { console.warn('[Shared Albums] id collides with a private song, ignoring', data.id); return; }
+  }
+  const incomingTs = data.updatedAt || 0;
+  const existing = await sharedStoreGet(data.id);
+  // Last-write-wins + self-echo skip: ignore a snapshot that isn't strictly newer
+  // than what we already have (covers our own echo and out-of-order re-delivery).
+  if (existing && (existing.updatedAt || 0) >= incomingTs) return;
+  const song = {
+    id: data.id, title: data.title || '', artist: data.artist || '',
+    versions: (data.versions || []).map(v => ({ id: v.id, name: v.name || 'Original', lyrics: v.lyrics || '' })),
+    activeVersionId: data.activeVersionId, notes: data.notes || '',
+    position: data.position, folderId: albumId,
+    createdAt: data.createdAt || Date.now(), updatedAt: incomingTs || Date.now(),
+    updatedBy: data.updatedBy,
+  };
+  if (!song.activeVersionId && song.versions[0]) song.activeVersionId = song.versions[0].id;
+  await storePutRaw(SHARED_SONG_STORE, song);
+  sharedSongIds.add(song.id);
+  const i = (state.songs || []).findIndex(s => s.id === song.id);
+  if (i >= 0) state.songs[i] = song; else state.songs.push(song);
+  // Warn if a collaborator just changed the song currently open in the editor
+  // (their change is in the store/list, but the editor holds a detached copy;
+  // saving will overwrite — last-write-wins).
+  if (state.view === 'editor' && state.currentSong && state.currentSong.id === song.id &&
+      data.updatedBy && cloud.user && data.updatedBy !== cloud.user.uid) {
+    showToast(T('Dieser Song wurde gerade von einem anderen Mitglied geändert'));
+  }
+}
+async function reconcileSharedSongRemoved(id) {
+  await storeDeleteRaw(SHARED_SONG_STORE, id);
+  sharedSongIds.delete(id);
+  const i = (state.songs || []).findIndex(s => s.id === id);
+  if (i >= 0) state.songs.splice(i, 1);
+}
+
+// Owner deleted/unshared the album remotely → clean it up locally for everyone.
+async function handleAlbumGoneRemotely(albumId) {
+  await leaveSharedAlbumLocal(albumId);
+  showToast(T('Ein geteiltes Album wurde aufgelöst'));
+}
+// Remove a shared album + its songs from LOCAL stores (no Firestore writes).
+async function leaveSharedAlbumLocal(albumId) {
+  stopSharedAlbumListener(albumId);
+  const songs = await sharedStoreAllSongs();
+  for (const s of songs) if (s.folderId === albumId) { await storeDeleteRaw(SHARED_SONG_STORE, s.id); sharedSongIds.delete(s.id); }
+  await storeDeleteRaw(SHARED_FOLDER_STORE, albumId);
+  sharedAlbumIds.delete(albumId);
+  if (state.currentFolderId === albumId) { state.currentFolderId = MAIN_FOLDER_ID; state.currentSetlistId = null; }
+  await loadSongs();
+  if (state.view === 'library') renderLibrary();
+  renderFolderListIfOpen();
+}
+
+// ---- create / convert ----
+async function createSharedAlbum(name) {
+  const uid = myUid();
+  if (!uid) { showToast(T('Bitte zuerst anmelden, um zu teilen')); return null; }
+  const albumId = 'album_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  const folder = {
+    id: albumId, name: (name || '').trim() || T('Geteiltes Album'), shared: true,
+    ownerUid: uid, ownerName: myDisplayName(),
+    memberUids: [uid], members: [{ uid, username: cloud.username || '' }],
+    createdAt: Date.now(), updatedAt: Date.now(),
+  };
+  await storePutRaw(SHARED_FOLDER_STORE, folder);
+  sharedAlbumIds.add(albumId);
+  await writeSharedAlbumDoc(folder);
+  await loadSongs();
+  startSharedAlbumListener(folder);
+  return folder;
+}
+// Turn an existing PRIVATE folder + its songs into a shared album (same id kept).
+async function convertFolderToShared(folderId) {
+  const uid = myUid();
+  if (!uid) { showToast(T('Bitte zuerst anmelden, um zu teilen')); return null; }
+  if (folderId === MAIN_FOLDER_ID) { showToast(T('Die Hauptbibliothek kann nicht geteilt werden')); return null; }
+  const f = state.folders.find(x => x.id === folderId && !x.shared);
+  if (!f) return null;
+  const songs = state.songs.filter(s => effectiveFolderId(s) === folderId && !sharedSongIds.has(s.id)).map(s => ({ ...s }));
+  const folder = {
+    id: folderId, name: f.name, shared: true, ownerUid: uid, ownerName: myDisplayName(),
+    memberUids: [uid], members: [{ uid, username: cloud.username || '' }],
+    createdAt: f.createdAt || Date.now(), updatedAt: Date.now(),
+  };
+  // Move folder + songs from private stores to shared stores.
+  await storePutRaw(SHARED_FOLDER_STORE, folder);
+  sharedAlbumIds.add(folderId);
+  await storeDeleteRaw(FOLDER_STORE, folderId);
+  if (typeof addTombstone === 'function') addTombstone('folders', folderId);
+  for (const s of songs) {
+    await storePutRaw(SHARED_SONG_STORE, s);
+    sharedSongIds.add(s.id);
+    await storeDeleteRaw(STORE, s.id);
+    if (typeof addTombstone === 'function') addTombstone('songs', s.id);
+  }
+  // Setlists can't follow into a shared album (v1 shares songs only). Remove them
+  // explicitly BEFORE loadSongs, otherwise its tombstone-cleanup would silently
+  // empty their songIds (the moved songs are tombstoned above).
+  const folderSetlists = state.setlists.filter(sl => effectiveFolderId(sl) === folderId);
+  for (const sl of folderSetlists) { try { await setlistDelete(sl.id); } catch (e) {} }
+  // Push to Firestore.
+  await writeSharedAlbumDoc(folder);
+  for (const s of songs) await pushSharedSong(folder, s);
+  maybeScheduleAutoSync();   // propagate the private-side removals
+  await loadSongs();
+  startSharedAlbumListener(folder);
+  if (folderSetlists.length) showToast(T('Setlists werden nicht mit geteilten Alben geteilt'));
+  return folder;
+}
+// Owner stops sharing: delete the shared album everywhere, move its songs back
+// into a NEW private folder locally for the owner.
+async function unshareAlbum(albumId) {
+  const album = getSharedAlbum(albumId);
+  if (!album || !isAlbumOwner(album)) return;
+  const songs = (await sharedStoreAllSongs()).filter(s => s.folderId === albumId);
+  // delete remote songs + album doc
+  try {
+    for (const s of songs) await sharedSongsColRef(album.ownerUid, albumId).doc(s.id).delete();
+    await sharedAlbumDocRef(album.ownerUid, albumId).delete();
+  } catch (e) { sharedPermCheck(e); }
+  // recreate a private folder with the same name and move songs back
+  stopSharedAlbumListener(albumId);
+  const priv = { id: 'folder_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8), name: album.name, createdAt: Date.now(), updatedAt: Date.now() };
+  await folderPut(priv);
+  for (const s of songs) {
+    await storeDeleteRaw(SHARED_SONG_STORE, s.id); sharedSongIds.delete(s.id);
+    // Mint a FRESH id: a converted song's original id may be permanently tombstoned
+    // in the private library, which would make runSync silently drop it again.
+    const fresh = { ...s, id: uid(), folderId: priv.id, createdAt: s.createdAt || Date.now(), updatedAt: Date.now() };
+    delete fresh.updatedBy;
+    await dbPut(fresh);   // routes to private (folder not shared)
+  }
+  await storeDeleteRaw(SHARED_FOLDER_STORE, albumId); sharedAlbumIds.delete(albumId);
+  if (state.currentFolderId === albumId) state.currentFolderId = priv.id;
+  await loadSongs();
+  if (state.view === 'library') renderLibrary();
+  renderFolderListIfOpen();
+}
+// Member leaves: remove self from the album doc's members, then drop locally.
+async function leaveSharedAlbum(albumId) {
+  const album = getSharedAlbum(albumId);
+  if (!album || isAlbumOwner(album)) return;
+  try {
+    const ref = sharedAlbumDocRef(album.ownerUid, albumId);
+    const me = myUid();
+    await ref.update({
+      memberUids: (album.memberUids || []).filter(u => u !== me),
+      members: (album.members || []).filter(m => m.uid !== me),
+      updatedAt: Date.now(),
+    });
+  } catch (e) { sharedPermCheck(e); }
+  await leaveSharedAlbumLocal(albumId);
+}
+// Owner removes a member.
+async function removeSharedMember(albumId, memberUid) {
+  const album = getSharedAlbum(albumId);
+  if (!album || !isAlbumOwner(album) || memberUid === album.ownerUid) return;
+  album.memberUids = (album.memberUids || []).filter(u => u !== memberUid);
+  album.members = (album.members || []).filter(m => m.uid !== memberUid);
+  await storePutRaw(SHARED_FOLDER_STORE, album);
+  await writeSharedAlbumDoc(album);
+  renderSharedAlbumModalIfOpen();
+}
+
+// ---- invite / accept ----
+async function inviteToSharedAlbum(albumId, rawUsername) {
+  const album = getSharedAlbum(albumId);
+  if (!album) return;
+  if (!isAlbumOwner(album)) { showToast(T('Nur der Besitzer kann einladen')); return; }
+  const found = await lookupUsername(rawUsername);
+  if (!found) { showToast(T('Benutzername nicht gefunden')); return; }
+  if ((album.memberUids || []).includes(found.uid)) { showToast(T('Ist bereits Mitglied')); return; }
+  album.memberUids = [...(album.memberUids || []), found.uid];
+  album.members = [...(album.members || []), { uid: found.uid, username: found.username }];
+  await storePutRaw(SHARED_FOLDER_STORE, album);
+  await writeSharedAlbumDoc(album);
+  // Deliver an invite via the existing inbox cross-user write.
+  try {
+    await cloud.db.collection('users').doc(found.uid).collection('inbox').add({
+      type: 'shared-album-invite', from: myUid(), fromName: myDisplayName(),
+      ownerUid: album.ownerUid, ownerName: album.ownerName, albumId: album.id,
+      title: album.name, at: Date.now(),
+    });
+  } catch (e) { sharedPermCheck(e); }
+  showToast(T('Einladung gesendet an') + ' @' + found.username);
+  renderSharedAlbumModalIfOpen();
+}
+async function acceptSharedAlbumInvite(item) {
+  if (!item || !item.albumId || !item.ownerUid) return;
+  // Read the album doc, pull songs, store locally, start listening.
+  try {
+    const doc = await sharedAlbumDocRef(item.ownerUid, item.albumId).get();
+    if (!doc.exists) { showToast(T('Das geteilte Album existiert nicht mehr')); await deleteInboxItem(item.id); return; }
+    const d = doc.data();
+    const folder = {
+      id: item.albumId, name: d.name || item.title || T('Geteiltes Album'), shared: true,
+      ownerUid: item.ownerUid, ownerName: d.ownerName || item.ownerName || '',
+      memberUids: d.memberUids || [], members: d.members || [],
+      createdAt: d.createdAt || Date.now(), updatedAt: Date.now(),
+    };
+    await storePutRaw(SHARED_FOLDER_STORE, folder);
+    sharedAlbumIds.add(folder.id);
+    const songsSnap = await sharedSongsColRef(item.ownerUid, item.albumId).get();
+    for (const s of songsSnap.docs) await reconcileSharedSongUpsert(item.albumId, s.data());
+    await deleteInboxItem(item.id);
+    await loadSongs();
+    startSharedAlbumListener(folder);
+    switchFolder(folder.id);
+    showToast(T('Geteiltem Album beigetreten') + ': ' + folder.name);
+  } catch (e) { sharedPermCheck(e); showToast(T('Beitreten fehlgeschlagen'), 'error'); }
+}
+
+// On login: discover owned albums from Firestore + re-attach listeners to THIS
+// account's albums (owner or member).
+async function initSharedAlbums() {
+  if (!cloud.ready || !cloud.user) return;
+  const meUid = cloud.user.uid;
+  try {
+    const snap = await cloud.db.collection('users').doc(meUid).collection('sharedAlbums').get();
+    const local = await sharedStoreAllFolders();
+    for (const doc of snap.docs) {
+      const d = doc.data();
+      if (!local.find(f => f.id === d.id)) { await storePutRaw(SHARED_FOLDER_STORE, { ...d, shared: true }); }
+      const songsSnap = await sharedSongsColRef(meUid, d.id).get();
+      for (const s of songsSnap.docs) await reconcileSharedSongUpsert(d.id, s.data());
+    }
+  } catch (e) {
+    sharedPermCheck(e);
+    // Transient failure: retry so the owner's other device recovers converted
+    // content (which the private sync may have tombstoned) instead of losing it.
+    setTimeout(() => { if (cloud.user && cloud.user.uid === meUid) initSharedAlbums(); }, 5000);
+  }
+  await loadSongs();
+  const mine = (await sharedStoreAllFolders()).filter(f => f.ownerUid === meUid || (f.memberUids || []).includes(meUid));
+  for (const f of mine) startSharedAlbumListener(f);
+  if (state.view === 'library') renderLibrary();
+}
+async function teardownSharedAlbums() {
+  stopAllSharedListeners();
+  // Logout: drop shared albums from the active view + routing so the next user
+  // can't see/edit them (they stay cached on disk for the owner's own re-login).
+  if (isSharedAlbumId(state.currentFolderId)) { state.currentFolderId = MAIN_FOLDER_ID; state.currentSetlistId = null; }
+  await loadSongs();   // logged out → meUid null → no shared albums shown/routed
+  if (state.view === 'library') renderLibrary();
+}
+function renderFolderListIfOpen() { const m = document.getElementById('folder-modal'); if (m && m.classList.contains('show')) renderFolderList(); }
+
+// ---- Shared-album manage modal (members / invite / leave / unshare) ----
+let sharedAlbumModalId = null;
+function openSharedAlbumModal(albumId) {
+  sharedAlbumModalId = albumId;
+  closeFolderModal();
+  document.getElementById('shared-album-modal').classList.add('show');
+  renderSharedAlbumModal();
+}
+function closeSharedAlbumModal() { sharedAlbumModalId = null; document.getElementById('shared-album-modal').classList.remove('show'); }
+function renderSharedAlbumModalIfOpen() { const m = document.getElementById('shared-album-modal'); if (sharedAlbumModalId && m && m.classList.contains('show')) renderSharedAlbumModal(); }
+function renderSharedAlbumModal() {
+  const album = getSharedAlbum(sharedAlbumModalId); if (!album) { closeSharedAlbumModal(); return; }
+  const owner = isAlbumOwner(album), me = myUid();
+  document.getElementById('sam-title').textContent = album.name;
+  document.getElementById('sam-sub').textContent =
+    (owner ? T('Du bist Besitzer') : (T('Besitzer') + ': @' + (album.ownerName || '?'))) +
+    ' · ' + (album.members || []).length + ' ' + T('Mitglieder');
+  document.getElementById('sam-members').innerHTML = (album.members || []).map(m => {
+    const isOwn = m.uid === album.ownerUid;
+    const tags = (isOwn ? ' · ' + escapeHtml(T('Besitzer')) : '') + (m.uid === me ? ' · ' + escapeHtml(T('du')) : '');
+    const rm = (owner && !isOwn) ? `<button class="btn btn-mini" data-act="remove" data-uid="${escapeHtml(m.uid)}">${escapeHtml(T('Entfernen'))}</button>` : '';
+    return `<div class="friend-row"><span class="f-avatar">${escapeHtml((m.username || '?')[0] || '?')}</span><div style="flex:1; min-width:0;"><div class="f-name">@${escapeHtml(m.username || '?')}${tags}</div></div>${rm}</div>`;
+  }).join('');
+  document.getElementById('sam-invite-row').style.display = owner ? 'flex' : 'none';
+  document.getElementById('sam-leave').style.display = owner ? 'none' : '';
+  document.getElementById('sam-unshare').style.display = owner ? '' : 'none';
+  document.getElementById('sam-members').querySelectorAll('button[data-act="remove"]').forEach(b => {
+    b.onclick = () => removeSharedMember(album.id, b.dataset.uid);
+  });
+}
+(function wireSharedAlbumModal() {
+  const closeBtn = document.getElementById('sam-close');
+  if (!closeBtn) return;
+  closeBtn.addEventListener('click', closeSharedAlbumModal);
+  document.getElementById('shared-album-modal').addEventListener('click', e => { if (e.target.id === 'shared-album-modal') closeSharedAlbumModal(); });
+  document.getElementById('sam-invite-btn').addEventListener('click', async () => {
+    const inp = document.getElementById('sam-invite-name');
+    const v = inp.value; inp.value = '';
+    await inviteToSharedAlbum(sharedAlbumModalId, v);
+  });
+  document.getElementById('sam-invite-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('sam-invite-btn').click(); } });
+  document.getElementById('sam-leave').addEventListener('click', async () => {
+    const id = sharedAlbumModalId;
+    const ok = await confirmDialog(T('Album verlassen?'), T('Du verlässt dieses geteilte Album. Es verschwindet aus deiner Bibliothek.'));
+    if (ok) { await leaveSharedAlbum(id); closeSharedAlbumModal(); showToast(T('Album verlassen')); }
+  });
+  document.getElementById('sam-unshare').addEventListener('click', async () => {
+    const id = sharedAlbumModalId;
+    const ok = await confirmDialog(T('Teilen beenden?'), T('Das geteilte Album wird für alle aufgelöst. Deine Songs bleiben bei dir privat erhalten.'));
+    if (ok) { await unshareAlbum(id); closeSharedAlbumModal(); showToast(T('Teilen beendet')); }
+  });
+})();
 
 function updateFriendsBadge() {
   const inN = cloud.inbox ? cloud.inbox.length : 0;
@@ -12281,19 +12892,26 @@ function renderInbox() {
     return;
   }
   const items = cloud.inbox.slice().sort((a, b) => (b.at||0) - (a.at||0));
-  const typeLabel = it => it.type === 'library' ? 'Bibliothek' : it.type === 'setlist' ? 'Setlist' : (it.songs && it.songs.length === 1 ? 'Song' : 'Songs');
-  listEl.innerHTML = items.map(it => `
+  const typeLabel = it => it.type === 'shared-album-invite' ? T('Geteiltes Album') : it.type === 'library' ? 'Bibliothek' : it.type === 'setlist' ? 'Setlist' : (it.songs && it.songs.length === 1 ? 'Song' : 'Songs');
+  listEl.innerHTML = items.map(it => {
+    const invite = it.type === 'shared-album-invite';
+    const sub = invite
+      ? `${escapeHtml(T('Einladung zum geteilten Album'))} · ${escapeHtml(it.title || '')}`
+      : `${typeLabel(it)} · ${escapeHtml(it.title || '')} · ${(it.songs || []).length} Song${(it.songs || []).length === 1 ? '' : 's'}`;
+    const acceptLabel = invite ? T('Beitreten') : T('Übernehmen');
+    return `
     <div class="friend-row" data-id="${escapeHtml(it.id)}">
       <span class="f-avatar">${escapeHtml((it.fromName||'?')[0])}</span>
       <div style="flex:1; min-width:0;">
         <div class="f-name" style="white-space:normal;">@${escapeHtml(it.fromName||'?')}</div>
-        <div style="color:var(--text-2); font-size:13px;">${typeLabel(it)} · ${escapeHtml(it.title||'')} · ${(it.songs||[]).length} Song${(it.songs||[]).length===1?'':'s'}</div>
+        <div style="color:var(--text-2); font-size:13px;">${sub}</div>
       </div>
       <div class="f-actions">
-        <button class="btn btn-mini btn-primary" data-act="accept" data-id="${escapeHtml(it.id)}">Übernehmen</button>
-        <button class="btn btn-mini" data-act="decline" data-id="${escapeHtml(it.id)}">Ablehnen</button>
+        <button class="btn btn-mini btn-primary" data-act="accept" data-id="${escapeHtml(it.id)}">${escapeHtml(acceptLabel)}</button>
+        <button class="btn btn-mini" data-act="decline" data-id="${escapeHtml(it.id)}">${escapeHtml(T('Ablehnen'))}</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   listEl.querySelectorAll('button[data-act]').forEach(b => {
     b.onclick = async () => {
       const it = cloud.inbox.find(x => x.id === b.dataset.id);
@@ -12301,6 +12919,9 @@ function renderInbox() {
       if (b.dataset.act === 'decline') {
         await deleteInboxItem(it.id);
         renderInbox();
+      } else if (it.type === 'shared-album-invite') {
+        closeInboxModal();
+        await acceptSharedAlbumInvite(it);
       } else {
         openReceiveModal(it);
       }
