@@ -7599,6 +7599,8 @@ document.getElementById('move-folder-copy').addEventListener('click', performCop
 let dragSelecting = false;          // true while a hold-and-drag selection is live
 let dragSelAnchorId = null;         // the row the drag started from
 let dragSelBase = null;             // selection that existed before this drag
+let dragSelMode = 'select';         // 'select' (anchor was unselected) | 'deselect'
+let dragSelLastX = 0, dragSelLastY = 0;   // last pointer position (for edge auto-scroll)
 
 function songRowIdsInOrder() {
   return [...document.querySelectorAll('#song-list .song-row')].map(r => r.dataset.id);
@@ -7609,6 +7611,8 @@ function syncSelectedRowClasses() {
   });
 }
 // Paint the contiguous range anchor…current on top of whatever was selected before.
+// 'select' mode adds the range; 'deselect' mode (started on an already-selected
+// song) removes it — so swiping the other way un-selects a run of songs at once.
 function applyDragSelectTo(currentId) {
   const ids = songRowIdsInOrder();
   const a = ids.indexOf(dragSelAnchorId), c = ids.indexOf(currentId);
@@ -7616,16 +7620,56 @@ function applyDragSelectTo(currentId) {
   const lo = Math.min(a, c), hi = Math.max(a, c);
   selection.ids.clear();
   dragSelBase.forEach(x => selection.ids.add(x));
-  for (let i = lo; i <= hi; i++) selection.ids.add(ids[i]);
+  for (let i = lo; i <= hi; i++) {
+    if (dragSelMode === 'deselect') selection.ids.delete(ids[i]);
+    else selection.ids.add(ids[i]);
+  }
   updateSelectionUI();
 }
 function beginDragSelect(id) {
+  // Mode is decided by the anchor's state BEFORE we change anything: holding a
+  // SELECTED song deselects as you drag; holding an unselected one selects.
+  const wasSelected = selection.active && selection.ids.has(id);
   if (!selection.active) enterSelectionMode();   // re-renders the list (clears ids)
   dragSelBase = new Set(selection.ids);          // keep any prior selections
   dragSelAnchorId = id;
+  dragSelMode = wasSelected ? 'deselect' : 'select';
   dragSelecting = true;
   swallowNextClick();                            // the release tap must not toggle a row
-  applyDragSelectTo(id);                         // select the anchor
+  applyDragSelectTo(id);                         // (de)select the anchor
+  startDragSelAutoScroll();                       // edge auto-scroll while held
+}
+
+// While a hold-drag is near the top/bottom edge, scroll the list automatically so
+// the user can keep (de)selecting past the screen without lifting the finger —
+// same idea as the edit-list reorder auto-scroll.
+let dragSelScrollRAF = null;
+function startDragSelAutoScroll() {
+  if (dragSelScrollRAF == null) dragSelScrollRAF = requestAnimationFrame(dragSelAutoScrollTick);
+}
+function stopDragSelAutoScroll() {
+  if (dragSelScrollRAF != null) { cancelAnimationFrame(dragSelScrollRAF); dragSelScrollRAF = null; }
+}
+function dragSelAutoScrollTick() {
+  if (!dragSelecting) { dragSelScrollRAF = null; return; }
+  const view = document.getElementById('library-view');
+  if (view) {
+    const topbarH = parseFloat(getComputedStyle(view).getPropertyValue('--lib-topbar-h')) || 76;
+    const EDGE = 84, MAX = 17, vh = window.innerHeight, y = dragSelLastY;
+    let speed = 0;
+    if (y < topbarH + EDGE) speed = -Math.ceil(MAX * Math.min(1, (topbarH + EDGE - y) / EDGE));
+    else if (y > vh - EDGE) speed = Math.ceil(MAX * Math.min(1, (y - (vh - EDGE)) / EDGE));
+    if (speed !== 0) {
+      const before = view.scrollTop;
+      view.scrollTop = Math.max(0, Math.min(view.scrollHeight - view.clientHeight, view.scrollTop + speed));
+      if (view.scrollTop !== before) {        // list moved → extend over the row now under the finger
+        const el = document.elementFromPoint(dragSelLastX, dragSelLastY);
+        const r = el && el.closest && el.closest('#song-list .song-row');
+        if (r) applyDragSelectTo(r.dataset.id);
+      }
+    }
+  }
+  dragSelScrollRAF = requestAnimationFrame(dragSelAutoScrollTick);
 }
 
 // Per-row: start the hold timer + drive the drag from document-level listeners so
@@ -7652,6 +7696,7 @@ function attachSongLongPress(row, id) {
 function startLongPressSelect(e, id) {
   const pointerId = e.pointerId;
   const sx = e.clientX, sy = e.clientY;
+  dragSelLastX = sx; dragSelLastY = sy;
   let fired = false;
   const timer = setTimeout(() => { fired = true; beginDragSelect(id); }, 500);
   const move = (ev) => {
@@ -7663,6 +7708,7 @@ function startLongPressSelect(e, id) {
       return;
     }
     if (ev.cancelable) ev.preventDefault();
+    dragSelLastX = ev.clientX; dragSelLastY = ev.clientY;   // for edge auto-scroll
     const el = document.elementFromPoint(ev.clientX, ev.clientY);
     const r = el && el.closest && el.closest('#song-list .song-row');
     if (r) applyDragSelectTo(r.dataset.id);
@@ -7673,7 +7719,7 @@ function startLongPressSelect(e, id) {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', end);
     document.removeEventListener('pointercancel', end);
-    if (fired) dragSelecting = false;
+    if (fired) { dragSelecting = false; stopDragSelAutoScroll(); }
   };
   document.addEventListener('pointermove', move, { passive: false });
   document.addEventListener('pointerup', end);
