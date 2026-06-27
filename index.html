@@ -2903,6 +2903,9 @@
   /* Decluttered: these now live in the action panel. */
   #library-view .topbar #new-song-btn { display: none; }
   #library-view .filter-bar #list-edit-btn { display: none; }
+  /* The old top selection bar is gone — the right panel is the selection UI now.
+     The bar's buttons stay in the DOM (hidden) so the panel can delegate to them. */
+  #selection-bar { display: none !important; }
   /* Narrow / portrait: compact icon-only strip. */
   @media (max-width: 900px) {
     .action-panel { padding-left: 5px; padding-right: 5px; gap: 4px; }
@@ -3711,7 +3714,15 @@
         </button>
       </div>
       <div class="ap-group">
-        <div class="ap-group-title">Auswahl</div>
+        <div class="ap-group-title">Auswahl<span id="ap-sel-count" data-no-i18n></span></div>
+        <button class="ap-btn" id="ap-select-all" title="Alle auswählen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span class="ap-label">Alle</span>
+        </button>
+        <button class="ap-btn" id="ap-select-none" title="Auswahl aufheben" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          <span class="ap-label">Keine</span>
+        </button>
         <button class="ap-btn ap-sel" id="ap-move-pos" title="An Position verschieben">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 12 3 16 7"/><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
           <span class="ap-label">An Position</span>
@@ -3728,9 +3739,21 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span class="ap-label">Zu Setlist</span>
         </button>
+        <button class="ap-btn ap-sel" id="ap-remove-setlist" title="Aus Setlist entfernen" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span class="ap-label">Aus Setlist</span>
+        </button>
+        <button class="ap-btn ap-sel" id="ap-share" title="Teilen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          <span class="ap-label">Teilen</span>
+        </button>
         <button class="ap-btn ap-sel ap-danger" id="ap-delete" title="Löschen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
           <span class="ap-label">Löschen</span>
+        </button>
+        <button class="ap-btn" id="ap-cancel" title="Auswahl beenden" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <span class="ap-label">Abbrechen</span>
         </button>
       </div>
     </aside>
@@ -5287,6 +5310,9 @@ const I18N = {
     "Zu Setlist hinzufügen": "Add to setlist",
     "Songs antippen zum Auswählen, dann Aktion erneut tippen": "Tap songs to select, then tap the action again",
     "Dafür bitte genau einen Song auswählen": "Select exactly one song for this",
+    "Alle auswählen": "Select all",
+    "Auswahl aufheben": "Clear selection",
+    "Auswahl beenden": "Exit selection",
     "Songs aus JSON importieren": "Import songs from JSON",
     "Alle Songs exportieren": "Export all songs",
     "Einstellungen, Cloud-Sync & Profil": "Settings, cloud sync & profile",
@@ -6804,9 +6830,19 @@ document.getElementById('select-duplicate-btn').addEventListener('click', async 
 // =====================================================
 function updateActionPanelState() {
   const panel = document.getElementById('action-panel'); if (!panel) return;
-  panel.classList.toggle('not-selecting', !selection.active);
+  const selecting = selection.active;
+  const inSetlist = state.currentSetlistId !== null;
+  panel.classList.toggle('not-selecting', !selecting);
   const sortBtn = document.getElementById('ap-sort');
   if (sortBtn) sortBtn.classList.toggle('active', listEditMode);
+  const show = (id, cond) => { const el = document.getElementById(id); if (el) el.style.display = cond ? '' : 'none'; };
+  // Select-none + Cancel only make sense while selecting; add vs remove-from-setlist by view.
+  show('ap-select-none', selecting);
+  show('ap-cancel', selecting);
+  show('ap-to-setlist', !inSetlist);
+  show('ap-remove-setlist', inSetlist);
+  const countEl = document.getElementById('ap-sel-count');
+  if (countEl) countEl.textContent = selecting ? ' · ' + selection.ids.size : '';
 }
 function apRunSelection(runBtnId, needsOne) {
   if (!selection.active) {                       // not selecting yet → turn it on
@@ -6836,11 +6872,17 @@ function apRunSelection(runBtnId, needsOne) {
     const sel = document.getElementById('artist-filter'); if (sel) sel.focus();
   });
   on('ap-sort', () => { const b = document.getElementById('list-edit-btn'); if (b) b.click(); updateActionPanelState(); });
-  // Selection (tap turns on select mode the first time; then delegates)
+  // Selection management
+  on('ap-select-all', () => { if (!selection.active) enterSelectionMode(); const b = document.getElementById('select-all-btn'); if (b) b.click(); });
+  on('ap-select-none', () => { const b = document.getElementById('select-none-btn'); if (b) b.click(); });
+  on('ap-cancel', () => { if (selection.active) exitSelectionMode(); });
+  // Selection actions (tap turns on select mode the first time; then delegates)
   on('ap-move-pos', () => apRunSelection('select-move-pos-btn', true));
   on('ap-duplicate', () => apRunSelection('select-duplicate-btn', true));
   on('ap-to-album', () => apRunSelection('select-move-folder-btn', false));
   on('ap-to-setlist', () => apRunSelection('select-add-to-setlist-btn', false));
+  on('ap-remove-setlist', () => apRunSelection('select-remove-from-setlist-btn', false));
+  on('ap-share', () => apRunSelection('select-share-btn', false));
   on('ap-delete', () => apRunSelection('select-delete-btn', false));
   updateActionPanelState();
 })();
