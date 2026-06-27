@@ -7601,6 +7601,15 @@ let dragSelAnchorId = null;         // the row the drag started from
 let dragSelBase = null;             // selection that existed before this drag
 let dragSelMode = 'select';         // 'select' (anchor was unselected) | 'deselect'
 let dragSelLastX = 0, dragSelLastY = 0;   // last pointer position (for edge auto-scroll)
+// Anti-accidental-paint: after the long-press fires, painting beyond the anchor
+// only begins on a deliberate move (past a threshold), and a paint that happened
+// in a quick burst right before lifting is reverted — so a press-then-lift that
+// slides a few rows still selects only the one song you held.
+let dragSelArmed = false;           // has a deliberate drag started painting?
+let dragSelOriginX = 0, dragSelOriginY = 0;   // finger position when the hold fired
+let dragSelPaintAt = 0;             // when painting first extended past the anchor (0 = not yet)
+const DRAG_PAINT_THRESH = 16;       // px the finger must move before painting starts
+const DRAG_SETTLE_MS = 170;         // a multi-paint shorter than this before release = lift-jump → revert
 
 function songRowIdsInOrder() {
   return [...document.querySelectorAll('#song-list .song-row')].map(r => r.dataset.id);
@@ -7635,9 +7644,12 @@ function beginDragSelect(id) {
   dragSelAnchorId = id;
   dragSelMode = wasSelected ? 'deselect' : 'select';
   dragSelecting = true;
+  dragSelArmed = false;                          // wait for a deliberate move before painting more
+  dragSelPaintAt = 0;
+  dragSelOriginX = dragSelLastX; dragSelOriginY = dragSelLastY;
   swallowNextClick();                            // the release tap must not toggle a row
-  applyDragSelectTo(id);                         // (de)select the anchor
-  startDragSelAutoScroll();                       // edge auto-scroll while held
+  applyDragSelectTo(id);                         // (de)select ONLY the anchor for now
+  startDragSelAutoScroll();                       // edge auto-scroll while held (once armed)
 }
 
 // While a hold-drag is near the top/bottom edge, scroll the list automatically so
@@ -7653,7 +7665,7 @@ function stopDragSelAutoScroll() {
 function dragSelAutoScrollTick() {
   if (!dragSelecting) { dragSelScrollRAF = null; return; }
   const view = document.getElementById('library-view');
-  if (view) {
+  if (view && dragSelArmed) {                      // don't auto-scroll until a real drag is underway
     const topbarH = parseFloat(getComputedStyle(view).getPropertyValue('--lib-topbar-h')) || 76;
     const EDGE = 84, MAX = 17, vh = window.innerHeight, y = dragSelLastY;
     let speed = 0;
@@ -7709,9 +7721,19 @@ function startLongPressSelect(e, id) {
     }
     if (ev.cancelable) ev.preventDefault();
     dragSelLastX = ev.clientX; dragSelLastY = ev.clientY;   // for edge auto-scroll
+    // Stay on the anchor until the finger deliberately moves past the threshold —
+    // so the small slide that happens while lifting doesn't paint extra rows.
+    if (!dragSelArmed) {
+      if (Math.abs(ev.clientX - dragSelOriginX) <= DRAG_PAINT_THRESH &&
+          Math.abs(ev.clientY - dragSelOriginY) <= DRAG_PAINT_THRESH) return;
+      dragSelArmed = true;
+    }
     const el = document.elementFromPoint(ev.clientX, ev.clientY);
     const r = el && el.closest && el.closest('#song-list .song-row');
-    if (r) applyDragSelectTo(r.dataset.id);
+    if (r) {
+      if (r.dataset.id !== dragSelAnchorId && dragSelPaintAt === 0) dragSelPaintAt = performance.now();
+      applyDragSelectTo(r.dataset.id);
+    }
   };
   const end = (ev) => {
     if (ev && ev.pointerId != null && ev.pointerId !== pointerId) return;
@@ -7719,7 +7741,14 @@ function startLongPressSelect(e, id) {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', end);
     document.removeEventListener('pointercancel', end);
-    if (fired) { dragSelecting = false; stopDragSelAutoScroll(); }
+    if (fired) {
+      dragSelecting = false; stopDragSelAutoScroll();
+      // If the multi-paint only started in the last moment before lifting, it was
+      // the finger sliding during release, not a real drag → keep only the anchor.
+      if (dragSelPaintAt !== 0 && (performance.now() - dragSelPaintAt) < DRAG_SETTLE_MS) {
+        applyDragSelectTo(dragSelAnchorId);
+      }
+    }
   };
   document.addEventListener('pointermove', move, { passive: false });
   document.addEventListener('pointerup', end);
