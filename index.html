@@ -13340,6 +13340,7 @@ async function leaveSharedAlbum(albumId) {
       updatedAt: Date.now(),
     });
   } catch (e) { sharedPermCheck(e); }
+  await deleteMemberAlbumPointer(albumId);   // stop discovering it on our other devices
   await leaveSharedAlbumLocal(albumId);
 }
 // ---- roles ----
@@ -13437,6 +13438,7 @@ async function acceptSharedAlbumInvite(item) {
     };
     await storePutRaw(SHARED_FOLDER_STORE, folder);
     sharedAlbumIds.add(folder.id);
+    await writeMemberAlbumPointer(folder);   // discoverable on this member's other devices/storages
     const songsSnap = await sharedSongsColRef(item.ownerUid, item.albumId).get();
     for (const s of songsSnap.docs) await reconcileSharedSongUpsert(item.albumId, s.data());
     await deleteInboxItem(item.id);
@@ -13445,6 +13447,49 @@ async function acceptSharedAlbumInvite(item) {
     switchFolder(folder.id);
     showToast(T('Geteiltem Album beigetreten') + ': ' + folder.name);
   } catch (e) { sharedPermCheck(e); showToast(T('Beitreten fehlgeschlagen'), 'error'); }
+}
+
+// A member's albums are stored under the OWNER's uid, so the owner-style discovery
+// query (users/{me}/sharedAlbums) never finds them — the member only knew them from
+// LOCAL storage saved at accept time. That breaks on any separate storage (e.g. the
+// iOS home-screen PWA, which doesn't share storage with Safari). Fix: drop a tiny
+// POINTER under the MEMBER's own uid (same Firestore rule path, no rules change) so
+// the member discovers their albums from the cloud on any device/storage.
+async function writeMemberAlbumPointer(album) {
+  const me = myUid();
+  if (!cloud.ready || !cloud.user || !me || !album || album.ownerUid === me) return;
+  try {
+    await sharedAlbumDocRef(me, album.id).set({
+      ref: true, ownerUid: album.ownerUid, albumId: album.id, name: album.name || '', at: Date.now(),
+    });
+  } catch (e) { sharedPermCheck(e); }
+}
+async function deleteMemberAlbumPointer(albumId) {
+  const me = myUid();
+  if (!cloud.ready || !cloud.user || !me) return;
+  try { await sharedAlbumDocRef(me, albumId).delete(); } catch (e) {}
+}
+// Resolve a member pointer → fetch the real album + songs from the owner's path and
+// store them locally (only if we're still actually a member).
+async function resolveMemberAlbum(ownerUid, albumId) {
+  const me = myUid();
+  try {
+    const adoc = await sharedAlbumDocRef(ownerUid, albumId).get();
+    if (!adoc.exists) { await deleteMemberAlbumPointer(albumId); return; }       // album gone → clean stale pointer
+    const d = adoc.data();
+    if (!Array.isArray(d.memberUids) || !d.memberUids.includes(me)) { await deleteMemberAlbumPointer(albumId); return; }  // no longer a member
+    const folder = {
+      id: albumId, name: d.name || '', shared: true,
+      ownerUid, ownerName: d.ownerName || '',
+      memberUids: d.memberUids || [], members: d.members || [],
+      setlists: d.setlists || [],
+      createdAt: d.createdAt || Date.now(), updatedAt: Date.now(),
+    };
+    await storePutRaw(SHARED_FOLDER_STORE, folder);
+    sharedAlbumIds.add(albumId);
+    const songsSnap = await sharedSongsColRef(ownerUid, albumId).get();
+    for (const s of songsSnap.docs) await reconcileSharedSongUpsert(albumId, s.data());
+  } catch (e) { sharedPermCheck(e); }
 }
 
 // On login: discover owned albums from Firestore + re-attach listeners to THIS
@@ -13457,6 +13502,11 @@ async function initSharedAlbums() {
     const local = await sharedStoreAllFolders();
     for (const doc of snap.docs) {
       const d = doc.data();
+      // A member POINTER (ref) → the real album lives under the owner's uid.
+      if (d && d.ref && d.ownerUid && d.ownerUid !== meUid) {
+        await resolveMemberAlbum(d.ownerUid, d.albumId || doc.id);
+        continue;
+      }
       if (!local.find(f => f.id === d.id)) { await storePutRaw(SHARED_FOLDER_STORE, { ...d, shared: true }); }
       const songsSnap = await sharedSongsColRef(meUid, d.id).get();
       for (const s of songsSnap.docs) await reconcileSharedSongUpsert(d.id, s.data());
@@ -13480,6 +13530,10 @@ async function initSharedAlbums() {
   }
   await loadSongs();
   const mine = (await sharedStoreAllFolders()).filter(f => f.ownerUid === meUid || (f.memberUids || []).includes(meUid));
+  // Backfill: ensure every MEMBER album we know locally has a cloud pointer under
+  // our own uid, so our other devices/storages (incl. the home-screen PWA) find it
+  // even for memberships accepted before this fix existed.
+  for (const f of mine) if (f.ownerUid !== meUid) await writeMemberAlbumPointer(f);
   for (const f of mine) startSharedAlbumListener(f);
   if (state.view === 'library') renderLibrary();
 }
