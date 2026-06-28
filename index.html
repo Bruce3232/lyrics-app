@@ -6967,7 +6967,7 @@ function openSetlistPicker(songIds) {
       updatedAt: Date.now(),
     };
     await setlistPut(newSetlist);
-    state.setlists.push(newSetlist);
+    if (!state.setlists.some(s => s.id === newSetlist.id)) state.setlists.push(newSetlist);
     modal.classList.remove('show');
     showToast(`Setlist "${name}" mit ${songIds.length} Song${songIds.length === 1 ? '' : 's'} erstellt`, 'success');
     exitSelectionMode();
@@ -7065,7 +7065,7 @@ function openSetlistManager() {
       updatedAt: Date.now(),
     };
     await setlistPut(newSetlist);
-    state.setlists.push(newSetlist);
+    if (!state.setlists.some(s => s.id === newSetlist.id)) state.setlists.push(newSetlist);
     newNameInput.value = '';
     renderList();
     renderSetlistBar();
@@ -7187,7 +7187,9 @@ async function createNewSetlistInline() {
     updatedAt: Date.now(),
   };
   await setlistPut(newSetlist);
-  state.setlists.push(newSetlist);
+  // setlistPut already adds a SHARED-album setlist to state.setlists, so only add
+  // it here if it isn't there yet — otherwise it shows up twice until a reload.
+  if (!state.setlists.some(s => s.id === newSetlist.id)) state.setlists.push(newSetlist);
   state.currentSetlistId = newSetlist.id;
   renderSetlistBar();
   renderSongList();
