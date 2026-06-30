@@ -3234,6 +3234,20 @@
   .cloud-msg { font-size: 13px; color: var(--text-1); }
   .cloud-msg.error { color: #ff4757; }
   .cloud-msg.success { color: #1db954; }
+  /* Tappable settings rows (Konto, Name ändern, Passwort ändern, Konto löschen). */
+  .settings-row {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 14px; border: 1px solid var(--border); background: var(--bg-2);
+    border-radius: 12px; color: var(--text-0); font-size: 15px; font-weight: 600;
+    cursor: pointer; text-align: left; margin-bottom: 8px; transition: all 0.12s var(--ease);
+  }
+  .settings-row:hover { border-color: var(--accent); background: var(--surface); }
+  .settings-row svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--text-1); }
+  .settings-row-label { flex: 1; }
+  .settings-row-chevron { width: 16px; height: 16px; opacity: 0.6; }
+  .settings-row-danger { color: #ff4757; }
+  .settings-row-danger svg { color: #ff4757; }
+  .settings-row-danger:hover { border-color: #ff4757; background: rgba(255,71,87,0.08); }
   @media (max-width: 640px) { .acct-pill-email { display: none; } .acct-pill { max-width: none; } }
 
   .friends-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
@@ -4472,36 +4486,13 @@
       <p style="color:var(--text-1); margin-bottom:6px;">Angemeldet als</p>
       <p id="cloud-user-email" style="font-weight:700; font-size:16px; margin-bottom:14px;">—</p>
 
-      <!-- ===== Account ===== -->
-      <div class="acct-section">
-        <div class="acct-section-title">Konto</div>
-
-        <div class="cloud-field">
-          <label class="field-label">Anzeigename</label>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <input class="field-input" id="acct-name-input" placeholder="Dein Name" maxlength="40" autocomplete="name" style="flex:1;">
-            <button class="btn btn-primary" id="acct-name-save">Speichern</button>
-          </div>
-          <div id="acct-name-msg" class="cloud-msg" style="display:none; margin-top:8px;"></div>
-        </div>
-
-        <div class="cloud-field" style="margin-top:16px;">
-          <label class="field-label">Passwort ändern</label>
-          <input class="field-input" id="acct-pw-current" type="password" placeholder="Aktuelles Passwort" autocomplete="current-password" style="margin-bottom:8px;">
-          <input class="field-input" id="acct-pw-new" type="password" placeholder="Neues Passwort (mind. 6 Zeichen)" autocomplete="new-password" style="margin-bottom:8px;">
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <button class="btn btn-primary" id="acct-pw-save">Passwort ändern</button>
-            <button class="btn-link" id="acct-pw-reset" type="button">Passwort vergessen?</button>
-          </div>
-          <div id="acct-pw-msg" class="cloud-msg" style="display:none; margin-top:8px;"></div>
-        </div>
-
-        <div class="cloud-field" style="margin-top:16px;">
-          <button class="btn btn-danger" id="acct-delete">Konto löschen…</button>
-          <p style="color:var(--text-2); font-size:12px; margin-top:6px;">Löscht dein Konto und deine Cloud-Daten unwiderruflich.</p>
-        </div>
-      </div>
-      <div class="profile-divider" style="margin:18px 0;"></div>
+      <!-- Account hub: opens all account settings -->
+      <button class="settings-row" id="open-account-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="settings-row-label">Konto</span>
+        <svg class="settings-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <div class="profile-divider" style="margin:14px 0;"></div>
 
       <!-- Profile: public username for friends -->
       <div class="cloud-field">
@@ -4513,28 +4504,78 @@
         <div id="cloud-username-error" class="cloud-error" style="display:none; margin-top:8px;"></div>
         <p style="color:var(--text-2); font-size:12px; margin-top:6px;">Damit können dich Freunde finden und dir Songs schicken. Du kannst ihn jederzeit ändern.</p>
       </div>
-      <div style="height:6px;"></div>
-
-      <div class="cloud-status-row">
-        <span class="cloud-status-label">Auto-Sync</span>
-        <label class="cloud-switch">
-          <input type="checkbox" id="cloud-autosync-toggle" checked>
-          <span class="cloud-switch-slider"></span>
-        </label>
-      </div>
-      <p style="color:var(--text-2); font-size:13px; margin:6px 0 18px;">
-        Wenn an, werden Änderungen automatisch hochgeladen und beim Öffnen heruntergeladen.
-      </p>
-
-      <div id="cloud-sync-info" style="color:var(--text-2); font-size:13px; margin-bottom:18px;">
-        Zuletzt synchronisiert: <span id="cloud-last-sync">noch nie</span>
+      <div id="cloud-sync-info" style="color:var(--text-2); font-size:12px; margin:14px 0 16px;">
+        Synchronisiert automatisch · zuletzt: <span id="cloud-last-sync">noch nie</span>
       </div>
 
       <div class="modal-actions">
         <button class="btn" id="cloud-logout">Abmelden</button>
-        <div style="flex:1;"></div>
-        <button class="btn" id="cloud-sync-now">Jetzt synchronisieren</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Account settings hub (opened from Settings → Konto) -->
+<div class="modal-backdrop" id="account-modal">
+  <div class="modal">
+    <h3>Konto</h3>
+    <p id="account-modal-email" style="color:var(--text-2); font-size:13px; margin:2px 0 16px;">—</p>
+    <button class="settings-row" id="acct-change-name-btn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <span class="settings-row-label">Name ändern</span>
+      <svg class="settings-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <button class="settings-row" id="acct-change-pw-btn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span class="settings-row-label">Passwort ändern</span>
+      <svg class="settings-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div style="height:18px;"></div>
+    <button class="settings-row settings-row-danger" id="acct-delete" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+      <span class="settings-row-label">Konto löschen</span>
+    </button>
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="account-close">Schliessen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change display name -->
+<div class="modal-backdrop" id="change-name-modal">
+  <div class="modal">
+    <h3>Name ändern</h3>
+    <div class="cloud-field">
+      <label class="field-label">Anzeigename</label>
+      <input class="field-input" id="acct-name-input" placeholder="Dein Name" maxlength="40" autocomplete="name">
+    </div>
+    <div id="acct-name-msg" class="cloud-msg" style="display:none; margin-top:10px;"></div>
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="change-name-cancel">Abbrechen</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" id="acct-name-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change password -->
+<div class="modal-backdrop" id="change-pw-modal">
+  <div class="modal">
+    <h3>Passwort ändern</h3>
+    <div class="cloud-field">
+      <label class="field-label">Aktuelles Passwort</label>
+      <input class="field-input" id="acct-pw-current" type="password" placeholder="Aktuelles Passwort" autocomplete="current-password">
+    </div>
+    <div class="cloud-field" style="margin-top:10px;">
+      <label class="field-label">Neues Passwort</label>
+      <input class="field-input" id="acct-pw-new" type="password" placeholder="Mindestens 6 Zeichen" autocomplete="new-password">
+    </div>
+    <div id="acct-pw-msg" class="cloud-msg" style="display:none; margin-top:10px;"></div>
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="change-pw-cancel">Abbrechen</button>
+      <button class="btn-link" id="acct-pw-reset" type="button">Passwort vergessen?</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" id="acct-pw-save">Ändern</button>
     </div>
   </div>
 </div>
@@ -14791,12 +14832,14 @@ document.getElementById('cloud-logout').addEventListener('click', async () => {
   showToast('Abgemeldet', 'success');
 });
 
-document.getElementById('cloud-sync-now').addEventListener('click', () => runSync({ silent: false }));
-
-document.getElementById('cloud-autosync-toggle').addEventListener('change', (e) => {
-  setAutoSync(e.target.checked);
-  if (e.target.checked) runSync({ silent: true });
-});
+// Auto-sync is always on (it syncs by itself); the manual toggle + "sync now" button
+// were removed from the UI. These elements may not exist — guard.
+(function () {
+  const sn = document.getElementById('cloud-sync-now');
+  if (sn) sn.addEventListener('click', () => runSync({ silent: false }));
+  const as = document.getElementById('cloud-autosync-toggle');
+  if (as) as.addEventListener('change', (e) => { setAutoSync(e.target.checked); if (e.target.checked) runSync({ silent: true }); });
+})();
 
 // Save / change public username from the Cloud profile section.
 document.getElementById('cloud-username-save').addEventListener('click', async () => {
@@ -14903,6 +14946,36 @@ function acctMsg(id, text, kind) {
 }
 (function setupAccountSettings() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  const showModal = (id) => { const m = document.getElementById(id); if (m) m.classList.add('show'); };
+  const hideModal = (id) => { const m = document.getElementById(id); if (m) m.classList.remove('show'); };
+  const backdropClose = (id) => { const m = document.getElementById(id); if (m) m.addEventListener('click', (e) => { if (e.target.id === id) m.classList.remove('show'); }); };
+  // Settings → "Konto" hub
+  on('open-account-btn', () => {
+    closeCloudModal();
+    const em = document.getElementById('account-modal-email'); if (em) em.textContent = (cloud.user && cloud.user.email) || '';
+    showModal('account-modal');
+  });
+  on('account-close', () => hideModal('account-modal'));
+  backdropClose('account-modal');
+  // Konto → Name ändern (popup)
+  on('acct-change-name-btn', () => {
+    acctMsg('acct-name-msg', '');
+    const inp = document.getElementById('acct-name-input');
+    if (inp) { inp.value = (cloud.user && cloud.user.displayName) || ''; setTimeout(() => inp.focus(), 60); }
+    showModal('change-name-modal');
+  });
+  on('change-name-cancel', () => hideModal('change-name-modal'));
+  backdropClose('change-name-modal');
+  // Konto → Passwort ändern (popup)
+  on('acct-change-pw-btn', () => {
+    acctMsg('acct-pw-msg', '');
+    const c = document.getElementById('acct-pw-current'); if (c) c.value = '';
+    const n = document.getElementById('acct-pw-new'); if (n) n.value = '';
+    showModal('change-pw-modal');
+    if (c) setTimeout(() => c.focus(), 60);
+  });
+  on('change-pw-cancel', () => hideModal('change-pw-modal'));
+  backdropClose('change-pw-modal');
   // Change display name
   on('acct-name-save', async () => {
     const inp = document.getElementById('acct-name-input'); const name = (inp ? inp.value : '').trim();
@@ -14914,7 +14987,8 @@ function acctMsg(id, text, kind) {
       try { localStorage.setItem(nsKey(DISPLAY_NAME_KEY), name); } catch (e) {}
       rememberAccount(cloud.auth.currentUser);
       updateProfileUI(); updateAccountSwitcherUI();
-      acctMsg('acct-name-msg', 'Name gespeichert.', 'success');
+      const m = document.getElementById('change-name-modal'); if (m) m.classList.remove('show');
+      showToast('Name gespeichert', 'success');
     } catch (e) { acctMsg('acct-name-msg', friendlyAuthError(e), 'error'); }
     btn.disabled = false;
   });
@@ -14933,7 +15007,8 @@ function acctMsg(id, text, kind) {
       await user.updatePassword(nw);
       document.getElementById('acct-pw-current').value = '';
       document.getElementById('acct-pw-new').value = '';
-      acctMsg('acct-pw-msg', 'Passwort geändert.', 'success');
+      const m = document.getElementById('change-pw-modal'); if (m) m.classList.remove('show');
+      showToast('Passwort geändert', 'success');
     } catch (e) { acctMsg('acct-pw-msg', friendlyAuthError(e), 'error'); }
     btn.disabled = false;
   });
@@ -14972,7 +15047,7 @@ function acctMsg(id, text, kind) {
       try { const dn = dbNameForNs(uid); if (dn !== LEGACY_DB) indexedDB.deleteDatabase(dn); } catch (e) {}
       ['lyrics-tombstones', 'lyrics-autosync', 'lyrics-last-sync', 'lyrics-display-name'].forEach(k => { try { localStorage.removeItem(k + '__' + uid); } catch (e) {} });
       removeAccount(uid);
-      const m = document.getElementById('delete-account-modal'); if (m) m.classList.remove('show');
+      ['delete-account-modal', 'account-modal'].forEach(id => { const m = document.getElementById(id); if (m) m.classList.remove('show'); });
       closeCloudModal();
       showToast('Konto gelöscht', 'success');
     } catch (e) { acctMsg('delete-account-msg', friendlyAuthError(e), 'error'); }
