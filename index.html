@@ -2878,6 +2878,14 @@
   .ap-btn.active svg { color: #fff; }
   .ap-btn.ap-danger:hover { color: #ff4757; background: rgba(255,71,87,0.1); border-color: rgba(255,71,87,0.4); }
   .ap-btn.ap-danger:hover svg { color: #ff4757; }
+  /* The "Auswählen" / "Abbrechen" buttons are a bit bigger so they stand out. */
+  .ap-btn-lg { padding: 13px 12px; font-size: 15px; font-weight: 700; border-color: var(--border); background: var(--surface); }
+  .ap-btn-lg svg { width: 22px; height: 22px; }
+  .ap-btn-lg:hover { border-color: var(--accent); }
+  /* Cancel: reddish so it reads as "stop / ❌". */
+  .ap-btn.ap-cancel-btn { color: #ff4757; border-color: rgba(255,71,87,0.4); background: rgba(255,71,87,0.08); }
+  .ap-btn.ap-cancel-btn svg { color: #ff4757; }
+  .ap-btn.ap-cancel-btn:hover { background: rgba(255,71,87,0.16); border-color: #ff4757; color: #ff4757; }
   /* Selection actions are dimmed until you're actually selecting songs. */
   .action-panel.not-selecting .ap-sel { opacity: 0.55; }
   /* The song list resizes so the panel never overlaps it. */
@@ -2958,7 +2966,10 @@
      Sits just LEFT of the action panel (right: var(--ap-w)). */
   .fast-scroll {
     position: fixed; right: var(--ap-w); top: var(--lib-topbar-h, 76px); bottom: 12px; width: 24px;
-    z-index: 45; display: none; touch-action: none;
+    /* Stay BEHIND all chrome (topbar+dropdowns at 40, action panel 38, popovers,
+       modals) — only above the song list. The topbar is a z-index:40 stacking
+       context, so the lever must be < 40 or it paints over the open profile menu. */
+    z-index: 30; display: none; touch-action: none;
     pointer-events: none;          /* track is click-through; only the thumb grabs */
     -webkit-tap-highlight-color: transparent;
   }
@@ -3819,6 +3830,16 @@
       </div>
       <div class="ap-group">
         <div class="ap-group-title">Auswahl<span id="ap-sel-count" data-no-i18n></span></div>
+        <!-- Enter selection mode (or long-press a song). Bigger for clarity. -->
+        <button class="ap-btn ap-btn-lg" id="ap-select-mode" title="Songs auswählen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span class="ap-label">Auswählen</span>
+        </button>
+        <!-- Cancel selection: bigger + reddish, at the top of the selection actions. -->
+        <button class="ap-btn ap-btn-lg ap-cancel-btn" id="ap-cancel" title="Auswahl beenden" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <span class="ap-label">Abbrechen</span>
+        </button>
         <button class="ap-btn" id="ap-select-all" title="Alle auswählen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           <span class="ap-label">Alle</span>
@@ -3850,10 +3871,6 @@
         <button class="ap-btn ap-sel ap-danger" id="ap-delete" title="Löschen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
           <span class="ap-label">Löschen</span>
-        </button>
-        <button class="ap-btn" id="ap-cancel" title="Auswahl beenden" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          <span class="ap-label">Abbrechen</span>
         </button>
       </div>
     </aside>
@@ -5821,6 +5838,7 @@ const I18N = {
     "Alle Songs": "All songs",
     "Neue Setlist erstellen": "Create new setlist",
     "Neu": "New",
+    "Auswählen": "Select",
     "Alben": "Albums",
     "Alben wechseln": "Switch album",
     "Album wechseln": "Switch album",
@@ -7295,13 +7313,18 @@ function updateActionPanelState() {
   setActive('sort-artist', filterState.sort === 'artist');
   setActive('sort-title', filterState.sort === 'title');
   const show = (id, cond) => { const el = document.getElementById(id); if (el) el.style.display = cond ? '' : 'none'; };
-  // Select-none + Cancel only make sense while selecting; add vs remove-from-setlist by view.
-  show('ap-select-none', selecting);
+  // Selection group: until selection mode is on (via the "Auswählen" button or a
+  // long-press) ONLY that button shows; then it's replaced by Cancel + the actions.
+  show('ap-select-mode', !selecting);
   show('ap-cancel', selecting);
-  // "Zu Setlist" is ALWAYS available (add to ANY setlist — e.g. move a song from one
-  // setlist to another); "Aus Setlist" only inside a setlist.
-  show('ap-to-setlist', true);
-  show('ap-remove-setlist', inSetlist);
+  show('ap-select-all', selecting);
+  show('ap-select-none', selecting);
+  show('ap-move-pos', selecting);
+  show('ap-to-album', selecting);
+  show('ap-to-setlist', selecting);                  // add to ANY setlist (incl. moving between setlists)
+  show('ap-remove-setlist', selecting && inSetlist);
+  show('ap-share', selecting);
+  show('ap-delete', selecting);
   const countEl = document.getElementById('ap-sel-count');
   if (countEl) countEl.textContent = selecting ? ' · ' + selection.ids.size : '';
 }
@@ -7345,6 +7368,7 @@ function apRunSelection(runBtnId, needsOne) {
   on('sort-artist', () => applySortMode('artist'));
   on('sort-title', () => applySortMode('title'));
   // Selection management
+  on('ap-select-mode', () => { if (!selection.active) enterSelectionMode(); });
   on('ap-select-all', () => { if (!selection.active) enterSelectionMode(); const b = document.getElementById('select-all-btn'); if (b) b.click(); });
   on('ap-select-none', () => { const b = document.getElementById('select-none-btn'); if (b) b.click(); });
   on('ap-cancel', () => { if (selection.active) exitSelectionMode(); });
