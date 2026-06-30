@@ -6952,19 +6952,29 @@ document.getElementById('select-move-pos-btn').addEventListener('click', () => {
 let openApPop = null, openApBtn = null;
 function positionApPopover(btn, pop) {
   pop.style.left = pop.style.top = pop.style.right = pop.style.bottom = '';
+  pop.style.maxHeight = '';
   pop.style.transform = 'none';                  // measure full size (no scale) first
   const br = btn.getBoundingClientRect();
+  // Clamp into the VISIBLE area. On iPad the soft keyboard shrinks
+  // window.visualViewport (but NOT window.innerHeight / position:fixed), so use the
+  // visual viewport's size+offset to keep the popover above the keyboard.
+  const vv = window.visualViewport;
+  const vLeft = vv ? vv.offsetLeft : 0;
+  const vTop = vv ? vv.offsetTop : 0;
+  const vw = (vv ? vv.width : window.innerWidth) || document.documentElement.clientWidth;
+  const vh = (vv ? vv.height : window.innerHeight) || document.documentElement.clientHeight;
+  const M = 10, GAP = 10;
+  // Never let the popover be taller than the visible area (so a tall list stays
+  // scrollable above the keyboard instead of running underneath it).
+  pop.style.maxHeight = Math.max(120, vh - 2 * M) + 'px';
   const pr = pop.getBoundingClientRect();
   const w = pr.width, h = pr.height;
-  const vw = window.innerWidth || document.documentElement.clientWidth;
-  const vh = window.innerHeight || document.documentElement.clientHeight;
-  const M = 10, GAP = 10;
   let Lx, Ly;
-  if (br.left - GAP - w >= M) { Lx = br.left - GAP - w; Ly = br.top; }            // left of the button (default)
-  else if (br.right + GAP + w <= vw - M) { Lx = br.right + GAP; Ly = br.top; }    // right of the button
-  else { Lx = (vw - w) / 2; Ly = (br.top > vh / 2) ? (br.bottom - h) : br.top; }  // centred above/below
-  Lx = Math.max(M, Math.min(vw - M - w, Lx));
-  Ly = Math.max(M, Math.min(vh - M - h, Ly));
+  if (br.left - GAP - w >= vLeft + M) { Lx = br.left - GAP - w; Ly = br.top; }            // left of the button (default)
+  else if (br.right + GAP + w <= vLeft + vw - M) { Lx = br.right + GAP; Ly = br.top; }    // right of the button
+  else { Lx = vLeft + (vw - w) / 2; Ly = (br.top > vTop + vh / 2) ? (br.bottom - h) : br.top; }
+  Lx = Math.max(vLeft + M, Math.min(vLeft + vw - M - w, Lx));
+  Ly = Math.max(vTop + M, Math.min(vTop + vh - M - h, Ly));   // keep fully inside the visible area
   pop.style.left = Lx + 'px';
   pop.style.top = Ly + 'px';
   pop.style.right = 'auto';
@@ -7002,6 +7012,13 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openApPop) closeAllApPopovers(); });
 window.addEventListener('resize', () => { if (openApPop && openApBtn) positionApPopover(openApBtn, openApPop); });
 (function () { const ap = document.getElementById('action-panel'); if (ap) ap.addEventListener('scroll', () => { if (openApPop && openApBtn) positionApPopover(openApBtn, openApPop); }, { passive: true }); })();
+// Keep the open popover above the soft keyboard: visualViewport resizes/scrolls
+// when the iPad keyboard slides in/out (and on pinch-zoom) — re-clamp on every change.
+if (window.visualViewport) {
+  const repos = () => { if (openApPop && openApBtn) positionApPopover(openApBtn, openApPop); };
+  window.visualViewport.addEventListener('resize', repos);
+  window.visualViewport.addEventListener('scroll', repos);
+}
 
 // Apply a sort mode chosen in the Sort popover (own order / by artist / by title).
 function applySortMode(mode) {
