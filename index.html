@@ -3180,6 +3180,62 @@
   @media (max-width: 560px) {
     .profile-dropdown { min-width: 220px; }
   }
+
+  /* ===== Top-left account control + switcher + account section ===== */
+  .acct-wrap { position: relative; display: flex; align-items: center; }
+  .acct-pill {
+    display: inline-flex; align-items: center; gap: 8px; max-width: 240px;
+    padding: 5px 10px 5px 5px; border: 1px solid var(--border-strong);
+    background: var(--surface); border-radius: 100px; color: var(--text-0);
+    font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.12s var(--ease);
+  }
+  .acct-pill:hover { border-color: var(--accent); }
+  .acct-pill-avatar {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; font-size: 11px; font-weight: 800;
+  }
+  .acct-pill-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct-pill-caret { width: 14px; height: 14px; opacity: 0.7; flex-shrink: 0; }
+  .acct-dropdown {
+    position: absolute; top: calc(100% + 8px); left: 0; min-width: 250px; max-width: 320px;
+    background: var(--surface-strong); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+    padding: 8px; z-index: 70; opacity: 0; transform: scale(0.97); transform-origin: top left;
+    pointer-events: none; transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+  }
+  .acct-dropdown.show { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .acct-dd-title { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); padding: 6px 8px 4px; }
+  .acct-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 9px 8px; border: 1px solid transparent; background: transparent;
+    border-radius: 9px; cursor: pointer; text-align: left; color: var(--text-0);
+  }
+  .acct-item:hover { background: var(--surface); }
+  .acct-item.current { background: var(--surface); border-color: var(--border); }
+  .acct-item-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 800;
+  }
+  .acct-item-text { flex: 1; min-width: 0; }
+  .acct-item-email { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct-item-state { font-size: 11px; color: var(--text-2); }
+  .acct-item-remove { flex-shrink: 0; width: 24px; height: 24px; border: none; background: transparent; color: var(--text-2); cursor: pointer; border-radius: 6px; font-size: 15px; line-height: 1; }
+  .acct-item-remove:hover { color: #ff4757; background: rgba(255,71,87,0.1); }
+  .acct-dd-add {
+    display: block; width: 100%; margin-top: 6px; padding: 10px; border: 1px dashed var(--border-strong);
+    background: transparent; border-radius: 9px; color: var(--accent-soft); font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .acct-dd-add:hover { background: rgba(255,140,26,0.06); color: var(--accent); }
+  .acct-section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin-bottom: 10px; }
+  .btn-link { background: transparent; border: none; color: var(--accent-soft); font-weight: 600; font-size: 13px; cursor: pointer; padding: 6px 4px; }
+  .btn-link:hover { color: var(--accent); text-decoration: underline; }
+  .cloud-msg { font-size: 13px; color: var(--text-1); }
+  .cloud-msg.error { color: #ff4757; }
+  .cloud-msg.success { color: #1db954; }
+  @media (max-width: 640px) { .acct-pill-email { display: none; } .acct-pill { max-width: none; } }
+
   .friends-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
   .friends-tab {
     padding: 10px 14px; background: transparent; border: none;
@@ -3558,6 +3614,20 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
         </div>
         <span>Lyrics & Chords</span>
+      </div>
+      <!-- Top-left account control: sign in (logged out) / account switcher (logged in) -->
+      <div class="acct-wrap" id="acct-wrap">
+        <button class="btn acct-signin-btn" id="acct-signin-btn">Anmelden</button>
+        <button class="acct-pill" id="acct-pill-btn" style="display:none;" aria-haspopup="true" aria-expanded="false" data-no-i18n>
+          <span class="acct-pill-avatar profile-initials">♪</span>
+          <span class="acct-pill-email" id="acct-pill-email">—</span>
+          <svg class="acct-pill-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="acct-dropdown" id="acct-dropdown">
+          <div class="acct-dd-title">Konten</div>
+          <div id="acct-list"></div>
+          <button class="acct-dd-add" id="acct-add-btn" type="button">+ Konto hinzufügen</button>
+        </div>
       </div>
       <div class="topbar-spacer"></div>
       <button class="icon-btn theme-toggle" id="theme-toggle-1" title="Hell/Dunkel umschalten">
@@ -4402,6 +4472,37 @@
       <p style="color:var(--text-1); margin-bottom:6px;">Angemeldet als</p>
       <p id="cloud-user-email" style="font-weight:700; font-size:16px; margin-bottom:14px;">—</p>
 
+      <!-- ===== Account ===== -->
+      <div class="acct-section">
+        <div class="acct-section-title">Konto</div>
+
+        <div class="cloud-field">
+          <label class="field-label">Anzeigename</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input class="field-input" id="acct-name-input" placeholder="Dein Name" maxlength="40" autocomplete="name" style="flex:1;">
+            <button class="btn btn-primary" id="acct-name-save">Speichern</button>
+          </div>
+          <div id="acct-name-msg" class="cloud-msg" style="display:none; margin-top:8px;"></div>
+        </div>
+
+        <div class="cloud-field" style="margin-top:16px;">
+          <label class="field-label">Passwort ändern</label>
+          <input class="field-input" id="acct-pw-current" type="password" placeholder="Aktuelles Passwort" autocomplete="current-password" style="margin-bottom:8px;">
+          <input class="field-input" id="acct-pw-new" type="password" placeholder="Neues Passwort (mind. 6 Zeichen)" autocomplete="new-password" style="margin-bottom:8px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="acct-pw-save">Passwort ändern</button>
+            <button class="btn-link" id="acct-pw-reset" type="button">Passwort vergessen?</button>
+          </div>
+          <div id="acct-pw-msg" class="cloud-msg" style="display:none; margin-top:8px;"></div>
+        </div>
+
+        <div class="cloud-field" style="margin-top:16px;">
+          <button class="btn btn-danger" id="acct-delete">Konto löschen…</button>
+          <p style="color:var(--text-2); font-size:12px; margin-top:6px;">Löscht dein Konto und deine Cloud-Daten unwiderruflich.</p>
+        </div>
+      </div>
+      <div class="profile-divider" style="margin:18px 0;"></div>
+
       <!-- Profile: public username for friends -->
       <div class="cloud-field">
         <label class="field-label">Öffentlicher Benutzername (für Freunde)</label>
@@ -4434,6 +4535,24 @@
         <div style="flex:1;"></div>
         <button class="btn" id="cloud-sync-now">Jetzt synchronisieren</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete account confirmation -->
+<div class="modal-backdrop" id="delete-account-modal">
+  <div class="modal">
+    <h3>Konto löschen</h3>
+    <p style="color:var(--text-1); margin:8px 0 14px;">Das löscht dein Konto und deine Cloud-Daten <strong>unwiderruflich</strong>. Zur Bestätigung dein aktuelles Passwort eingeben.</p>
+    <div class="cloud-field">
+      <label class="field-label">Aktuelles Passwort</label>
+      <input class="field-input" id="delete-account-pw" type="password" placeholder="Passwort" autocomplete="current-password">
+    </div>
+    <div id="delete-account-msg" class="cloud-msg" style="display:none; margin-top:10px;"></div>
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="delete-account-cancel">Abbrechen</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-danger" id="delete-account-confirm">Endgültig löschen</button>
     </div>
   </div>
 </div>
@@ -4649,9 +4768,86 @@ function isSharedAlbumId(id) { return !!id && sharedAlbumIds.has(id); }
 const MAIN_FOLDER_ID = 'main';
 const MAIN_FOLDER_NAME = 'Hauptbibliothek';
 
+// ===== Per-account local-data isolation =====
+// Each account gets its OWN IndexedDB + its own copies of the library-affecting
+// localStorage keys, so a second account on the same device starts COMPLETELY fresh
+// and nothing leaks between accounts. To avoid touching the existing user's data,
+// the FIRST account to sign in "claims" the original DB ('LyricsViewerDB') and keeps
+// using it untouched; every OTHER account gets a namespaced 'LyricsViewerDB__<uid>'.
+// The logged-out state and the owner share the original DB. NO data is ever copied.
+const LEGACY_DB = 'LyricsViewerDB';
+const LEGACY_OWNER_KEY = 'lyrics-legacy-owner';
+const FRESH_ACCTS_KEY = 'lyrics-fresh-accounts';
+function legacyOwner() { try { return localStorage.getItem(LEGACY_OWNER_KEY) || ''; } catch (e) { return ''; } }
+function claimLegacyIfUnset(uid) {
+  if (!uid) return;
+  try { if (!localStorage.getItem(LEGACY_OWNER_KEY)) localStorage.setItem(LEGACY_OWNER_KEY, uid); } catch (e) {}
+}
+function releaseLegacyOwnerIf(uid) {
+  try { if (localStorage.getItem(LEGACY_OWNER_KEY) === uid) localStorage.removeItem(LEGACY_OWNER_KEY); } catch (e) {}
+}
+// Accounts kept explicitly isolated — a freshly-registered account, or one the user
+// declined to link to the existing device library. They NEVER use the legacy DB.
+function getFreshAccounts() { try { return JSON.parse(localStorage.getItem(FRESH_ACCTS_KEY) || '[]'); } catch (e) { return []; } }
+function isFreshAccount(uid) { return !!uid && uid !== 'local' && getFreshAccounts().includes(uid); }
+function markFreshAccount(uid) {
+  if (!uid) return;
+  try { const s = getFreshAccounts(); if (!s.includes(uid)) { s.push(uid); localStorage.setItem(FRESH_ACCTS_KEY, JSON.stringify(s)); } } catch (e) {}
+}
+function currentNs() { return (typeof cloud !== 'undefined' && cloud.user && cloud.user.uid) ? cloud.user.uid : 'local'; }
+function dbNameForNs(ns) {
+  if (isFreshAccount(ns)) return LEGACY_DB + '__' + ns;  // explicitly-isolated account → always its own DB
+  const owner = legacyOwner();
+  if (!owner) return LEGACY_DB;                          // not yet claimed → original DB
+  if (ns === owner || ns === 'local') return LEGACY_DB;  // owner + logged-out share the original
+  return LEGACY_DB + '__' + ns;                          // every other account is isolated
+}
+function activeDbName() { return dbNameForNs(currentNs()); }
+// Namespace a library-affecting localStorage key the same way.
+function nsKey(baseKey) {
+  const ns = currentNs();
+  if (isFreshAccount(ns)) return baseKey + '__' + ns;
+  const owner = legacyOwner();
+  if (!owner || ns === owner || ns === 'local') return baseKey;
+  return baseKey + '__' + ns;
+}
+// True if the original device DB already holds songs (i.e. data worth protecting
+// before letting an account claim it). Opens LEGACY_DB read-only without upgrading.
+function legacyHasData() {
+  return new Promise((resolve) => {
+    let req;
+    try { req = indexedDB.open(LEGACY_DB, DB_VERSION); } catch (e) { return resolve(false); }
+    req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (_) {} resolve(false); };
+    req.onerror = () => resolve(false);
+    req.onsuccess = () => {
+      const db = req.result;
+      try {
+        if (!db.objectStoreNames.contains(STORE)) { db.close(); return resolve(false); }
+        const cr = db.transaction(STORE, 'readonly').objectStore(STORE).count();
+        cr.onsuccess = () => { db.close(); resolve((cr.result || 0) > 0); };
+        cr.onerror = () => { db.close(); resolve(false); };
+      } catch (e) { try { db.close(); } catch (_) {} resolve(false); }
+    };
+  });
+}
+// Decide ONCE, with consent, who owns the pre-existing device library — so a wrong or
+// secondary account can't silently absorb (and upload) the existing songs.
+async function maybeClaimLegacy(uid, email) {
+  if (!uid || legacyOwner() || isFreshAccount(uid)) return;   // already decided
+  if (!(await legacyHasData())) { claimLegacyIfUnset(uid); return; }   // nothing to lose → claim silently
+  let link = true;
+  try {
+    if (typeof confirmDialog === 'function') {
+      link = await confirmDialog(T('Vorhandene Songs verknüpfen?'),
+        T('Auf diesem Gerät sind bereits Songs gespeichert. Mit diesem Konto verknüpfen? Wähle „Nein", wenn es ein neues oder anderes Konto ist — dann startet es leer.'));
+    }
+  } catch (e) { link = true; }
+  if (link) claimLegacyIfUnset(uid); else markFreshAccount(uid);
+}
+
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(activeDbName(), DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(STORE)) {
@@ -5593,6 +5789,8 @@ const I18N = {
     "Nach Alphabet": "By alphabet",
     "Eigene Reihenfolge": "Own order",
     "Aktuelles Album:": "Current album:",
+    "Vorhandene Songs verknüpfen?": "Link existing songs?",
+    "Auf diesem Gerät sind bereits Songs gespeichert. Mit diesem Konto verknüpfen? Wähle „Nein\", wenn es ein neues oder anderes Konto ist — dann startet es leer.": "There are already songs saved on this device. Link them to this account? Choose \"No\" if this is a new or different account — then it starts empty.",
     "Name der neuen Setlist:": "New setlist name:",
     "Bibliothek an Freund senden": "Send library to a friend",
     "Umbenennen": "Rename",
@@ -6031,7 +6229,7 @@ document.addEventListener('click', (e) => {
 const DISPLAY_NAME_KEY = 'lyrics-display-name';
 
 function getProfileName() {
-  try { const n = localStorage.getItem(DISPLAY_NAME_KEY); if (n && n.trim()) return n.trim(); } catch (e) {}
+  try { const n = localStorage.getItem(nsKey(DISPLAY_NAME_KEY)); if (n && n.trim()) return n.trim(); } catch (e) {}
   if (typeof cloud !== 'undefined' && cloud) {
     if (cloud.username) return cloud.username;
     if (cloud.user && cloud.user.email) return cloud.user.email.split('@')[0];
@@ -6078,9 +6276,9 @@ function updateProfileUI() {
   const head = document.getElementById('profile-head');
   if (head) head.addEventListener('click', () => {
     let cur = '';
-    try { cur = localStorage.getItem(DISPLAY_NAME_KEY) || ''; } catch (e) {}
+    try { cur = localStorage.getItem(nsKey(DISPLAY_NAME_KEY)) || ''; } catch (e) {}
     const v = prompt(T('Dein Name (für die Initialen):'), cur);
-    if (v !== null) { try { localStorage.setItem(DISPLAY_NAME_KEY, v.trim()); } catch (e) {} updateProfileUI(); }
+    if (v !== null) { try { localStorage.setItem(nsKey(DISPLAY_NAME_KEY), v.trim()); } catch (e) {} updateProfileUI(); if (typeof updateAccountSwitcherUI === 'function') updateAccountSwitcherUI(); }
     closeMenu();
   });
   // Personalize now lives in this menu.
@@ -6139,10 +6337,10 @@ function showView(name) {
 // 'artist' (by artist A–Z), or 'title' (by title A–Z).
 const SORT_MODE_KEY = 'lyrics-sort-mode';
 function getSortMode() {
-  try { const v = localStorage.getItem(SORT_MODE_KEY); return (v === 'artist' || v === 'title') ? v : 'custom'; } catch (e) { return 'custom'; }
+  try { const v = localStorage.getItem(nsKey(SORT_MODE_KEY)); return (v === 'artist' || v === 'title') ? v : 'custom'; } catch (e) { return 'custom'; }
 }
 function setSortMode(v) {
-  try { localStorage.setItem(SORT_MODE_KEY, v); } catch (e) {}
+  try { localStorage.setItem(nsKey(SORT_MODE_KEY), v); } catch (e) {}
 }
 const filterState = {
   search: '',
@@ -13001,6 +13199,23 @@ const cloud = {
   friendsUnsub: null,    // live listener teardown
 };
 
+// ===== Device account roster (for the account switcher) =====
+// A list of accounts that have signed in on THIS device, so the switcher can list
+// them. We store only uid + email + name — NEVER passwords; switching re-enters the
+// password (Firebase keeps only one session at a time).
+const ACCOUNTS_KEY = 'lyrics-accounts';
+function getAccounts() { try { return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]'); } catch (e) { return []; } }
+function saveAccounts(list) { try { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list)); } catch (e) {} }
+function rememberAccount(user) {
+  if (!user || !user.uid) return;
+  const list = getAccounts();
+  const i = list.findIndex(a => a.uid === user.uid);
+  const entry = { uid: user.uid, email: user.email || '', name: user.displayName || '' };
+  if (i >= 0) list[i] = { ...list[i], ...entry }; else list.push(entry);
+  saveAccounts(list);
+}
+function removeAccount(uid) { saveAccounts(getAccounts().filter(a => a.uid !== uid)); }
+
 function isFirebaseConfigured() {
   return FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith('PASTE');
 }
@@ -13012,7 +13227,7 @@ function isFirebaseConfigured() {
 window.__suppressTombstones = false;
 function getTombstones() {
   let t;
-  try { t = JSON.parse(localStorage.getItem('lyrics-tombstones') || '{}'); }
+  try { t = JSON.parse(localStorage.getItem(nsKey('lyrics-tombstones')) || '{}'); }
   catch { t = {}; }
   // Ensure all kinds exist so callers can push safely.
   t.songs = t.songs || [];
@@ -13024,10 +13239,10 @@ function addTombstone(kind, id) {
   if (window.__suppressTombstones) return;
   const t = getTombstones();
   if (!t[kind]) t[kind] = [];
-  if (!t[kind].includes(id)) { t[kind].push(id); localStorage.setItem('lyrics-tombstones', JSON.stringify(t)); }
+  if (!t[kind].includes(id)) { t[kind].push(id); localStorage.setItem(nsKey('lyrics-tombstones'), JSON.stringify(t)); }
 }
 function clearTombstones() {
-  localStorage.removeItem('lyrics-tombstones');
+  localStorage.removeItem(nsKey('lyrics-tombstones'));
 }
 
 // Firestore rejects any `undefined` field value. Our model uses
@@ -13046,8 +13261,8 @@ function stripUndefinedDeep(value) {
   return value;
 }
 
-function isAutoSyncOn() { return localStorage.getItem('lyrics-autosync') !== 'off'; }
-function setAutoSync(on) { localStorage.setItem('lyrics-autosync', on ? 'on' : 'off'); }
+function isAutoSyncOn() { return localStorage.getItem(nsKey('lyrics-autosync')) !== 'off'; }
+function setAutoSync(on) { localStorage.setItem(nsKey('lyrics-autosync'), on ? 'on' : 'off'); }
 
 function initFirebase() {
   if (cloud.ready) return true;
@@ -13062,20 +13277,34 @@ function initFirebase() {
     cloud.ready = true;
     cloud.auth.onAuthStateChanged(async (user) => {
       cloud.user = user;
+      // Tear down the PREVIOUS account on EVERY auth change (switch / login / logout):
+      // stop its Firestore listeners and wipe the in-memory library so a stale snapshot
+      // can't write into the new account's namespace and the new account never flashes
+      // the old account's songs before its own data loads.
+      stopFriendsListeners();
+      if (typeof stopAllSharedListeners === 'function') stopAllSharedListeners();
+      cloud.username = null; cloud.friends = []; cloud.incoming = []; cloud.outgoing = []; cloud.inbox = [];
+      state.songs = []; state.setlists = []; state.folders = [];
+      state.currentFolderId = MAIN_FOLDER_ID; state.currentSetlistId = null;
+      if (typeof updateFriendsBadge === 'function') updateFriendsBadge();
+      if (user) {
+        // Decide the data namespace BEFORE anything reads/writes it. A just-registered
+        // account is always fresh; otherwise ask (once) before linking the device's
+        // existing library to this account.
+        if (window.__isRegistering) { markFreshAccount(user.uid); window.__isRegistering = false; }
+        else await maybeClaimLegacy(user.uid, user.email);
+        rememberAccount(user);
+      }
       updateCloudUI();
+      if (typeof updateAccountSwitcherUI === 'function') updateAccountSwitcherUI();
       if (user) {
         await loadMyProfile();
         startFriendsListeners();
-        // Materialise this account's shared albums BEFORE the private sync, so the
-        // private library's tombstones (from a convert on another device) can't
-        // momentarily wipe the content before it's restored into the shared store.
         if (typeof initSharedAlbums === 'function') await initSharedAlbums();
+        if (typeof renderLibrary === 'function') await renderLibrary();   // this account's namespace (fresh if new)
         if (isAutoSyncOn()) await runSync({ silent: true });
       } else {
-        stopFriendsListeners();
-        if (typeof teardownSharedAlbums === 'function') await teardownSharedAlbums();
-        cloud.username = null; cloud.friends = []; cloud.incoming = []; cloud.outgoing = []; cloud.inbox = [];
-        updateFriendsBadge();
+        if (typeof renderLibrary === 'function') await renderLibrary();   // back to the default (logged-out) library
       }
     });
     return true;
@@ -13104,7 +13333,7 @@ function updateCloudUI() {
     }
     if (label) label.textContent = 'Einstellung';
     if (btn) btn.classList.add('synced');
-    const last = localStorage.getItem('lyrics-last-sync');
+    const last = localStorage.getItem(nsKey('lyrics-last-sync'));
     const lastEl = document.getElementById('cloud-last-sync');
     if (lastEl) lastEl.textContent = last ? new Date(parseInt(last, 10)).toLocaleString('de-DE') : 'noch nie';
   } else {
@@ -13132,6 +13361,8 @@ function friendlyAuthError(e) {
   if (c.includes('wrong-password') || c.includes('invalid-credential')) return 'Falsches Passwort.';
   if (c.includes('email-already-in-use')) return 'Diese E-Mail ist schon registriert. Bitte anmelden.';
   if (c.includes('weak-password')) return 'Passwort zu schwach (mindestens 6 Zeichen).';
+  if (c.includes('requires-recent-login')) return 'Bitte zur Sicherheit das aktuelle Passwort erneut eingeben.';
+  if (c.includes('too-many-requests')) return 'Zu viele Versuche. Bitte später erneut versuchen.';
   if (c.includes('network')) return 'Keine Internetverbindung.';
   return (e && e.message) || 'Fehler bei der Anmeldung.';
 }
@@ -14368,10 +14599,11 @@ async function runSync(opts = {}) {
   const silent = !!opts.silent;
   if (!cloud.ready || !cloud.user || cloud.syncing) return;
   cloud.syncing = true;
+  const uid = cloud.user.uid;   // pin the account: if it changes mid-sync (switch/logout), abort before any write
   const btn = document.getElementById('cloud-btn');
   if (btn) { btn.classList.add('syncing'); btn.classList.remove('synced'); }
   try {
-    const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
+    const docRef = cloud.db.collection('users').doc(uid).collection('data').doc('library');
 
     // 1. Local snapshot
     const localSongs = await dbAll();
@@ -14427,6 +14659,7 @@ async function runSync(opts = {}) {
 
     // 5. Write merged result back to LOCAL db
     //    (replace everything so deletions take effect)
+    if (!cloud.user || cloud.user.uid !== uid) return;   // account switched mid-sync → never cross-write
     const db = await openDB();
     await new Promise((res, rej) => {
       const tx = db.transaction([STORE, SETLIST_STORE, FOLDER_STORE], 'readwrite');
@@ -14444,6 +14677,7 @@ async function runSync(opts = {}) {
     // 6. Write merged result back to REMOTE (with the unioned tombstones).
     //    Strip undefined fields (e.g. folderId:undefined for the main library)
     //    because Firestore rejects undefined values.
+    if (!cloud.user || cloud.user.uid !== uid) return;   // account switched mid-sync → don't push to the wrong cloud
     await docRef.set(stripUndefinedDeep({
       songs: mergedSongs,
       setlists: mergedSetlists,
@@ -14454,7 +14688,7 @@ async function runSync(opts = {}) {
 
     // 7. Local tombstones are now reflected remotely — clear them
     clearTombstones();
-    localStorage.setItem('lyrics-last-sync', String(Date.now()));
+    localStorage.setItem(nsKey('lyrics-last-sync'), String(Date.now()));
 
     // 8. Refresh UI
     await loadSongs();
@@ -14491,7 +14725,7 @@ async function pushOverwriteCloud() {
     const docRef = cloud.db.collection('users').doc(cloud.user.uid).collection('data').doc('library');
     await docRef.set(stripUndefinedDeep({ songs, setlists, folders, tombstones: { songs: [], setlists: [], folders: [] }, updatedAt: Date.now() }));
     clearTombstones();
-    localStorage.setItem('lyrics-last-sync', String(Date.now()));
+    localStorage.setItem(nsKey('lyrics-last-sync'), String(Date.now()));
     updateCloudUI();
   } catch (e) { console.warn('push overwrite failed', e); }
 }
@@ -14508,7 +14742,11 @@ function openCloudModal() {
   document.getElementById('cloud-modal').classList.add('show');
 }
 function closeCloudModal() {
-  document.getElementById('cloud-modal').classList.remove('show');
+  const m = document.getElementById('cloud-modal');
+  if (m) m.classList.remove('show');
+  const pw = document.getElementById('cloud-password'); if (pw) pw.value = '';
+  // openLoginModal may have force-shown the logged-out form while signed in — restore.
+  if (cloud.user) updateCloudUI();
 }
 
 document.getElementById('cloud-btn').addEventListener('click', openCloudModal);
@@ -14526,6 +14764,7 @@ document.getElementById('cloud-login').addEventListener('click', async () => {
   try {
     await cloud.auth.signInWithEmailAndPassword(email, pw);
     showToast('Angemeldet — synchronisiere…', 'success');
+    closeCloudModal();
     await runSync({ silent: false });
   } catch (e) { cloudError(friendlyAuthError(e)); }
 });
@@ -14537,11 +14776,13 @@ document.getElementById('cloud-register').addEventListener('click', async () => 
   if (!email || !pw) { cloudError('Bitte E-Mail und Passwort eingeben.'); return; }
   if (pw.length < 6) { cloudError('Passwort braucht mindestens 6 Zeichen.'); return; }
   if (!initFirebase()) { cloudError('Firebase nicht verfügbar.'); return; }
+  window.__isRegistering = true;   // a brand-new account always starts fresh (no link to the device library)
   try {
     await cloud.auth.createUserWithEmailAndPassword(email, pw);
     showToast('Konto erstellt — synchronisiere…', 'success');
+    closeCloudModal();
     await runSync({ silent: false });
-  } catch (e) { cloudError(friendlyAuthError(e)); }
+  } catch (e) { window.__isRegistering = false; cloudError(friendlyAuthError(e)); }
 });
 
 document.getElementById('cloud-logout').addEventListener('click', async () => {
@@ -14577,6 +14818,188 @@ document.getElementById('cloud-username-save').addEventListener('click', async (
   }
   btn.disabled = false;
 });
+
+// =====================================================
+//   Accounts: top-left switcher + account settings
+// =====================================================
+// Show the auth form even while signed in (so you can switch/add an account).
+function openLoginModal(email) {
+  if (!initFirebase()) { showToast(T('Firebase nicht verfügbar.'), 'error'); return; }
+  clearCloudError();
+  const out = document.getElementById('cloud-logged-out');
+  const inn = document.getElementById('cloud-logged-in');
+  if (out) out.style.display = 'block';
+  if (inn) inn.style.display = 'none';
+  const em = document.getElementById('cloud-email'); if (em) em.value = email || '';
+  const pw = document.getElementById('cloud-password'); if (pw) pw.value = '';
+  const modal = document.getElementById('cloud-modal'); if (modal) modal.classList.add('show');
+  setTimeout(() => { (email ? (pw || em) : em || pw)?.focus(); }, 60);
+}
+
+function updateAccountSwitcherUI() {
+  const signin = document.getElementById('acct-signin-btn');
+  const pill = document.getElementById('acct-pill-btn');
+  const loggedIn = !!(typeof cloud !== 'undefined' && cloud.user);
+  if (signin) signin.style.display = loggedIn ? 'none' : '';
+  if (pill) pill.style.display = loggedIn ? '' : 'none';
+  const emailEl = document.getElementById('acct-pill-email');
+  if (loggedIn && emailEl) emailEl.textContent = cloud.user.email || getProfileName() || 'Konto';
+  renderAccountList();
+}
+function renderAccountList() {
+  const listEl = document.getElementById('acct-list');
+  if (!listEl) return;
+  const accounts = getAccounts();
+  const curUid = (cloud && cloud.user) ? cloud.user.uid : null;
+  if (!accounts.length) { listEl.innerHTML = '<div class="acct-item-state" style="padding:8px;">Noch keine Konten</div>'; return; }
+  listEl.innerHTML = accounts.map(a => {
+    const ini = initialsFrom(a.name || (a.email || '').split('@')[0]) || '♪';
+    const isCur = a.uid === curUid;
+    return `<div class="acct-item${isCur ? ' current' : ''}" data-uid="${escapeHtml(a.uid)}" data-email="${escapeHtml(a.email || '')}">
+      <span class="acct-item-avatar">${escapeHtml(ini)}</span>
+      <span class="acct-item-text">
+        <span class="acct-item-email">${escapeHtml(a.email || '(Konto)')}</span>
+        <span class="acct-item-state">${isCur ? 'Aktiv' : 'Zum Wechseln tippen'}</span>
+      </span>
+      ${isCur ? '' : `<button class="acct-item-remove" data-remove="${escapeHtml(a.uid)}" title="Aus Liste entfernen">×</button>`}
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.acct-item').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.acct-item-remove')) return;
+      if (row.dataset.uid === curUid) { closeAcctDropdown(); return; }
+      closeAcctDropdown();
+      openLoginModal(row.dataset.email);     // switching = sign in the target (password required)
+    });
+  });
+  listEl.querySelectorAll('.acct-item-remove').forEach(b => {
+    b.addEventListener('click', (e) => { e.stopPropagation(); removeAccount(b.dataset.remove); renderAccountList(); });
+  });
+}
+function openAcctDropdown() {
+  const dd = document.getElementById('acct-dropdown'); if (!dd) return;
+  renderAccountList(); dd.classList.add('show');
+  const p = document.getElementById('acct-pill-btn'); if (p) p.setAttribute('aria-expanded', 'true');
+}
+function closeAcctDropdown() {
+  const dd = document.getElementById('acct-dropdown'); if (dd) dd.classList.remove('show');
+  const p = document.getElementById('acct-pill-btn'); if (p) p.setAttribute('aria-expanded', 'false');
+}
+(function setupAccountControls() {
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  on('acct-signin-btn', () => openLoginModal(''));
+  on('acct-pill-btn', (e) => { e.stopPropagation(); const dd = document.getElementById('acct-dropdown'); if (dd && dd.classList.contains('show')) closeAcctDropdown(); else openAcctDropdown(); });
+  on('acct-add-btn', () => { closeAcctDropdown(); openLoginModal(''); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#acct-wrap')) closeAcctDropdown(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAcctDropdown(); });
+  updateAccountSwitcherUI();
+})();
+
+// ----- Account settings (change name / password / delete) -----
+function acctMsg(id, text, kind) {
+  const el = document.getElementById(id); if (!el) return;
+  el.textContent = text || ''; el.style.display = text ? 'block' : 'none';
+  el.className = 'cloud-msg' + (kind ? ' ' + kind : '');
+}
+(function setupAccountSettings() {
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  // Change display name
+  on('acct-name-save', async () => {
+    const inp = document.getElementById('acct-name-input'); const name = (inp ? inp.value : '').trim();
+    if (!cloud.user) { acctMsg('acct-name-msg', 'Nicht angemeldet.', 'error'); return; }
+    if (!name) { acctMsg('acct-name-msg', 'Bitte einen Namen eingeben.', 'error'); return; }
+    const btn = document.getElementById('acct-name-save'); btn.disabled = true;
+    try {
+      await cloud.auth.currentUser.updateProfile({ displayName: name });
+      try { localStorage.setItem(nsKey(DISPLAY_NAME_KEY), name); } catch (e) {}
+      rememberAccount(cloud.auth.currentUser);
+      updateProfileUI(); updateAccountSwitcherUI();
+      acctMsg('acct-name-msg', 'Name gespeichert.', 'success');
+    } catch (e) { acctMsg('acct-name-msg', friendlyAuthError(e), 'error'); }
+    btn.disabled = false;
+  });
+  // Change password (reauthenticate, then update)
+  on('acct-pw-save', async () => {
+    const cur = (document.getElementById('acct-pw-current') || {}).value || '';
+    const nw = (document.getElementById('acct-pw-new') || {}).value || '';
+    if (!cloud.user) { acctMsg('acct-pw-msg', 'Nicht angemeldet.', 'error'); return; }
+    if (!cur || !nw) { acctMsg('acct-pw-msg', 'Bitte aktuelles und neues Passwort eingeben.', 'error'); return; }
+    if (nw.length < 6) { acctMsg('acct-pw-msg', 'Neues Passwort braucht mindestens 6 Zeichen.', 'error'); return; }
+    const btn = document.getElementById('acct-pw-save'); btn.disabled = true;
+    try {
+      const user = cloud.auth.currentUser;
+      const cred = firebase.auth.EmailAuthProvider.credential(user.email, cur);
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(nw);
+      document.getElementById('acct-pw-current').value = '';
+      document.getElementById('acct-pw-new').value = '';
+      acctMsg('acct-pw-msg', 'Passwort geändert.', 'success');
+    } catch (e) { acctMsg('acct-pw-msg', friendlyAuthError(e), 'error'); }
+    btn.disabled = false;
+  });
+  // Password reset email
+  on('acct-pw-reset', async () => {
+    const email = (cloud.user && cloud.user.email) || (document.getElementById('cloud-email') || {}).value || '';
+    if (!email) { acctMsg('acct-pw-msg', 'Keine E-Mail bekannt.', 'error'); return; }
+    try { await cloud.auth.sendPasswordResetEmail(email); acctMsg('acct-pw-msg', 'Reset-E-Mail an ' + email + ' gesendet.', 'success'); }
+    catch (e) { acctMsg('acct-pw-msg', friendlyAuthError(e), 'error'); }
+  });
+  // Delete account → confirm modal
+  on('acct-delete', () => {
+    if (!cloud.user) { acctMsg('acct-name-msg', 'Nicht angemeldet.', 'error'); return; }
+    const m = document.getElementById('delete-account-modal'); if (m) m.classList.add('show');
+    acctMsg('delete-account-msg', '');
+    const pw = document.getElementById('delete-account-pw'); if (pw) { pw.value = ''; setTimeout(() => pw.focus(), 60); }
+  });
+  on('delete-account-cancel', () => { const m = document.getElementById('delete-account-modal'); if (m) m.classList.remove('show'); });
+  const dm = document.getElementById('delete-account-modal');
+  if (dm) dm.addEventListener('click', (e) => { if (e.target.id === 'delete-account-modal') dm.classList.remove('show'); });
+  on('delete-account-confirm', async () => {
+    const pw = (document.getElementById('delete-account-pw') || {}).value || '';
+    if (!cloud.user) return;
+    if (!pw) { acctMsg('delete-account-msg', 'Bitte Passwort eingeben.', 'error'); return; }
+    const btn = document.getElementById('delete-account-confirm'); btn.disabled = true;
+    try {
+      const user = cloud.auth.currentUser;
+      const uid = user.uid;
+      const cred = firebase.auth.EmailAuthProvider.credential(user.email, pw);
+      await user.reauthenticateWithCredential(cred);
+      // Cloud data must be removed while still authenticated (Firestore rules need auth).
+      await deleteMyCloudData();                 // best-effort
+      await user.delete();                       // the gating step → onAuthStateChanged(null)
+      // Only after the account is actually gone, clean up local traces.
+      releaseLegacyOwnerIf(uid);                 // free the legacy DB so a future account can adopt it
+      try { const dn = dbNameForNs(uid); if (dn !== LEGACY_DB) indexedDB.deleteDatabase(dn); } catch (e) {}
+      ['lyrics-tombstones', 'lyrics-autosync', 'lyrics-last-sync', 'lyrics-display-name'].forEach(k => { try { localStorage.removeItem(k + '__' + uid); } catch (e) {} });
+      removeAccount(uid);
+      const m = document.getElementById('delete-account-modal'); if (m) m.classList.remove('show');
+      closeCloudModal();
+      showToast('Konto gelöscht', 'success');
+    } catch (e) { acctMsg('delete-account-msg', friendlyAuthError(e), 'error'); }
+    btn.disabled = false;
+  });
+})();
+
+// Best-effort cleanup of the signed-in user's OWN Firestore data before delete().
+// (Cross-user mirrors under friends' uids need a Cloud Function — not done here.)
+async function deleteMyCloudData() {
+  if (!cloud.db || !cloud.user) return;
+  const uid = cloud.user.uid, db = cloud.db;
+  const delColl = async (path) => {
+    try { const snap = await db.collection(path).get(); await Promise.all(snap.docs.map(d => d.ref.delete().catch(() => {}))); } catch (e) {}
+  };
+  try {
+    const albums = await db.collection('users/' + uid + '/sharedAlbums').get();
+    for (const a of albums.docs) { await delColl('users/' + uid + '/sharedAlbums/' + a.id + '/songs'); await a.ref.delete().catch(() => {}); }
+  } catch (e) {}
+  await delColl('users/' + uid + '/friends');
+  await delColl('users/' + uid + '/incoming');
+  await delColl('users/' + uid + '/outgoing');
+  await delColl('users/' + uid + '/inbox');
+  try { await db.doc('users/' + uid + '/data/library').delete(); } catch (e) {}
+  if (cloud.username) { try { await db.doc('usernames/' + cloud.username).delete(); } catch (e) {} }
+  try { await db.doc('users/' + uid).delete(); } catch (e) {}
+}
 
 // Boot Firebase early so a persisted login auto-syncs on app open.
 if (isFirebaseConfigured()) {
