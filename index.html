@@ -4486,31 +4486,80 @@
   <div class="modal modal-large">
     <h3>☁️ Cloud & Einstellungen</h3>
 
-    <!-- Logged OUT state -->
+    <!-- Logged OUT state: choice → sign in / sign up -->
     <div id="cloud-logged-out">
-      <p style="color:var(--text-1); margin-bottom:18px;">
-        Melde dich an, damit deine Songs automatisch zwischen PC und iPad synchronisiert werden.
-        Import/Export per JSON bleibt weiterhin verfügbar.
-      </p>
-      <!-- Real <form> so the browser's password manager activates ONLY here,
-           never on the song editor. -->
-      <form id="cloud-form" onsubmit="return false;" autocomplete="on">
-        <div class="cloud-field">
-          <label class="field-label">E-Mail</label>
-          <input class="field-input" id="cloud-email" type="email" placeholder="du@beispiel.de" autocomplete="username" name="email">
-        </div>
-        <div class="cloud-field">
-          <label class="field-label">Passwort</label>
-          <input class="field-input" id="cloud-password" type="password" placeholder="Mindestens 6 Zeichen" autocomplete="current-password" name="password">
-        </div>
-        <div id="cloud-error" class="cloud-error" style="display:none;"></div>
-        <div class="modal-actions" style="margin-top:22px;">
+      <div id="cloud-error" class="cloud-error" style="display:none;"></div>
+
+      <!-- Choice -->
+      <div id="auth-choice">
+        <p style="color:var(--text-1); margin-bottom:18px;">Melde dich an oder erstelle ein Konto, damit deine Songs automatisch synchronisiert werden.</p>
+        <button class="settings-row" id="auth-go-signin" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          <span class="settings-row-label">Anmelden</span>
+          <svg class="settings-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="settings-row" id="auth-go-signup" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          <span class="settings-row-label">Neues Konto erstellen</span>
+          <svg class="settings-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <div class="modal-actions" style="margin-top:18px;">
           <button type="button" class="btn" id="cloud-cancel">Abbrechen</button>
-          <div style="flex:1;"></div>
-          <button type="button" class="btn" id="cloud-register">Registrieren</button>
-          <button type="submit" class="btn btn-primary" id="cloud-login">Anmelden</button>
         </div>
-      </form>
+      </div>
+
+      <!-- Sign in (email OR username) -->
+      <div id="auth-signin" style="display:none;">
+        <form id="signin-form" onsubmit="return false;" autocomplete="on">
+          <div class="cloud-field">
+            <label class="field-label">E-Mail oder Benutzername</label>
+            <input class="field-input" id="signin-id" type="text" placeholder="du@beispiel.de oder dein_name" autocomplete="username" autocapitalize="none" spellcheck="false" name="identifier">
+          </div>
+          <div class="cloud-field" style="margin-top:12px;">
+            <label class="field-label">Passwort</label>
+            <input class="field-input" id="signin-pw" type="password" placeholder="Passwort" autocomplete="current-password" name="password">
+          </div>
+          <div id="signin-error" class="cloud-error" style="display:none; margin-top:10px;"></div>
+          <div style="margin-top:10px;"><button class="btn-link" id="signin-forgot" type="button">Passwort vergessen?</button></div>
+          <div class="modal-actions" style="margin-top:16px;">
+            <button class="btn" id="signin-back" type="button">Zurück</button>
+            <div style="flex:1;"></div>
+            <button class="btn btn-primary" id="signin-submit" type="submit">Anmelden</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Sign up (new account) -->
+      <div id="auth-signup" style="display:none;">
+        <form id="signup-form" onsubmit="return false;" autocomplete="on">
+          <div class="cloud-field">
+            <label class="field-label">E-Mail</label>
+            <input class="field-input" id="signup-email" type="email" placeholder="du@beispiel.de" autocomplete="username" autocapitalize="none" spellcheck="false" name="email">
+          </div>
+          <div class="cloud-field" style="margin-top:12px;">
+            <label class="field-label">Benutzername (damit Freunde dich finden)</label>
+            <input class="field-input" id="signup-username" type="text" placeholder="z.B. bruce_piano" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" name="new-username">
+          </div>
+          <div class="cloud-field" style="margin-top:12px;">
+            <label class="field-label">Anzeigename (so sehen dich andere)</label>
+            <input class="field-input" id="signup-displayname" type="text" placeholder="Dein Name" maxlength="40" autocomplete="name" name="display-name">
+          </div>
+          <div class="cloud-field" style="margin-top:12px;">
+            <label class="field-label">Passwort</label>
+            <input class="field-input" id="signup-pw" type="password" placeholder="Mindestens 6 Zeichen" autocomplete="new-password" name="new-password">
+          </div>
+          <div class="cloud-field" style="margin-top:12px;">
+            <label class="field-label">Passwort wiederholen</label>
+            <input class="field-input" id="signup-pw2" type="password" placeholder="Passwort wiederholen" autocomplete="new-password" name="new-password-confirm">
+          </div>
+          <div id="signup-error" class="cloud-error" style="display:none; margin-top:10px;"></div>
+          <div class="modal-actions" style="margin-top:16px;">
+            <button class="btn" id="signup-back" type="button">Zurück</button>
+            <div style="flex:1;"></div>
+            <button class="btn btn-primary" id="signup-submit" type="submit">Konto erstellen</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <!-- Logged IN state -->
@@ -6030,6 +6079,21 @@ const I18N = {
     "Aktiv": "Active",
     "Zum Wechseln tippen": "Tap to switch",
     "(Konto)": "(account)",
+    "Melde dich an oder erstelle ein Konto, damit deine Songs automatisch synchronisiert werden.": "Sign in or create an account so your songs sync automatically.",
+    "Neues Konto erstellen": "Create new account",
+    "Konto erstellen": "Create account",
+    "E-Mail oder Benutzername": "Email or username",
+    "du@beispiel.de oder dein_name": "you@example.com or your_name",
+    "Benutzername (damit Freunde dich finden)": "Username (so friends can find you)",
+    "Anzeigename (so sehen dich andere)": "Display name (how others see you)",
+    "Passwort wiederholen": "Repeat password",
+    "Bitte E-Mail/Benutzername und Passwort eingeben.": "Please enter email/username and password.",
+    "Bitte alle Felder ausfüllen.": "Please fill in all fields.",
+    "Benutzername: mindestens 3 Zeichen (a–z, 0–9, _).": "Username: at least 3 characters (a–z, 0–9, _).",
+    "Die Passwörter stimmen nicht überein.": "The passwords don't match.",
+    "Dieser Benutzername ist schon vergeben.": "This username is already taken.",
+    "Bitte zuerst E-Mail oder Benutzername eingeben.": "Please enter your email or username first.",
+    "Link zum Zurücksetzen an {x} gesendet.": "Reset link sent to {x}.",
     "Bitte zuerst anmelden.": "Please sign in first.",
     "Benutzername geändert: @{x}": "Username changed: @{x}",
     "Einstellungen": "Settings",
@@ -13529,7 +13593,8 @@ async function saveUsername(raw) {
     if (cloud.username && cloud.username !== username) {
       tx.delete(cloud.db.collection('usernames').doc(cloud.username));
     }
-    tx.set(unameRef, { uid: cloud.user.uid });
+    // store email too so sign-in by username can resolve the account's email
+    tx.set(unameRef, { uid: cloud.user.uid, email: cloud.user.email || null });
     tx.set(userRef, { username }, { merge: true });
   });
   cloud.username = username;
@@ -14867,7 +14932,7 @@ function openCloudModal() {
 function closeCloudModal() {
   const m = document.getElementById('cloud-modal');
   if (m) m.classList.remove('show');
-  const pw = document.getElementById('cloud-password'); if (pw) pw.value = '';
+  ['signin-pw', 'signup-pw', 'signup-pw2'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   // openLoginModal may have force-shown the logged-out form while signed in — restore.
   if (cloud.user) updateCloudUI();
 }
@@ -14878,35 +14943,103 @@ document.getElementById('cloud-modal').addEventListener('click', (e) => {
   if (e.target.id === 'cloud-modal') closeCloudModal();
 });
 
-document.getElementById('cloud-login').addEventListener('click', async () => {
-  clearCloudError();
-  const email = document.getElementById('cloud-email').value.trim();
-  const pw = document.getElementById('cloud-password').value;
-  if (!email || !pw) { cloudError('Bitte E-Mail und Passwort eingeben.'); return; }
-  if (!initFirebase()) { cloudError('Firebase nicht verfügbar.'); return; }
-  try {
-    await cloud.auth.signInWithEmailAndPassword(email, pw);
-    showToast('Angemeldet — synchronisiere…', 'success');
-    closeCloudModal();
-    await runSync({ silent: false });
-  } catch (e) { cloudError(friendlyAuthError(e)); }
-});
+// ----- Auth flow: choice → sign in (email OR username) / sign up -----
+function showAuthView(view) {
+  ['choice', 'signin', 'signup'].forEach(v => {
+    const el = document.getElementById('auth-' + v); if (el) el.style.display = (v === view) ? 'block' : 'none';
+  });
+  ['signin-error', 'signup-error', 'cloud-error'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+}
+function authErr(id, msg) { const e = document.getElementById(id); if (e) { e.textContent = msg; e.style.display = 'block'; } }
 
-document.getElementById('cloud-register').addEventListener('click', async () => {
-  clearCloudError();
-  const email = document.getElementById('cloud-email').value.trim();
-  const pw = document.getElementById('cloud-password').value;
-  if (!email || !pw) { cloudError('Bitte E-Mail und Passwort eingeben.'); return; }
-  if (pw.length < 6) { cloudError('Passwort braucht mindestens 6 Zeichen.'); return; }
-  if (!initFirebase()) { cloudError('Firebase nicht verfügbar.'); return; }
-  window.__isRegistering = true;   // a brand-new account always starts fresh (no link to the device library)
+// Look up the email stored alongside a username (so you can sign in by username).
+// Needs the usernames/{name} doc to be readable while logged out (Firestore rules).
+async function emailForUsername(raw) {
   try {
-    await cloud.auth.createUserWithEmailAndPassword(email, pw);
-    showToast('Konto erstellt — synchronisiere…', 'success');
+    const u = normalizeUsername(raw);
+    if (!u || !cloud.db) return null;
+    const doc = await cloud.db.collection('usernames').doc(u).get();
+    return (doc.exists && doc.data().email) ? doc.data().email : null;
+  } catch (e) { return null; }
+}
+async function usernameTaken(username) {
+  try { const doc = await cloud.db.collection('usernames').doc(username).get(); return doc.exists; }
+  catch (e) { return false; }   // unreadable → let the claim transaction decide
+}
+async function resolveIdentifierEmail(ident) {
+  ident = (ident || '').trim();
+  return ident.includes('@') ? ident : await emailForUsername(ident);
+}
+
+async function doSignIn() {
+  const ident = (document.getElementById('signin-id').value || '').trim();
+  const pw = document.getElementById('signin-pw').value || '';
+  if (!ident || !pw) { authErr('signin-error', T('Bitte E-Mail/Benutzername und Passwort eingeben.')); return; }
+  if (!initFirebase()) { authErr('signin-error', T('Firebase nicht verfügbar.')); return; }
+  const btn = document.getElementById('signin-submit'); btn.disabled = true;
+  try {
+    const email = await resolveIdentifierEmail(ident);
+    if (!email) throw { code: 'auth/user-not-found' };
+    await cloud.auth.signInWithEmailAndPassword(email, pw);
+    showToast(T('Angemeldet — synchronisiere…'), 'success');
     closeCloudModal();
     await runSync({ silent: false });
-  } catch (e) { window.__isRegistering = false; cloudError(friendlyAuthError(e)); }
-});
+  } catch (e) { authErr('signin-error', friendlyAuthError(e)); }
+  btn.disabled = false;
+}
+
+async function doSignUp() {
+  const v = (id) => (document.getElementById(id).value || '');
+  const email = v('signup-email').trim();
+  const usernameRaw = v('signup-username').trim();
+  const username = normalizeUsername(usernameRaw);
+  const displayName = v('signup-displayname').trim();
+  const pw = v('signup-pw'), pw2 = v('signup-pw2');
+  if (!email || !usernameRaw || !displayName || !pw) { authErr('signup-error', T('Bitte alle Felder ausfüllen.')); return; }
+  if (username.length < 3) { authErr('signup-error', T('Benutzername: mindestens 3 Zeichen (a–z, 0–9, _).')); return; }
+  if (pw.length < 6) { authErr('signup-error', T('Passwort braucht mindestens 6 Zeichen.')); return; }
+  if (pw !== pw2) { authErr('signup-error', T('Die Passwörter stimmen nicht überein.')); return; }
+  if (!initFirebase()) { authErr('signup-error', T('Firebase nicht verfügbar.')); return; }
+  const btn = document.getElementById('signup-submit'); btn.disabled = true;
+  try {
+    if (await usernameTaken(username)) { authErr('signup-error', T('Dieser Benutzername ist schon vergeben.')); btn.disabled = false; return; }
+    window.__isRegistering = true;
+    await cloud.auth.createUserWithEmailAndPassword(email, pw);   // throws auth/email-already-in-use
+    try { await cloud.auth.currentUser.updateProfile({ displayName }); } catch (e) {}
+    try { localStorage.setItem(nsKey(DISPLAY_NAME_KEY), displayName); } catch (e) {}
+    try { await saveUsername(username); } catch (e) { /* race / rules — they can set it later in settings */ }
+    rememberAccount(cloud.auth.currentUser);
+    updateProfileUI(); updateAccountSwitcherUI();
+    showToast(T('Konto erstellt — synchronisiere…'), 'success');
+    closeCloudModal();
+    await runSync({ silent: false });
+  } catch (e) { window.__isRegistering = false; authErr('signup-error', friendlyAuthError(e)); }
+  btn.disabled = false;
+}
+
+async function doForgotPassword() {
+  const ident = (document.getElementById('signin-id').value || '').trim();
+  if (!ident) { authErr('signin-error', T('Bitte zuerst E-Mail oder Benutzername eingeben.')); return; }
+  if (!initFirebase()) { authErr('signin-error', T('Firebase nicht verfügbar.')); return; }
+  try {
+    const email = await resolveIdentifierEmail(ident);
+    if (!email) throw { code: 'auth/user-not-found' };
+    await cloud.auth.sendPasswordResetEmail(email);
+    showToast(T('Link zum Zurücksetzen an {x} gesendet.').replace('{x}', email), 'success');
+  } catch (e) { authErr('signin-error', friendlyAuthError(e)); }
+}
+
+(function setupAuthFlow() {
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  on('auth-go-signin', () => showAuthView('signin'));
+  on('auth-go-signup', () => showAuthView('signup'));
+  on('signin-back', () => showAuthView('choice'));
+  on('signup-back', () => showAuthView('choice'));
+  on('signin-forgot', (e) => { e.preventDefault(); doForgotPassword(); });
+  // type=submit buttons → handle via form submit so Enter works (single call).
+  const sf = document.getElementById('signin-form'); if (sf) sf.addEventListener('submit', (e) => { e.preventDefault(); doSignIn(); });
+  const uf = document.getElementById('signup-form'); if (uf) uf.addEventListener('submit', (e) => { e.preventDefault(); doSignUp(); });
+})();
 
 document.getElementById('cloud-logout').addEventListener('click', async () => {
   if (cloud.auth) await cloud.auth.signOut().catch(() => {});
@@ -14948,17 +15081,23 @@ document.getElementById('cloud-username-save').addEventListener('click', async (
 //   Accounts: top-left switcher + account settings
 // =====================================================
 // Show the auth form even while signed in (so you can switch/add an account).
-function openLoginModal(email) {
+function openLoginModal(prefillEmail) {
   if (!initFirebase()) { showToast(T('Firebase nicht verfügbar.'), 'error'); return; }
-  clearCloudError();
   const out = document.getElementById('cloud-logged-out');
   const inn = document.getElementById('cloud-logged-in');
   if (out) out.style.display = 'block';
   if (inn) inn.style.display = 'none';
-  const em = document.getElementById('cloud-email'); if (em) em.value = email || '';
-  const pw = document.getElementById('cloud-password'); if (pw) pw.value = '';
   const modal = document.getElementById('cloud-modal'); if (modal) modal.classList.add('show');
-  setTimeout(() => { (email ? (pw || em) : em || pw)?.focus(); }, 60);
+  if (typeof showAuthView !== 'function') return;
+  if (prefillEmail) {
+    // Switching to a known account → straight to sign-in, pre-filled with its email.
+    showAuthView('signin');
+    const idEl = document.getElementById('signin-id'); if (idEl) idEl.value = prefillEmail;
+    const pwEl = document.getElementById('signin-pw'); if (pwEl) pwEl.value = '';
+    setTimeout(() => { const p = document.getElementById('signin-pw'); if (p) p.focus(); }, 60);
+  } else {
+    showAuthView('choice');
+  }
 }
 
 function updateAccountSwitcherUI() {
@@ -15097,7 +15236,7 @@ function acctMsg(id, text, kind) {
   });
   // Password reset email
   on('acct-pw-reset', async () => {
-    const email = (cloud.user && cloud.user.email) || (document.getElementById('cloud-email') || {}).value || '';
+    const email = (cloud.user && cloud.user.email) || '';
     if (!email) { acctMsg('acct-pw-msg', 'Keine E-Mail bekannt.', 'error'); return; }
     try { await cloud.auth.sendPasswordResetEmail(email); acctMsg('acct-pw-msg', 'Reset-E-Mail an ' + email + ' gesendet.', 'success'); }
     catch (e) { acctMsg('acct-pw-msg', friendlyAuthError(e), 'error'); }
