@@ -7047,7 +7047,9 @@ function updateActionPanelState() {
   setActive('ap-sort', listEditMode || filterState.sort !== 'custom');
   setActive('ap-search', !!filterState.search.trim());
   setActive('ap-filter', !!(filterState.artist || filterState.letter));
-  setActive('ap-setlists', inSetlist);
+  // Don't mark the Setlists button "active/selected" while in a setlist — the
+  // sub-label under it already shows the current setlist; keeping it filled looked
+  // like a stuck pressed state.
   // Active marker inside the Sort popover.
   setActive('sort-edit', listEditMode);
   setActive('sort-custom', !listEditMode && filterState.sort === 'custom');
