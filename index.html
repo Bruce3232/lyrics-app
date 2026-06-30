@@ -2871,6 +2871,9 @@
   .ap-btn:active { transform: scale(0.98); }
   .ap-btn svg { width: 19px; height: 19px; flex: 0 0 auto; color: var(--text-1); }
   .ap-btn .ap-label { overflow: hidden; text-overflow: ellipsis; }
+  /* Two-line panel buttons (Alben / Setlists): label + the current album/setlist below. */
+  .ap-text { display: flex; flex-direction: column; min-width: 0; overflow: hidden; line-height: 1.2; }
+  .ap-sub { font-size: 11px; font-weight: 600; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
   .ap-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
   .ap-btn.active svg { color: #fff; }
   .ap-btn.ap-danger:hover { color: #ff4757; background: rgba(255,71,87,0.1); border-color: rgba(255,71,87,0.4); }
@@ -2891,6 +2894,7 @@
     .ap-group { padding-bottom: 5px; margin-bottom: 4px; gap: 4px; }
     .ap-group-title { display: none; }
     .ap-btn .ap-label { display: none; }
+    .ap-btn .ap-text { display: none; }
     .ap-btn { justify-content: center; padding: 12px 0; gap: 0; }
     .ap-btn svg { width: 22px; height: 22px; }
   }
@@ -3705,13 +3709,13 @@
       </div>
       <div class="ap-group">
         <div class="ap-group-title">Bibliothek</div>
-        <button class="ap-btn" id="ap-albums" title="Alben wechseln" aria-haspopup="true" aria-expanded="false">
+        <button class="ap-btn ap-btn-2line" id="ap-albums" title="Alben wechseln" aria-haspopup="true" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span class="ap-label">Alben</span>
+          <span class="ap-text"><span class="ap-label">Alben</span><span class="ap-sub" id="ap-albums-sub">Hauptbibliothek</span></span>
         </button>
-        <button class="ap-btn" id="ap-setlists" title="Setlists" aria-haspopup="true" aria-expanded="false">
+        <button class="ap-btn ap-btn-2line" id="ap-setlists" title="Setlists" aria-haspopup="true" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="13" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          <span class="ap-label">Setlists</span>
+          <span class="ap-text"><span class="ap-label">Setlists</span><span class="ap-sub" id="ap-setlists-sub">Alle Songs</span></span>
         </button>
       </div>
       <div class="ap-group">
@@ -6220,7 +6224,9 @@ function getFilteredSongs() {
     if (setlist) {
       const songMap = new Map(folderSongs.map(s => [s.id, s]));
       result = (setlist.songIds || []).map(id => songMap.get(id)).filter(Boolean);
-      preserveOrder = true;
+      // Keep the setlist's own order in 'custom'; artist/title sort the setlist view
+      // too (non-destructive — songIds is never rewritten, so 'custom' restores it).
+      preserveOrder = (filterState.sort === 'custom');
     } else {
       result = [];
     }
@@ -6663,9 +6669,10 @@ async function applyReorderDataOnly(fromIdx, toIdx) {
 }
 
 async function applyReorder(fromIdx, toIdx) {
-  // Never rewrite positions against a non-custom (alphabetical) view — that would
-  // overwrite the user's own drag order. Setlists keep their own order, unaffected.
-  if (!state.currentSetlistId && filterState.sort !== 'custom') return;
+  // Reordering only makes sense in own order. Bail under any non-custom sort so a
+  // drag/move can never rewrite song positions OR a setlist's songIds against the
+  // alphabetical view (which would destroy the user's order).
+  if (filterState.sort !== 'custom') return;
   const filtered = getFilteredSongs();
   if (fromIdx < 0 || fromIdx >= filtered.length) return;
   toIdx = Math.max(0, Math.min(filtered.length - 1, toIdx));   // clamp a stale wheel target
@@ -7025,7 +7032,6 @@ function applySortMode(mode) {
   filterState.sort = mode;
   setSortMode(mode);
   if (mode !== 'custom' && listEditMode) listEditMode = false;   // can't drag-reorder a sorted list
-  if (mode !== 'custom' && state.currentSetlistId) showToast(T('Sortierung wirkt nur außerhalb von Setlists'));
   closeAllApPopovers();
   renderSongList();
   updateActionPanelState();
@@ -7038,8 +7044,7 @@ function updateActionPanelState() {
   panel.classList.toggle('not-selecting', !selecting);
   const setActive = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('active', !!on); };
   // Reflect which controls are "on" so active filters/sort show at a glance.
-  // (Artist/title sort is inert inside a setlist — don't light up ap-sort there.)
-  setActive('ap-sort', listEditMode || (filterState.sort !== 'custom' && !inSetlist));
+  setActive('ap-sort', listEditMode || filterState.sort !== 'custom');
   setActive('ap-search', !!filterState.search.trim());
   setActive('ap-filter', !!(filterState.artist || filterState.letter));
   setActive('ap-setlists', inSetlist);
@@ -7483,6 +7488,19 @@ function renderFolderSwitcher() {
       if (sl) s = ' · ' + sl.name;
     }
     slEl.textContent = s;
+  }
+  // Panel sub-labels: the current album under "Alben", the current setlist under
+  // "Setlists" (defaults are German source so the i18n observer translates them).
+  const albumsSub = document.getElementById('ap-albums-sub');
+  if (albumsSub) albumsSub.textContent = cur ? cur.name : MAIN_FOLDER_NAME;
+  const setlistsSub = document.getElementById('ap-setlists-sub');
+  if (setlistsSub) {
+    let sname = 'Alle Songs';
+    if (state.currentSetlistId) {
+      const sl2 = state.setlists.find(x => x.id === state.currentSetlistId);
+      if (sl2) sname = sl2.name;
+    }
+    setlistsSub.textContent = sname;
   }
 }
 
