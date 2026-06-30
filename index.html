@@ -4376,14 +4376,6 @@
       <div class="pers-swatches" id="pers-bg-swatches"></div>
     </div>
 
-    <div class="pers-section">
-      <div class="pers-label" data-no-i18n>Sprache · Language</div>
-      <div class="lang-options" id="lang-options">
-        <button type="button" class="lang-btn" data-lang="de" data-no-i18n>Deutsch</button>
-        <button type="button" class="lang-btn" data-lang="en" data-no-i18n>English</button>
-      </div>
-    </div>
-
     <div class="modal-actions" style="margin-top:24px;">
       <button class="btn" id="pers-reset">Zurücksetzen</button>
       <div style="flex:1;"></div>
@@ -4534,22 +4526,21 @@
       </button>
       <div class="profile-divider" style="margin:14px 0;"></div>
 
-      <!-- Profile: public username for friends -->
-      <div class="cloud-field">
-        <label class="field-label">Öffentlicher Benutzername (für Freunde)</label>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input class="field-input" id="cloud-username-input" placeholder="z.B. bruce_piano" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" style="flex:1;">
-          <button class="btn btn-primary" id="cloud-username-save">Speichern</button>
-        </div>
-        <div id="cloud-username-error" class="cloud-error" style="display:none; margin-top:8px;"></div>
-        <p style="color:var(--text-2); font-size:12px; margin-top:6px;">Damit können dich Freunde finden und dir Songs schicken. Du kannst ihn jederzeit ändern.</p>
-      </div>
       <div id="cloud-sync-info" style="color:var(--text-2); font-size:12px; margin:14px 0 16px;">
         Synchronisiert automatisch · zuletzt: <span id="cloud-last-sync">noch nie</span>
       </div>
 
       <div class="modal-actions">
         <button class="btn" id="cloud-logout">Abmelden</button>
+      </div>
+    </div>
+
+    <!-- Language (always available, logged in or out) -->
+    <div class="cloud-field" style="margin-top:18px; border-top:1px solid var(--border); padding-top:16px;">
+      <label class="field-label">Sprache · Language</label>
+      <div class="lang-options" id="lang-options" style="display:flex; gap:8px;">
+        <button type="button" class="lang-btn" data-lang="de" data-no-i18n>Deutsch</button>
+        <button type="button" class="lang-btn" data-lang="en" data-no-i18n>English</button>
       </div>
     </div>
   </div>
@@ -4581,19 +4572,29 @@
   </div>
 </div>
 
-<!-- Change display name -->
+<!-- Change display name + public username -->
 <div class="modal-backdrop" id="change-name-modal">
   <div class="modal">
     <h3>Name ändern</h3>
     <div class="cloud-field">
       <label class="field-label">Anzeigename</label>
-      <input class="field-input" id="acct-name-input" placeholder="Dein Name" maxlength="40" autocomplete="name">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input class="field-input" id="acct-name-input" placeholder="Dein Name" maxlength="40" autocomplete="name" style="flex:1;">
+        <button class="btn btn-primary" id="acct-name-save">Speichern</button>
+      </div>
+      <div id="acct-name-msg" class="cloud-msg" style="display:none; margin-top:8px;"></div>
     </div>
-    <div id="acct-name-msg" class="cloud-msg" style="display:none; margin-top:10px;"></div>
+    <div class="cloud-field" style="margin-top:16px;">
+      <label class="field-label">Öffentlicher Benutzername (für Freunde)</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input class="field-input" id="cloud-username-input" placeholder="z.B. bruce_piano" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" style="flex:1;">
+        <button class="btn btn-primary" id="cloud-username-save">Speichern</button>
+      </div>
+      <div id="cloud-username-error" class="cloud-error" style="display:none; margin-top:8px;"></div>
+      <p style="color:var(--text-2); font-size:12px; margin-top:6px;">Damit können dich Freunde finden und dir Songs schicken.</p>
+    </div>
     <div class="modal-actions" style="margin-top:18px;">
-      <button class="btn" id="change-name-cancel">Abbrechen</button>
-      <div style="flex:1;"></div>
-      <button class="btn btn-primary" id="acct-name-save">Speichern</button>
+      <button class="btn" id="change-name-cancel">Schliessen</button>
     </div>
   </div>
 </div>
@@ -5997,6 +5998,38 @@ const I18N = {
     "Passwort braucht mindestens 6 Zeichen.": "Password needs at least 6 characters.",
     "Konto erstellt — synchronisiere…": "Account created — syncing…",
     "Abgemeldet": "Signed out",
+    "Konto": "Account",
+    "Konten": "Accounts",
+    "+ Konto hinzufügen": "+ Add account",
+    "Name ändern": "Change name",
+    "Passwort ändern": "Change password",
+    "Konto löschen": "Delete account",
+    "Anzeigename": "Display name",
+    "Dein Name": "Your name",
+    "Aktuelles Passwort": "Current password",
+    "Neues Passwort": "New password",
+    "Ändern": "Change",
+    "Passwort vergessen?": "Forgot password?",
+    "Endgültig löschen": "Delete permanently",
+    "Songs auswählen": "Select songs",
+    "Synchronisiert automatisch · zuletzt:": "Syncs automatically · last:",
+    "Damit können dich Freunde finden und dir Songs schicken.": "This lets friends find you and send you songs.",
+    "Das löscht dein Konto und deine Cloud-Daten unwiderruflich. Zur Bestätigung dein aktuelles Passwort eingeben.": "This permanently deletes your account and cloud data. Enter your current password to confirm.",
+    "Konto gelöscht": "Account deleted",
+    "Passwort geändert": "Password changed",
+    "Passwort geändert.": "Password changed.",
+    "Name gespeichert.": "Name saved.",
+    "Nicht angemeldet.": "Not signed in.",
+    "Bitte einen Namen eingeben.": "Please enter a name.",
+    "Bitte aktuelles und neues Passwort eingeben.": "Please enter your current and new password.",
+    "Neues Passwort braucht mindestens 6 Zeichen.": "New password needs at least 6 characters.",
+    "Keine E-Mail bekannt.": "No email available.",
+    "Bitte Passwort eingeben.": "Please enter your password.",
+    "Reset-E-Mail an {x} gesendet.": "Reset email sent to {x}.",
+    "Noch keine Konten": "No accounts yet",
+    "Aktiv": "Active",
+    "Zum Wechseln tippen": "Tap to switch",
+    "(Konto)": "(account)",
     "Bitte zuerst anmelden.": "Please sign in first.",
     "Benutzername geändert: @{x}": "Username changed: @{x}",
     "Einstellungen": "Settings",
@@ -15011,6 +15044,8 @@ function acctMsg(id, text, kind) {
     acctMsg('acct-name-msg', '');
     const inp = document.getElementById('acct-name-input');
     if (inp) { inp.value = (cloud.user && cloud.user.displayName) || ''; setTimeout(() => inp.focus(), 60); }
+    const uinp = document.getElementById('cloud-username-input'); if (uinp) uinp.value = (cloud.username || '');
+    const uerr = document.getElementById('cloud-username-error'); if (uerr) uerr.style.display = 'none';
     showModal('change-name-modal');
   });
   on('change-name-cancel', () => hideModal('change-name-modal'));
@@ -15036,8 +15071,7 @@ function acctMsg(id, text, kind) {
       try { localStorage.setItem(nsKey(DISPLAY_NAME_KEY), name); } catch (e) {}
       rememberAccount(cloud.auth.currentUser);
       updateProfileUI(); updateAccountSwitcherUI();
-      const m = document.getElementById('change-name-modal'); if (m) m.classList.remove('show');
-      showToast('Name gespeichert', 'success');
+      acctMsg('acct-name-msg', T('Name gespeichert.'), 'success');
     } catch (e) { acctMsg('acct-name-msg', friendlyAuthError(e), 'error'); }
     btn.disabled = false;
   });
