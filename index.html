@@ -818,6 +818,22 @@
     width: 14px;
     height: 14px;
   }
+  /* Fold toggle: a chevron pill that collapses/expands the row of setlist pills.
+     The collapsed state is a class on the bar (re-applied on every render). */
+  .setlist-toggle-pill {
+    padding: 8px 10px;
+    color: var(--text-2);
+  }
+  .setlist-toggle-pill:hover { color: var(--text-0); }
+  .setlist-toggle-pill svg { width: 16px; height: 16px; display: block; }
+  .setlist-toggle-chevron { transition: transform 0.2s var(--ease); }
+  /* Chevron points down when expanded; rotates to point right when collapsed. */
+  .setlist-bar.setlists-collapsed .setlist-toggle-chevron { transform: rotate(-90deg); }
+  /* Collapsed: keep the chevron, "Alle Songs" (escape back to the full list), the
+     active setlist, and the manage gear; fold away the other named setlists and the
+     "+ Neu" pill. "Alle Songs" carries .setlist-all-pill so it's never hidden. */
+  .setlist-bar.setlists-collapsed .setlist-pill[data-id]:not(.active):not(.setlist-all-pill) { display: none; }
+  .setlist-bar.setlists-collapsed #setlist-add-pill { display: none; }
 
   /* Setlist picker entry */
   .setlist-picker-item {
@@ -5506,6 +5522,8 @@ const I18N = {
     "Alle Songs": "All songs",
     "Neue Setlist erstellen": "Create new setlist",
     "Neu": "New",
+    "Setlists einklappen": "Collapse setlists",
+    "Setlists ausklappen": "Expand setlists",
     "Name der neuen Setlist:": "New setlist name:",
     "Bibliothek an Freund senden": "Send library to a friend",
     "Umbenennen": "Rename",
@@ -7142,6 +7160,17 @@ document.getElementById('select-delete-btn').addEventListener('click', async () 
   await renderLibrary();
 });
 
+// Setlist-bar fold state (per device). Stored '1'/'0' in localStorage, default
+// expanded. Re-applied on every renderSetlistBar() pass because the bar's innerHTML
+// is rebuilt each render, so the collapsed flag can't live in the DOM itself.
+const SETLIST_COLLAPSED_KEY = 'lyrics-setlists-collapsed';
+function getSetlistsCollapsed() {
+  try { return localStorage.getItem(SETLIST_COLLAPSED_KEY) === '1'; } catch (e) { return false; }
+}
+function setSetlistsCollapsed(v) {
+  try { localStorage.setItem(SETLIST_COLLAPSED_KEY, v ? '1' : '0'); } catch (e) {}
+}
+
 function renderSetlistBar() {
   const bar = document.getElementById('setlist-bar');
   if (!bar) return;
@@ -7151,7 +7180,15 @@ function renderSetlistBar() {
 
   const allActive = state.currentSetlistId === null ? 'active' : '';
   const totalCount = folderSongs.length;
-  let html = `<button class="setlist-pill ${allActive}" data-id="">Alle Songs <span class="setlist-pill-count">${totalCount}</span></button>`;
+  // Only offer folding when there is actually a list of setlists to collapse.
+  const canFold = folderSetlists.length > 0;
+  const collapsed = canFold && getSetlistsCollapsed();
+  const toggleTitle = collapsed ? 'Setlists ausklappen' : 'Setlists einklappen';
+  let html = '';
+  if (canFold) {
+    html += `<button class="setlist-pill setlist-toggle-pill" id="setlist-toggle-pill" title="${toggleTitle}" aria-label="${toggleTitle}" aria-controls="setlist-bar" aria-expanded="${collapsed ? 'false' : 'true'}"><svg class="setlist-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>`;
+  }
+  html += `<button class="setlist-pill setlist-all-pill ${allActive}" data-id="">Alle Songs <span class="setlist-pill-count">${totalCount}</span></button>`;
   for (const sl of folderSetlists) {
     const count = (sl.songIds || []).length;
     const isActive = state.currentSetlistId === sl.id ? 'active' : '';
@@ -7162,6 +7199,7 @@ function renderSetlistBar() {
     html += `<button class="setlist-pill setlist-manage-pill" id="setlist-manage-pill" title="Setlists verwalten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
   }
   bar.innerHTML = html;
+  bar.classList.toggle('setlists-collapsed', collapsed);
 
   bar.querySelectorAll('.setlist-pill[data-id]').forEach(el => {
     el.addEventListener('click', () => {
@@ -7176,6 +7214,11 @@ function renderSetlistBar() {
   if (addBtn) addBtn.addEventListener('click', createNewSetlistInline);
   const manageBtn = document.getElementById('setlist-manage-pill');
   if (manageBtn) manageBtn.addEventListener('click', openSetlistManager);
+  const toggleBtn = document.getElementById('setlist-toggle-pill');
+  if (toggleBtn) toggleBtn.addEventListener('click', () => {
+    setSetlistsCollapsed(!getSetlistsCollapsed());
+    renderSetlistBar();
+  });
 }
 
 async function createNewSetlistInline() {
