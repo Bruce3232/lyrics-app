@@ -3606,13 +3606,36 @@
     .perf-artist { font-size: 11px; }
   }
 
-  /* Phone portrait (very narrow). Library + editor adjust their grid. */
+  /* Phone portrait (very narrow). Compact the whole library so it isn't tablet-sized:
+     smaller header, tighter rows, smaller per-row actions + panel. These come AFTER
+     the touch (hover:none) rules so they win on phones. */
   @media (max-width: 600px) {
-    #library-view .body { padding: 16px 14px 60px; }
-    .library-title { font-size: 24px; }
+    :root { --ap-w: 56px; }
+    /* Keep the right padding = panel width so rows never slip under the panel. */
+    #library-view .body { padding: 12px var(--ap-w) 60px 12px; }
+    .library-header { margin-bottom: 14px; }
+    .library-title { font-size: 22px; }
+    .library-subtitle { font-size: 12.5px; }
+    .results-count { font-size: 12px; margin-bottom: 8px; }
+    #song-list.song-list { gap: 7px; }
+    #song-list .song-row { padding: 9px 11px; gap: 10px; grid-template-columns: 24px 1fr auto; border-radius: 10px; }
+    #song-list .song-row-title { font-size: 15px; }
+    #song-list .song-row-num { font-size: 12px; }
+    #song-list .song-row-action { width: 34px; height: 34px; }
+    #song-list .song-row-action svg { width: 16px; height: 16px; }
+    #song-list .song-row-actions { gap: 2px; }
+    #song-list.selecting .song-row { grid-template-columns: 24px 1fr; }
+    /* Compact the right action-panel icon strip. */
+    .ap-btn { padding: 9px 0; }
+    .ap-btn svg { width: 20px; height: 20px; }
+    .ap-btn-lg svg { width: 22px; height: 22px; }
+    .ap-group { padding-bottom: 4px; margin-bottom: 3px; gap: 2px; }
+    /* Account pill: keep it small so the topbar fits. */
+    .acct-pill { max-width: 150px; padding: 4px 8px 4px 4px; }
     .topbar { padding: 8px 10px; gap: 4px; }
     .topbar .btn-ghost { padding: 9px; }
     .btn { font-size: 13px; }
+    .field-row { grid-template-columns: 1fr; }   /* stack Titel / Künstler so neither is clipped */
     .editor-split { min-height: 240px; }
     .editor-preview { max-height: 40vh; font-size: 14px; }
     .field-textarea { min-height: 220px; font-size: 14px; }
