@@ -7298,7 +7298,9 @@ function updateActionPanelState() {
   // Select-none + Cancel only make sense while selecting; add vs remove-from-setlist by view.
   show('ap-select-none', selecting);
   show('ap-cancel', selecting);
-  show('ap-to-setlist', !inSetlist);
+  // "Zu Setlist" is ALWAYS available (add to ANY setlist — e.g. move a song from one
+  // setlist to another); "Aus Setlist" only inside a setlist.
+  show('ap-to-setlist', true);
   show('ap-remove-setlist', inSetlist);
   const countEl = document.getElementById('ap-sel-count');
   if (countEl) countEl.textContent = selecting ? ' · ' + selection.ids.size : '';
