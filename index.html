@@ -670,28 +670,7 @@
   }
 
   /* Setlist Pills */
-  /* Folder / library switcher */
-  .folder-switch-row {
-    margin-bottom: 14px;
-  }
-  .folder-switch-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    color: var(--text-0);
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s var(--ease);
-    touch-action: manipulation;
-  }
-  .folder-switch-btn:hover { border-color: var(--accent); }
-  .folder-switch-btn svg { width: 18px; height: 18px; color: var(--accent-soft); }
-  .folder-switch-caret { width: 16px; height: 16px; opacity: 0.7; color: var(--text-1); }
+  /* Album switcher list (reused inside the "Alben" popover) */
   .folder-list {
     display: flex;
     flex-direction: column;
@@ -818,23 +797,6 @@
     width: 14px;
     height: 14px;
   }
-  /* Fold toggle: a chevron pill that collapses/expands the row of setlist pills.
-     The collapsed state is a class on the bar (re-applied on every render). */
-  .setlist-toggle-pill {
-    padding: 8px 10px;
-    color: var(--text-2);
-  }
-  .setlist-toggle-pill:hover { color: var(--text-0); }
-  .setlist-toggle-pill svg { width: 16px; height: 16px; display: block; }
-  .setlist-toggle-chevron { transition: transform 0.2s var(--ease); }
-  /* Chevron points down when expanded; rotates to point right when collapsed. */
-  .setlist-bar.setlists-collapsed .setlist-toggle-chevron { transform: rotate(-90deg); }
-  /* Collapsed: keep the chevron, "Alle Songs" (escape back to the full list), the
-     active setlist, and the manage gear; fold away the other named setlists and the
-     "+ Neu" pill. "Alle Songs" carries .setlist-all-pill so it's never hidden. */
-  .setlist-bar.setlists-collapsed .setlist-pill[data-id]:not(.active):not(.setlist-all-pill) { display: none; }
-  .setlist-bar.setlists-collapsed #setlist-add-pill { display: none; }
-
   /* Setlist picker entry */
   .setlist-picker-item {
     display: flex;
@@ -2932,6 +2894,58 @@
     .ap-btn { justify-content: center; padding: 12px 0; gap: 0; }
     .ap-btn svg { width: 22px; height: 22px; }
   }
+  /* Subtle highlight on a panel button while its popover is open. */
+  .ap-btn.pop-open { background: var(--surface); border-color: var(--border); }
+
+  /* ===== Action-panel popovers (open to the LEFT of the panel) ===== */
+  /* Each library control (search / filter / sort / albums / setlists) opens a
+     small popover anchored to its panel button. position:fixed + JS-clamped so it
+     is never clipped by the panel's own overflow and always stays on screen. */
+  .ap-pop {
+    position: fixed; left: 0; top: 0;
+    width: max-content; min-width: 240px; max-width: min(360px, 92vw);
+    background: var(--surface-strong);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg); padding: 12px; z-index: 60;
+    max-height: calc(100vh - 20px); overflow-y: auto; overscroll-behavior: contain;
+    opacity: 0; transform: scale(0.96); transform-origin: top right;
+    pointer-events: none; transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+  }
+  .ap-pop.show { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .ap-pop-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin: 0 2px 9px; }
+  .ap-pop-title + .ap-pop-title { margin-top: 14px; }
+  /* Menu rows inside a popover (Sort options). */
+  .ap-menu-item {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    padding: 11px 12px; border: 1px solid transparent; background: transparent;
+    border-radius: 10px; color: var(--text-0); font-size: 14px; font-weight: 600;
+    text-align: left; cursor: pointer; white-space: nowrap;
+    -webkit-tap-highlight-color: transparent; transition: all 0.12s var(--ease);
+  }
+  .ap-menu-item + .ap-menu-item { margin-top: 2px; }
+  .ap-menu-item:hover { background: var(--surface); border-color: var(--border); }
+  .ap-menu-item svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--text-1); }
+  .ap-menu-item.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ap-menu-item.active svg { color: #fff; }
+  .ap-pop-foot {
+    display: block; width: 100%; margin-top: 10px; padding: 9px 12px;
+    border: 1px solid var(--border-strong); background: var(--surface);
+    border-radius: 10px; color: var(--text-1); font-size: 13px; font-weight: 600;
+    text-align: center; cursor: pointer; transition: all 0.12s var(--ease);
+  }
+  .ap-pop-foot:hover { color: var(--text-0); border-color: var(--accent); }
+  /* Search popover: the input fills the popover width. */
+  #pop-search .search-input-wrap { min-width: 0; width: 100%; margin: 0; }
+  /* Filter popover: artist dropdown fills the width; alphabet wraps. */
+  #pop-filter .filter-select { width: 100%; }
+  #pop-filter .alpha-bar { margin: 0; }
+  /* Setlists popover: pills stack as a vertical list. */
+  #pop-setlists .setlist-bar { flex-direction: column; align-items: stretch; gap: 6px; margin: 0; }
+  #pop-setlists .setlist-pill { justify-content: flex-start; }
+  #pop-setlists .setlist-manage-pill { margin-left: 0; }
+  /* Albums popover list reuses the .folder-list / .folder-item styles. */
+  #pop-albums .folder-list { max-height: min(56vh, 420px); }
 
   /* ===== Fast-scroll lever (thick draggable scrollbar on the right of the list) ===== */
   /* The native scrollbar is hidden/too thin on iPad; this is a chunky grab handle
@@ -3597,19 +3611,8 @@
     <div class="body">
       <div class="library-header">
         <h1 class="library-title">Deine Songs</h1>
-        <p class="library-subtitle">Klicke einen Song zum Spielen, oder erstelle einen neuen.</p>
+        <p class="library-subtitle">Aktuelles Album: <span id="folder-switch-name">Hauptbibliothek</span><span id="folder-switch-setlist"></span></p>
       </div>
-
-      <!-- Folder / library switcher -->
-      <div class="folder-switch-row">
-        <button class="folder-switch-btn" id="folder-switch-btn" title="Bibliothek / Ordner wechseln">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span id="folder-switch-name">Hauptbibliothek</span>
-          <svg class="folder-switch-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-      </div>
-
-      <div class="setlist-bar" id="setlist-bar"></div>
 
       <div class="selection-bar" id="selection-bar" style="display:none;">
         <div class="selection-count" id="selection-count">0 ausgewählt</div>
@@ -3646,25 +3649,14 @@
         <button class="btn" id="select-cancel-btn">Abbrechen</button>
       </div>
 
-      <div class="filter-bar">
-        <div class="search-input-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" class="search-input" id="search-input" placeholder="Suche nach Titel oder Künstler...">
-          <button class="search-clear" id="search-clear" title="Löschen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <select class="filter-select" id="artist-filter">
-          <option value="">Alle Künstler</option>
-        </select>
+      <!-- Search, artist filter, alphabet and "Liste bearbeiten" now live in the
+           right-panel popovers. This bar stays hidden only to host #list-edit-btn
+           as the delegation target for the Sort popover's "Liste bearbeiten". -->
+      <div class="filter-bar" id="filter-bar" style="display:none;">
         <button class="btn" id="list-edit-btn" title="Songs per Drag and Drop sortieren">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
           Liste bearbeiten
         </button>
-      </div>
-
-      <div class="alpha-bar" id="alpha-bar">
-        <button class="alpha-btn alpha-btn-all active" data-letter="">Alle</button>
       </div>
 
       <div class="results-count" id="results-count"></div>
@@ -3712,16 +3704,27 @@
         </button>
       </div>
       <div class="ap-group">
+        <div class="ap-group-title">Bibliothek</div>
+        <button class="ap-btn" id="ap-albums" title="Alben wechseln" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="ap-label">Alben</span>
+        </button>
+        <button class="ap-btn" id="ap-setlists" title="Setlists" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="13" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          <span class="ap-label">Setlists</span>
+        </button>
+      </div>
+      <div class="ap-group">
         <div class="ap-group-title">Ansicht</div>
-        <button class="ap-btn" id="ap-search" title="Suchen">
+        <button class="ap-btn" id="ap-search" title="Suchen" aria-haspopup="true" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <span class="ap-label">Suchen</span>
         </button>
-        <button class="ap-btn" id="ap-filter" title="Filter">
+        <button class="ap-btn" id="ap-filter" title="Filter" aria-haspopup="true" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           <span class="ap-label">Filter</span>
         </button>
-        <button class="ap-btn" id="ap-sort" title="Sortieren / Reihenfolge bearbeiten">
+        <button class="ap-btn" id="ap-sort" title="Sortieren / Reihenfolge bearbeiten" aria-haspopup="true" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="7 4 4 8 7 12" fill="none" opacity="0"/></svg>
           <span class="ap-label">Sortieren</span>
         </button>
@@ -3766,6 +3769,59 @@
         </button>
       </div>
     </aside>
+
+    <!-- ===== Action-panel popovers (open to the LEFT of the panel) ===== -->
+    <div class="ap-pop" id="pop-search" role="dialog" aria-label="Suchen">
+      <div class="search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" id="search-input" placeholder="Suche nach Titel oder Künstler...">
+        <button class="search-clear" id="search-clear" title="Löschen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="ap-pop" id="pop-filter" role="dialog" aria-label="Filter">
+      <div class="ap-pop-title">Nach Buchstabe</div>
+      <div class="alpha-bar" id="alpha-bar">
+        <button class="alpha-btn alpha-btn-all active" data-letter="">Alle</button>
+      </div>
+      <div class="ap-pop-title">Nach Künstler</div>
+      <select class="filter-select" id="artist-filter">
+        <option value="">Alle Künstler</option>
+      </select>
+    </div>
+
+    <div class="ap-pop" id="pop-sort" role="dialog" aria-label="Sortieren">
+      <div class="ap-pop-title">Sortieren</div>
+      <button class="ap-menu-item" id="sort-edit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
+        Liste bearbeiten
+      </button>
+      <button class="ap-menu-item" id="sort-custom">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-1.5 2-2.5S5 14 4 14.5"/></svg>
+        Eigene Reihenfolge
+      </button>
+      <button class="ap-menu-item" id="sort-artist">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Nach Künstler
+      </button>
+      <button class="ap-menu-item" id="sort-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/><polyline points="3 16 6 19 9 16"/><line x1="6" y1="5" x2="6" y2="19"/></svg>
+        Nach Alphabet
+      </button>
+    </div>
+
+    <div class="ap-pop" id="pop-albums" role="dialog" aria-label="Alben">
+      <div class="ap-pop-title">Album wechseln</div>
+      <div class="folder-list" id="ap-albums-list"></div>
+      <button class="ap-pop-foot" id="ap-albums-manage">Alben verwalten…</button>
+    </div>
+
+    <div class="ap-pop" id="pop-setlists" role="dialog" aria-label="Setlists">
+      <div class="ap-pop-title">Setlists</div>
+      <div class="setlist-bar" id="setlist-bar"></div>
+    </div>
   </div>
 
   <!-- ============= EDITOR ============= -->
@@ -5303,6 +5359,8 @@ const I18N = {
     "Dupliziert": "Duplicated",
     "Verschoben": "Moved",
     "Zum Verschieben zuerst Filter & Suche zurücksetzen": "Reset filters & search first to reorder",
+    "Zum Verschieben zuerst Filter, Suche & Sortierung zurücksetzen": "Reset filters, search & sorting first to reorder",
+    "Sortierung wirkt nur außerhalb von Setlists": "Sorting only applies outside setlists",
     "Für alle löschen?": "Delete for everyone?",
     "\"{x}\" wird für ALLE Mitglieder dieses geteilten Albums gelöscht.": "\"{x}\" will be deleted for ALL members of this shared album.",
     "An Position": "To position",
@@ -5522,8 +5580,15 @@ const I18N = {
     "Alle Songs": "All songs",
     "Neue Setlist erstellen": "Create new setlist",
     "Neu": "New",
-    "Setlists einklappen": "Collapse setlists",
-    "Setlists ausklappen": "Expand setlists",
+    "Alben": "Albums",
+    "Alben wechseln": "Switch album",
+    "Album wechseln": "Switch album",
+    "Alben verwalten…": "Manage albums…",
+    "Nach Buchstabe": "By letter",
+    "Nach Künstler": "By artist",
+    "Nach Alphabet": "By alphabet",
+    "Eigene Reihenfolge": "Own order",
+    "Aktuelles Album:": "Current album:",
     "Name der neuen Setlist:": "New setlist name:",
     "Bibliothek an Freund senden": "Send library to a friend",
     "Umbenennen": "Rename",
@@ -6066,11 +6131,20 @@ function showView(name) {
 // =====================================================
 //                   Library
 // =====================================================
+// Sort mode is a per-device preference: 'custom' (own/manual drag order),
+// 'artist' (by artist A–Z), or 'title' (by title A–Z).
+const SORT_MODE_KEY = 'lyrics-sort-mode';
+function getSortMode() {
+  try { const v = localStorage.getItem(SORT_MODE_KEY); return (v === 'artist' || v === 'title') ? v : 'custom'; } catch (e) { return 'custom'; }
+}
+function setSortMode(v) {
+  try { localStorage.setItem(SORT_MODE_KEY, v); } catch (e) {}
+}
 const filterState = {
   search: '',
   artist: '',
   letter: '',
-  sort: 'custom', // always custom — alphabet bar filters by first letter, not by sort
+  sort: getSortMode(), // 'custom' | 'artist' | 'title'
 };
 
 const selection = {
@@ -6172,12 +6246,26 @@ function getFilteredSongs() {
     }
   }
   if (!preserveOrder) {
-    // Always sort by the user-defined position; missing values fall back to createdAt
-    result.sort((a, b) => {
+    // Own order = the user-defined position (createdAt fallback). Artist/Title modes
+    // sort alphabetically (German collation) and never write position, so switching
+    // back to 'custom' instantly restores the drag-defined order.
+    const byPos = (a, b) => {
       const pa = (typeof a.position === 'number') ? a.position : (a.createdAt || 0);
       const pb = (typeof b.position === 'number') ? b.position : (b.createdAt || 0);
       return pa - pb;
-    });
+    };
+    if (filterState.sort === 'artist') {
+      result.sort((a, b) =>
+        (a.artist || '').localeCompare(b.artist || '', 'de', { sensitivity: 'base' }) ||
+        (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }) ||
+        byPos(a, b));
+    } else if (filterState.sort === 'title') {
+      result.sort((a, b) =>
+        (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }) ||
+        byPos(a, b));
+    } else {
+      result.sort(byPos);
+    }
   }
   return result;
 }
@@ -6218,10 +6306,12 @@ function renderAlphaBar() {
   }
   bar.innerHTML = html.join('');
   bar.querySelectorAll('.alpha-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();           // keep the Filter popover open across the re-render
       filterState.letter = btn.dataset.letter;
       renderAlphaBar();
       renderSongList();
+      if (typeof positionApPopover === 'function' && openApPop && openApBtn) positionApPopover(openApBtn, openApPop);
     });
   });
 }
@@ -6573,8 +6663,12 @@ async function applyReorderDataOnly(fromIdx, toIdx) {
 }
 
 async function applyReorder(fromIdx, toIdx) {
+  // Never rewrite positions against a non-custom (alphabetical) view — that would
+  // overwrite the user's own drag order. Setlists keep their own order, unaffected.
+  if (!state.currentSetlistId && filterState.sort !== 'custom') return;
   const filtered = getFilteredSongs();
   if (fromIdx < 0 || fromIdx >= filtered.length) return;
+  toIdx = Math.max(0, Math.min(filtered.length - 1, toIdx));   // clamp a stale wheel target
   const [moved] = filtered.splice(fromIdx, 1);
   filtered.splice(toIdx, 0, moved);
 
@@ -6600,7 +6694,11 @@ async function applyReorder(fromIdx, toIdx) {
 
 document.getElementById('list-edit-btn').addEventListener('click', () => {
   listEditMode = !listEditMode;
+  // Manual drag-reorder only makes sense in own order — otherwise a drag would
+  // assign positions in alphabetical order and silently overwrite the user's order.
+  if (listEditMode && filterState.sort !== 'custom') { filterState.sort = 'custom'; setSortMode('custom'); }
   renderSongList();
+  if (typeof updateActionPanelState === 'function') updateActionPanelState();
 });
 
 function renderSongList() {
@@ -6633,8 +6731,13 @@ function renderSongList() {
     ? `${state.songs.length} Song${state.songs.length === 1 ? '' : 's'}`
     : `${filtered.length} von ${state.songs.length} Songs`;
 
+  // The popovers sit over the panel while filtering, so refresh the panel's active
+  // markers here — every search/letter/artist/sort change funnels through render.
+  if (typeof updateActionPanelState === 'function') updateActionPanelState();
+
   if (filtered.length === 0) {
     list.innerHTML = '';
+    const es = document.getElementById('empty-state'); if (es) es.style.display = 'none';   // never stack with #no-results
     noResults.style.display = 'block';
     return;
   }
@@ -6796,11 +6899,7 @@ function enterSelectionMode() {
   selection.active = true;
   selection.ids.clear();
   document.getElementById('selection-bar').style.display = 'flex';
-  // Hide other library buttons during selection
-  document.querySelector('.filter-bar').style.opacity = '0.5';
-  document.querySelector('.filter-bar').style.pointerEvents = 'none';
-  document.getElementById('alpha-bar').style.opacity = '0.5';
-  document.getElementById('alpha-bar').style.pointerEvents = 'none';
+  if (typeof closeAllApPopovers === 'function') closeAllApPopovers();
   renderSongList();
   updateSelectionUI();
 }
@@ -6809,10 +6908,6 @@ function exitSelectionMode() {
   selection.active = false;
   selection.ids.clear();
   document.getElementById('selection-bar').style.display = 'none';
-  document.querySelector('.filter-bar').style.opacity = '';
-  document.querySelector('.filter-bar').style.pointerEvents = '';
-  document.getElementById('alpha-bar').style.opacity = '';
-  document.getElementById('alpha-bar').style.pointerEvents = '';
   renderSongList();
 }
 
@@ -6835,8 +6930,8 @@ document.getElementById('select-none-btn').addEventListener('click', () => {
 // Single-song actions in the selection bar (shown only when exactly one is selected).
 document.getElementById('select-move-pos-btn').addEventListener('click', () => {
   if (selection.ids.size !== 1) return;
-  if (filterState.search.trim() || filterState.artist || filterState.letter) {
-    showToast(T('Zum Verschieben zuerst Filter & Suche zurücksetzen'));
+  if (filterState.search.trim() || filterState.artist || filterState.letter || filterState.sort !== 'custom') {
+    showToast(T('Zum Verschieben zuerst Filter, Suche & Sortierung zurücksetzen'));
     return;
   }
   const id = [...selection.ids][0];
@@ -6850,13 +6945,92 @@ document.getElementById('select-move-pos-btn').addEventListener('click', () => {
 //   mode when nothing is selected yet (tap again after picking songs), and
 //   otherwise delegate to the existing selection-bar handlers — one source of truth.
 // =====================================================
+// ===== Action-panel popovers (search / filter / sort / albums / setlists) =====
+// Each library control opens a small popover anchored to its panel button, popping
+// out to the LEFT toward the song list. position:fixed + JS-clamped so the panel's
+// own overflow never clips it and it always stays fully on screen.
+let openApPop = null, openApBtn = null;
+function positionApPopover(btn, pop) {
+  pop.style.left = pop.style.top = pop.style.right = pop.style.bottom = '';
+  pop.style.transform = 'none';                  // measure full size (no scale) first
+  const br = btn.getBoundingClientRect();
+  const pr = pop.getBoundingClientRect();
+  const w = pr.width, h = pr.height;
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const M = 10, GAP = 10;
+  let Lx, Ly;
+  if (br.left - GAP - w >= M) { Lx = br.left - GAP - w; Ly = br.top; }            // left of the button (default)
+  else if (br.right + GAP + w <= vw - M) { Lx = br.right + GAP; Ly = br.top; }    // right of the button
+  else { Lx = (vw - w) / 2; Ly = (br.top > vh / 2) ? (br.bottom - h) : br.top; }  // centred above/below
+  Lx = Math.max(M, Math.min(vw - M - w, Lx));
+  Ly = Math.max(M, Math.min(vh - M - h, Ly));
+  pop.style.left = Lx + 'px';
+  pop.style.top = Ly + 'px';
+  pop.style.right = 'auto';
+  pop.style.bottom = 'auto';
+  pop.style.transform = '';        // restore the class-driven scale animation (measured already)
+}
+function closeAllApPopovers() {
+  document.querySelectorAll('.ap-pop.show').forEach(p => p.classList.remove('show'));
+  document.querySelectorAll('.ap-btn.pop-open').forEach(b => { b.classList.remove('pop-open'); b.setAttribute('aria-expanded', 'false'); });
+  openApPop = null; openApBtn = null;
+}
+function toggleApPopover(btnId, popId, beforeOpen) {
+  const btn = document.getElementById(btnId), pop = document.getElementById(popId);
+  if (!btn || !pop) return;
+  const wasOpen = pop.classList.contains('show');
+  closeAllApPopovers();
+  if (wasOpen) return;                           // clicking the open trigger just closes it
+  if (typeof beforeOpen === 'function') beforeOpen();
+  pop.classList.add('show');
+  btn.classList.add('pop-open');
+  btn.setAttribute('aria-expanded', 'true');
+  openApPop = pop; openApBtn = btn;
+  positionApPopover(btn, pop);
+}
+document.addEventListener('click', (e) => {
+  if (!openApPop) return;
+  // A control inside the popover may re-render itself on click (e.g. the alphabet),
+  // detaching the target; a detached node can't be matched by closest(), so treat it
+  // as "inside the popover" and keep it open.
+  if (e.target && !e.target.isConnected) return;
+  if (e.target.closest('.ap-pop') === openApPop) return;              // click inside the open popover
+  if (openApBtn && e.target.closest('.ap-btn') === openApBtn) return; // the trigger toggles itself
+  closeAllApPopovers();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openApPop) closeAllApPopovers(); });
+window.addEventListener('resize', () => { if (openApPop && openApBtn) positionApPopover(openApBtn, openApPop); });
+(function () { const ap = document.getElementById('action-panel'); if (ap) ap.addEventListener('scroll', () => { if (openApPop && openApBtn) positionApPopover(openApBtn, openApPop); }, { passive: true }); })();
+
+// Apply a sort mode chosen in the Sort popover (own order / by artist / by title).
+function applySortMode(mode) {
+  filterState.sort = mode;
+  setSortMode(mode);
+  if (mode !== 'custom' && listEditMode) listEditMode = false;   // can't drag-reorder a sorted list
+  if (mode !== 'custom' && state.currentSetlistId) showToast(T('Sortierung wirkt nur außerhalb von Setlists'));
+  closeAllApPopovers();
+  renderSongList();
+  updateActionPanelState();
+}
+
 function updateActionPanelState() {
   const panel = document.getElementById('action-panel'); if (!panel) return;
   const selecting = selection.active;
   const inSetlist = state.currentSetlistId !== null;
   panel.classList.toggle('not-selecting', !selecting);
-  const sortBtn = document.getElementById('ap-sort');
-  if (sortBtn) sortBtn.classList.toggle('active', listEditMode);
+  const setActive = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('active', !!on); };
+  // Reflect which controls are "on" so active filters/sort show at a glance.
+  // (Artist/title sort is inert inside a setlist — don't light up ap-sort there.)
+  setActive('ap-sort', listEditMode || (filterState.sort !== 'custom' && !inSetlist));
+  setActive('ap-search', !!filterState.search.trim());
+  setActive('ap-filter', !!(filterState.artist || filterState.letter));
+  setActive('ap-setlists', inSetlist);
+  // Active marker inside the Sort popover.
+  setActive('sort-edit', listEditMode);
+  setActive('sort-custom', !listEditMode && filterState.sort === 'custom');
+  setActive('sort-artist', filterState.sort === 'artist');
+  setActive('sort-title', filterState.sort === 'title');
   const show = (id, cond) => { const el = document.getElementById(id); if (el) el.style.display = cond ? '' : 'none'; };
   // Select-none + Cancel only make sense while selecting; add vs remove-from-setlist by view.
   show('ap-select-none', selecting);
@@ -6881,19 +7055,30 @@ function apRunSelection(runBtnId, needsOne) {
 (function setupActionPanel() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
   // Create
-  on('ap-new-song', () => openEditor(null));
-  on('ap-new-album', () => openFolderModal());
-  on('ap-new-setlist', () => { if (typeof createNewSetlistInline === 'function') createNewSetlistInline(); });
-  // View
+  on('ap-new-song', () => { closeAllApPopovers(); openEditor(null); });
+  on('ap-new-album', () => { closeAllApPopovers(); openFolderModal(); });
+  on('ap-new-setlist', () => { closeAllApPopovers(); if (typeof createNewSetlistInline === 'function') createNewSetlistInline(); });
+  // Library: album + setlist popovers
+  on('ap-albums', () => toggleApPopover('ap-albums', 'pop-albums', renderAlbumsPopover));
+  on('ap-setlists', () => toggleApPopover('ap-setlists', 'pop-setlists', renderSetlistBar));
+  on('ap-albums-manage', () => { closeAllApPopovers(); openFolderModal(); });
+  // View: search / filter / sort popovers
   on('ap-search', () => {
-    const lv = document.getElementById('library-view'); if (lv) lv.scrollTop = 0;
-    const inp = document.getElementById('search-input'); if (inp) { inp.focus(); try { inp.select(); } catch (e) {} }
+    toggleApPopover('ap-search', 'pop-search');
+    const pop = document.getElementById('pop-search'), inp = document.getElementById('search-input');
+    if (inp && pop && pop.classList.contains('show')) { inp.focus(); try { inp.select(); } catch (e) {} }
   });
-  on('ap-filter', () => {
-    const lv = document.getElementById('library-view'); if (lv) lv.scrollTop = 0;
-    const sel = document.getElementById('artist-filter'); if (sel) sel.focus();
+  on('ap-filter', () => toggleApPopover('ap-filter', 'pop-filter', () => { renderAlphaBar(); renderArtistFilter(); }));
+  on('ap-sort', () => toggleApPopover('ap-sort', 'pop-sort'));
+  // Sort popover items
+  on('sort-edit', () => {
+    if (filterState.sort !== 'custom') { filterState.sort = 'custom'; setSortMode('custom'); }
+    closeAllApPopovers();
+    const b = document.getElementById('list-edit-btn'); if (b) b.click();   // toggle drag-reorder
   });
-  on('ap-sort', () => { const b = document.getElementById('list-edit-btn'); if (b) b.click(); updateActionPanelState(); });
+  on('sort-custom', () => applySortMode('custom'));
+  on('sort-artist', () => applySortMode('artist'));
+  on('sort-title', () => applySortMode('title'));
   // Selection management
   on('ap-select-all', () => { if (!selection.active) enterSelectionMode(); const b = document.getElementById('select-all-btn'); if (b) b.click(); });
   on('ap-select-none', () => { const b = document.getElementById('select-none-btn'); if (b) b.click(); });
@@ -7160,17 +7345,8 @@ document.getElementById('select-delete-btn').addEventListener('click', async () 
   await renderLibrary();
 });
 
-// Setlist-bar fold state (per device). Stored '1'/'0' in localStorage, default
-// expanded. Re-applied on every renderSetlistBar() pass because the bar's innerHTML
-// is rebuilt each render, so the collapsed flag can't live in the DOM itself.
-const SETLIST_COLLAPSED_KEY = 'lyrics-setlists-collapsed';
-function getSetlistsCollapsed() {
-  try { return localStorage.getItem(SETLIST_COLLAPSED_KEY) === '1'; } catch (e) { return false; }
-}
-function setSetlistsCollapsed(v) {
-  try { localStorage.setItem(SETLIST_COLLAPSED_KEY, v ? '1' : '0'); } catch (e) {}
-}
-
+// The setlists now live in the right-panel "Setlists" popover (the popover itself
+// is the open/close), so the bar is just a vertical list of pills inside it.
 function renderSetlistBar() {
   const bar = document.getElementById('setlist-bar');
   if (!bar) return;
@@ -7180,15 +7356,7 @@ function renderSetlistBar() {
 
   const allActive = state.currentSetlistId === null ? 'active' : '';
   const totalCount = folderSongs.length;
-  // Only offer folding when there is actually a list of setlists to collapse.
-  const canFold = folderSetlists.length > 0;
-  const collapsed = canFold && getSetlistsCollapsed();
-  const toggleTitle = collapsed ? 'Setlists ausklappen' : 'Setlists einklappen';
-  let html = '';
-  if (canFold) {
-    html += `<button class="setlist-pill setlist-toggle-pill" id="setlist-toggle-pill" title="${toggleTitle}" aria-label="${toggleTitle}" aria-controls="setlist-bar" aria-expanded="${collapsed ? 'false' : 'true'}"><svg class="setlist-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>`;
-  }
-  html += `<button class="setlist-pill setlist-all-pill ${allActive}" data-id="">Alle Songs <span class="setlist-pill-count">${totalCount}</span></button>`;
+  let html = `<button class="setlist-pill ${allActive}" data-id="">Alle Songs <span class="setlist-pill-count">${totalCount}</span></button>`;
   for (const sl of folderSetlists) {
     const count = (sl.songIds || []).length;
     const isActive = state.currentSetlistId === sl.id ? 'active' : '';
@@ -7199,26 +7367,22 @@ function renderSetlistBar() {
     html += `<button class="setlist-pill setlist-manage-pill" id="setlist-manage-pill" title="Setlists verwalten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
   }
   bar.innerHTML = html;
-  bar.classList.toggle('setlists-collapsed', collapsed);
 
   bar.querySelectorAll('.setlist-pill[data-id]').forEach(el => {
     el.addEventListener('click', () => {
       state.currentSetlistId = el.dataset.id || null;
-      // Update remove-from-setlist button visibility in selection bar
       updateSelectionBarButtons();
+      if (typeof closeAllApPopovers === 'function') closeAllApPopovers();   // picking a setlist closes the popover
+      renderFolderSwitcher();
       renderSetlistBar();
       renderSongList();
+      if (typeof updateActionPanelState === 'function') updateActionPanelState();
     });
   });
   const addBtn = document.getElementById('setlist-add-pill');
   if (addBtn) addBtn.addEventListener('click', createNewSetlistInline);
   const manageBtn = document.getElementById('setlist-manage-pill');
   if (manageBtn) manageBtn.addEventListener('click', openSetlistManager);
-  const toggleBtn = document.getElementById('setlist-toggle-pill');
-  if (toggleBtn) toggleBtn.addEventListener('click', () => {
-    setSetlistsCollapsed(!getSetlistsCollapsed());
-    renderSetlistBar();
-  });
 }
 
 async function createNewSetlistInline() {
@@ -7237,8 +7401,10 @@ async function createNewSetlistInline() {
   // it here if it isn't there yet — otherwise it shows up twice until a reload.
   if (!state.setlists.some(s => s.id === newSetlist.id)) state.setlists.push(newSetlist);
   state.currentSetlistId = newSetlist.id;
+  renderFolderSwitcher();
   renderSetlistBar();
   renderSongList();
+  if (typeof updateActionPanelState === 'function') updateActionPanelState();
   showToast(`Setlist "${name}" erstellt`, 'success');
 }
 
@@ -7251,46 +7417,78 @@ function updateSelectionBarButtons() {
 async function renderLibrary() {
   await loadSongs();
   const empty = document.getElementById('empty-state');
-  const filterBar = document.querySelector('.filter-bar');
-  const alphaBar = document.getElementById('alpha-bar');
   const list = document.getElementById('song-list');
   const countEl = document.getElementById('results-count');
-  const setlistBar = document.getElementById('setlist-bar');
 
-  // The folder switcher is always shown so the user can move between (even
-  // empty) folders. Songs/filters are scoped to the current folder.
+  // Album/setlist/filter controls live in the right-panel popovers now; keep their
+  // bodies populated so they're correct whenever the user opens them.
   renderFolderSwitcher();
+  renderAlbumsPopover();
   const folderSongCount = songsInCurrentFolder().length;
 
   if (folderSongCount === 0) {
     list.innerHTML = '';
     countEl.textContent = '';
     empty.style.display = 'block';
-    filterBar.style.display = 'none';
-    alphaBar.style.display = 'none';
-    // Still show the setlist bar (so "+ Neu" works) when there are folders to
-    // populate, but hide it in a truly empty main library to keep it clean.
     renderSetlistBar();
+    renderArtistFilter();
+    renderAlphaBar();
+    updateSelectionBarButtons();
+    if (typeof updateActionPanelState === 'function') updateActionPanelState();
     document.getElementById('no-results').style.display = 'none';
     return;
   }
   empty.style.display = 'none';
-  filterBar.style.display = 'flex';
-  alphaBar.style.display = 'flex';
 
   renderSetlistBar();
   renderArtistFilter();
   renderAlphaBar();
   updateSelectionBarButtons();
   renderSongList();
+  if (typeof updateActionPanelState === 'function') updateActionPanelState();
 }
 
-// ===== Folder switcher =====
+// ===== Folder / album switcher (now in the right-panel "Alben" popover) =====
+// The album name (+ active setlist) shows as the left-side breadcrumb.
 function renderFolderSwitcher() {
   const nameEl = document.getElementById('folder-switch-name');
   if (!nameEl) return;
   const cur = state.folders.find(f => f.id === state.currentFolderId);
+  // German source goes into the name span so the i18n observer translates the
+  // default "Hauptbibliothek" → "Main library"; the active setlist (user content)
+  // goes into its own span so the concatenation never blocks that translation.
   nameEl.textContent = cur ? cur.name : MAIN_FOLDER_NAME;
+  const slEl = document.getElementById('folder-switch-setlist');
+  if (slEl) {
+    let s = '';
+    if (state.currentSetlistId) {
+      const sl = state.setlists.find(x => x.id === state.currentSetlistId);
+      if (sl) s = ' · ' + sl.name;
+    }
+    slEl.textContent = s;
+  }
+}
+
+// The album list inside the "Alben" popover: tap a row to switch albums. Full
+// management (rename/delete/share) stays in the folder modal ("Alben verwalten…").
+function renderAlbumsPopover() {
+  const listEl = document.getElementById('ap-albums-list');
+  if (!listEl) return;
+  const folderSvg = '<svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+  listEl.innerHTML = state.folders.map(f => {
+    const active = f.id === state.currentFolderId ? ' active' : '';
+    const count = songCountForFolder(f.id);
+    const sharedTag = f.shared ? `<span class="folder-shared-tag" title="Geteiltes Album">👥 ${(f.members || []).length}</span>` : '';
+    return `<div class="folder-item${f.shared ? ' shared' : ''}${active}" data-id="${escapeHtml(f.id)}">
+      ${folderSvg}
+      <span class="folder-name">${escapeHtml(f.name)}</span>
+      ${sharedTag}
+      <span class="folder-meta">${count} Song${count === 1 ? '' : 's'}</span>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.folder-item').forEach(row => {
+    row.addEventListener('click', () => { closeAllApPopovers(); switchFolder(row.dataset.id); });
+  });
 }
 
 function songCountForFolder(folderId) {
@@ -7445,7 +7643,6 @@ async function deleteFolder(id) {
   showToast(`Ordner "${f.name}" gelöscht`, 'success');
 }
 
-document.getElementById('folder-switch-btn').addEventListener('click', openFolderModal);
 document.getElementById('folder-close').addEventListener('click', closeFolderModal);
 document.getElementById('folder-modal').addEventListener('click', (e) => {
   if (e.target.id === 'folder-modal') closeFolderModal();
