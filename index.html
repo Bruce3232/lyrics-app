@@ -5984,6 +5984,7 @@ const I18N = {
     "Ungültige E-Mail-Adresse.": "Invalid email address.",
     "Kein Konto mit dieser E-Mail. Bitte registrieren.": "No account with this email. Please sign up.",
     "Falsches Passwort.": "Wrong password.",
+    "E-Mail/Benutzername oder Passwort falsch. Falls du hier noch kein Konto hast, bitte zuerst ein neues Konto erstellen.": "Email/username or password incorrect. If you don't have an account here yet, please create a new account first.",
     "Diese E-Mail ist schon registriert. Bitte anmelden.": "This email is already registered. Please sign in.",
     "Passwort zu schwach (mindestens 6 Zeichen).": "Password too weak (at least 6 characters).",
     "Keine Internetverbindung.": "No internet connection.",
@@ -13545,7 +13546,10 @@ function friendlyAuthError(e) {
   const c = (e && e.code) || '';
   if (c.includes('invalid-email')) return 'Ungültige E-Mail-Adresse.';
   if (c.includes('user-not-found')) return 'Kein Konto mit dieser E-Mail. Bitte registrieren.';
-  if (c.includes('wrong-password') || c.includes('invalid-credential')) return 'Falsches Passwort.';
+  if (c.includes('wrong-password')) return 'Falsches Passwort.';
+  // Modern Firebase returns invalid-credential for BOTH a wrong password AND a
+  // non-existent account (email-enumeration protection), so don't claim "wrong password".
+  if (c.includes('invalid-credential')) return 'E-Mail/Benutzername oder Passwort falsch. Falls du hier noch kein Konto hast, bitte zuerst ein neues Konto erstellen.';
   if (c.includes('email-already-in-use')) return 'Diese E-Mail ist schon registriert. Bitte anmelden.';
   if (c.includes('weak-password')) return 'Passwort zu schwach (mindestens 6 Zeichen).';
   if (c.includes('requires-recent-login')) return 'Bitte zur Sicherheit das aktuelle Passwort erneut eingeben.';
