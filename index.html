@@ -3719,6 +3719,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span class="profile-item-label">Importieren</span>
           </button>
+          <button class="profile-item" id="recover-shared-btn" title="Geteilte Alben aus dem Gerätespeicher retten">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.99 6.57 2.57"/><polyline points="21 3 21 8 16 8"/></svg>
+            <span class="profile-item-label">Geteiltes Album retten</span>
+          </button>
         </div>
       </div>
       <button class="btn btn-primary" id="new-song-btn">
@@ -6095,6 +6099,16 @@ const I18N = {
     "Dieser Benutzername ist schon vergeben.": "This username is already taken.",
     "Bitte zuerst E-Mail oder Benutzername eingeben.": "Please enter your email or username first.",
     "Link zum Zurücksetzen an {x} gesendet.": "Reset link sent to {x}.",
+    "Geteiltes Album retten": "Recover shared album",
+    "Geteilte Alben aus dem Gerätespeicher retten": "Recover shared albums from device storage",
+    "Geteiltes Album": "Shared album",
+    "Konnte den Gerätespeicher nicht lesen.": "Couldn't read device storage.",
+    "Kein geteiltes Album gefunden": "No shared album found",
+    "Auf diesem Gerät ist kein geteiltes Album zwischengespeichert. Am besten macht das der Besitzer des Albums auf seinem Gerät — oder wir holen es kurz aus dem alten Firebase.": "There's no shared album cached on this device. The album's owner can do this on their device — or we can briefly fetch it from the old Firebase.",
+    "Geteiltes Album gefunden": "Shared album found",
+    "Als Datei speichern? Danach über Importieren wieder einfügen.": "Save it as a file? Then re-add it via Import.",
+    "Datei erstellt — bitte jetzt Importieren wählen.": "File created — now choose Import.",
+    "Ohne Titel": "Untitled",
     "Bitte zuerst anmelden.": "Please sign in first.",
     "Benutzername geändert: @{x}": "Username changed: @{x}",
     "Einstellungen": "Settings",
@@ -12566,6 +12580,100 @@ document.getElementById('export-btn').addEventListener('click', async () => {
 
 document.getElementById('import-btn').addEventListener('click', () => {
   document.getElementById('import-file').click();
+});
+
+// ---- Recover shared albums from this device's local cache ----
+// After switching Firebase projects, live shared albums no longer load from the
+// (old) cloud. But the app cached their CONTENT locally in the sharedFolders /
+// sharedSongs stores. Scan every LyricsViewerDB* database for that cache, show
+// what's inside, and export it as a normal-library JSON the user can re-import.
+async function scanSharedAlbumCache() {
+  const names = new Set([LEGACY_DB, activeDbName()]);
+  try {
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      (dbs || []).forEach(d => { if (d && d.name && d.name.indexOf(LEGACY_DB) === 0) names.add(d.name); });
+    }
+  } catch (e) {}
+  const albums = {};   // albumId -> { name, songs: {id->song} }
+  for (const name of names) {
+    await new Promise((resolve) => {
+      let req;
+      try { req = indexedDB.open(name); } catch (e) { return resolve(); }
+      req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (_) {} resolve(); };
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const hasF = db.objectStoreNames.contains(SHARED_FOLDER_STORE);
+          const hasS = db.objectStoreNames.contains(SHARED_SONG_STORE);
+          if (!hasF && !hasS) { db.close(); return resolve(); }
+          const stores = [hasF ? SHARED_FOLDER_STORE : null, hasS ? SHARED_SONG_STORE : null].filter(Boolean);
+          const tx = db.transaction(stores, 'readonly');
+          let folders = [], songs = [];
+          if (hasF) { const r = tx.objectStore(SHARED_FOLDER_STORE).getAll(); r.onsuccess = () => { folders = r.result || []; }; }
+          if (hasS) { const r = tx.objectStore(SHARED_SONG_STORE).getAll(); r.onsuccess = () => { songs = r.result || []; }; }
+          tx.oncomplete = () => {
+            folders.forEach(f => { if (f && f.id) { albums[f.id] = albums[f.id] || { name: '', songs: {} }; if (f.name) albums[f.id].name = f.name; } });
+            songs.forEach(s => { if (!s) return; const aid = s.folderId || '__nofolder'; albums[aid] = albums[aid] || { name: '', songs: {} }; albums[aid].songs[s.id] = s; });
+            db.close(); resolve();
+          };
+          tx.onerror = () => { try { db.close(); } catch (_) {} resolve(); };
+        } catch (e) { try { db.close(); } catch (_) {} resolve(); }
+      };
+    });
+  }
+  return Object.keys(albums).map(id => ({
+    id, name: albums[id].name || T('Geteiltes Album'),
+    songs: Object.values(albums[id].songs),
+  })).filter(a => a.songs.length);
+}
+
+async function shareOrDownloadJson(json, filename) {
+  const file = new File([json], filename, { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+document.getElementById('recover-shared-btn').addEventListener('click', async () => {
+  let found;
+  try { found = await scanSharedAlbumCache(); }
+  catch (e) { showToast(T('Konnte den Gerätespeicher nicht lesen.'), 'error'); return; }
+  if (!found.length) {
+    await confirmDialog(T('Kein geteiltes Album gefunden'),
+      T('Auf diesem Gerät ist kein geteiltes Album zwischengespeichert. Am besten macht das der Besitzer des Albums auf seinem Gerät — oder wir holen es kurz aus dem alten Firebase.'));
+    return;
+  }
+  const totalSongs = found.reduce((n, a) => n + a.songs.length, 0);
+  const listText = found.map(a => '• ' + a.name + ' (' + a.songs.length + '):\n   ' +
+    a.songs.map(s => (s.title || T('Ohne Titel')) + (s.artist ? ' – ' + s.artist : '')).join('\n   ')).join('\n\n');
+  const ct = document.getElementById('confirm-text');
+  const prevWs = ct ? ct.style.whiteSpace : '';
+  if (ct) ct.style.whiteSpace = 'pre-wrap';
+  const ok = await confirmDialog(
+    T('Geteiltes Album gefunden') + ' (' + totalSongs + ' Songs)',
+    listText + '\n\n' + T('Als Datei speichern? Danach über Importieren wieder einfügen.'));
+  if (ct) ct.style.whiteSpace = prevWs;
+  if (!ok) return;
+  const songs = [];
+  found.forEach(a => a.songs.forEach(s => songs.push({
+    id: s.id, title: s.title || '', artist: s.artist || '',
+    versions: s.versions || [], activeVersionId: s.activeVersionId || ((s.versions && s.versions[0] && s.versions[0].id) || null),
+    notes: s.notes || '', folderId: a.id, createdAt: s.createdAt || Date.now(),
+    position: (typeof s.position === 'number') ? s.position : (s.createdAt || 0),
+  })));
+  const folders = found.map(a => ({ id: a.id, name: a.name }));
+  const json = JSON.stringify({ version: 4, exportedAt: new Date().toISOString(), songs, setlists: [], folders }, null, 2);
+  await shareOrDownloadJson(json, 'geteiltes-album-' + new Date().toISOString().slice(0, 10) + '.json');
+  showToast(T('Datei erstellt — bitte jetzt Importieren wählen.'), 'success');
 });
 
 // Normalise title+artist for fuzzy duplicate matching (case/space-insensitive)
