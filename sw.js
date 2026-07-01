@@ -7,7 +7,7 @@
 //     immediately on every device instead of one load late.
 //   - Other assets       → CACHE-FIRST with background revalidation (fast + offline).
 
-const CACHE_VERSION = 'v137';
+const CACHE_VERSION = 'v138';
 const CACHE_NAME = `lyrics-app-${CACHE_VERSION}`;
 
 // Files that make up the app shell.
