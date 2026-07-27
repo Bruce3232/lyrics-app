@@ -5263,6 +5263,24 @@ const PAREN_NOTE = /^\(([A-Za-z0-9]{1,12}(?:\s[A-Za-z0-9]{1,12})?)\)$/;
 function isChordToken(t) { return CHORD_TOKEN.test(t); }
 function isChordSep(t) { return CHORD_SEP.test(t); }
 function isParenNote(t) { return PAREN_NOTE.test(t); }
+// A chord can carry directly-attached wrapping punctuation with NO space between,
+// e.g. "(F#m)", "[G]", "|Am|". Strip a leading/trailing run of bracket/pipe
+// punctuation and test whether the CORE is a real chord — so "(F#m) A E B" is still
+// recognised as a chord line even though the parenthesis touches the chord. A short
+// paren note like "(hold)"/"(2x)" has a non-chord core, so it still falls through to
+// isParenNote and is treated as a neutral annotation.
+const CHORD_WRAP_PRE = /^[([{|]+/;
+const CHORD_WRAP_POST = /[)\]}|]+$/;
+function splitWrappedChord(t) {
+  const pre = (t.match(CHORD_WRAP_PRE) || [''])[0];
+  const post = (t.match(CHORD_WRAP_POST) || [''])[0];
+  const core = t.slice(pre.length, t.length - post.length);
+  return { pre, core, post };
+}
+function isWrappedChord(t) {
+  const w = splitWrappedChord(t);
+  return !!(w.pre || w.post) && w.core.length > 0 && CHORD_TOKEN.test(w.core);
+}
 function isChordOrAnno(t) { return CHORD_TOKEN.test(t) || CHORD_ANNO.test(t); }
 
 // Structure-based chord-line detection. A line is a chord line when it contains
@@ -5281,6 +5299,7 @@ function isChordLine(line) {
   let chords = 0, others = 0;
   for (const t of tokens) {
     if (isChordToken(t)) { chords++; continue; }
+    if (isWrappedChord(t)) { chords++; continue; }  // (F#m), [G], |Am| — symbol touching a chord
     if (isChordSep(t) || CHORD_ANNO.test(t) || isParenNote(t)) continue; // neutral
     others++; // a token that is neither a chord nor allowed notation
   }
@@ -5300,6 +5319,7 @@ function looksLikeChordishToken(t) {
   if (CHORD_ANNO.test(t)) return true;       // *, N.C., x4
   if (isParenNote(t)) return true;           // (hold), (2x)
   if (isChordToken(t)) return true;          // strict chord
+  if (isWrappedChord(t)) return true;        // (F#m), [G], |Am|
   // Loose: note letter start, short, no lowercase-word vibe. Reject tokens that
   // are clearly a word (4+ consecutive letters, or contain two+ vowels in a row
   // typical of lyrics). Chords are dense with #/b/digits/slashes.
@@ -5450,7 +5470,16 @@ function renderChordLineHtml(line) {
     const extraGap = gap > 1 ? Math.min(gap - 1, 8) : 0;
     const style = extraGap > 0 ? ` style="margin-left:${extraGap * 0.45}ch;"` : '';
     const tok = m[0];
-    if (CHORD_ANNO.test(tok) || isParenNote(tok)) {
+    if (isWrappedChord(tok)) {
+      // e.g. "(F#m)": render the wrapper punctuation as separators and the chord
+      // CORE as a real chip, so it transposes and gets its chord diagram.
+      const w = splitWrappedChord(tok);
+      out.push(`<span class="chord-tok"${style}>` +
+        (w.pre ? `<span class="chord-sep">${escapeHtml(w.pre)}</span>` : '') +
+        `<span class="chord-chip">${escapeHtml(displayChord(w.core))}</span>` +
+        (w.post ? `<span class="chord-sep">${escapeHtml(w.post)}</span>` : '') +
+        `</span>`);
+    } else if (CHORD_ANNO.test(tok) || isParenNote(tok)) {
       out.push(`<span class="chord-tok chord-anno"${style}>${escapeHtml(tok)}</span>`);
     } else if (isChordSep(tok)) {
       out.push(`<span class="chord-tok chord-sep"${style}>${escapeHtml(tok)}</span>`);
