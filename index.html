@@ -3839,6 +3839,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="13" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
           <span class="ap-text"><span class="ap-label">Setlists</span><span class="ap-sub" id="ap-setlists-sub">Alle Songs</span></span>
         </button>
+        <!-- Shown only while inside a setlist: browse ALL account songs and quick-add to THIS setlist -->
+        <button class="ap-btn" id="ap-add-songs" title="Songs zu dieser Setlist hinzufügen" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          <span class="ap-label">Songs hinzufügen</span>
+        </button>
       </div>
       <div class="ap-group">
         <div class="ap-group-title">Ansicht</div>
@@ -4336,6 +4341,19 @@
     </div>
     <div class="modal-actions">
       <button class="btn" id="setlist-picker-cancel">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Songs To Current Setlist Modal (browse ALL account songs, quick add) -->
+<div class="modal-backdrop" id="add-songs-modal">
+  <div class="modal">
+    <h3 id="add-songs-title">Songs hinzufügen</h3>
+    <p style="color:var(--text-1); margin-bottom:12px;">Tippe einen Song an, um ihn zur Setlist hinzuzufügen oder zu entfernen.</p>
+    <input class="field-input" id="add-songs-search" placeholder="Songs suchen..." style="width:100%; margin-bottom:12px;">
+    <div id="add-songs-list" style="display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; margin-bottom:16px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="add-songs-close">Fertig</button>
     </div>
   </div>
 </div>
@@ -6137,6 +6155,12 @@ const I18N = {
     "Geteiltes Album gefunden": "Shared album found",
     "Als Datei speichern? Danach über Importieren wieder einfügen.": "Save it as a file? Then re-add it via Import.",
     "Datei erstellt — bitte jetzt Importieren wählen.": "File created — now choose Import.",
+    "Songs hinzufügen": "Add songs",
+    "Songs zu dieser Setlist hinzufügen": "Add songs to this setlist",
+    "Tippe einen Song an, um ihn zur Setlist hinzuzufügen oder zu entfernen.": "Tap a song to add or remove it from the setlist.",
+    "Songs suchen...": "Search songs...",
+    "Bitte zuerst eine Setlist öffnen.": "Please open a setlist first.",
+    "Keine Songs gefunden": "No songs found",
     "Ohne Titel": "Untitled",
     "Bitte zuerst anmelden.": "Please sign in first.",
     "Benutzername geändert: @{x}": "Username changed: @{x}",
@@ -6643,7 +6667,10 @@ function getFilteredSongs() {
   if (state.currentSetlistId) {
     const setlist = state.setlists.find(s => s.id === state.currentSetlistId);
     if (setlist) {
-      const songMap = new Map(folderSongs.map(s => [s.id, s]));
+      // A setlist can hand-pick songs from ANY album, so resolve its ids against ALL
+      // songs (not just the current folder). Otherwise cross-album picks would vanish
+      // from the view and a reorder would silently drop them from songIds.
+      const songMap = new Map(state.songs.map(s => [s.id, s]));
       result = (setlist.songIds || []).map(id => songMap.get(id)).filter(Boolean);
       // Keep the setlist's own order in 'custom'; artist/title sort the setlist view
       // too (non-destructive — songIds is never rewritten, so 'custom' restores it).
@@ -7477,6 +7504,8 @@ function updateActionPanelState() {
   setActive('sort-artist', filterState.sort === 'artist');
   setActive('sort-title', filterState.sort === 'title');
   const show = (id, cond) => { const el = document.getElementById(id); if (el) el.style.display = cond ? '' : 'none'; };
+  // "Songs hinzufügen": browse all account songs → quick-add to the setlist you're in.
+  show('ap-add-songs', inSetlist && !selecting);
   // Selection group: until selection mode is on (via the "Auswählen" button or a
   // long-press) ONLY that button shows; then it's replaced by Cancel + the actions.
   show('ap-select-mode', !selecting);
@@ -7513,6 +7542,7 @@ function apRunSelection(runBtnId, needsOne) {
   // Library: album + setlist popovers
   on('ap-albums', () => toggleApPopover('ap-albums', 'pop-albums', renderAlbumsPopover));
   on('ap-setlists', () => toggleApPopover('ap-setlists', 'pop-setlists', renderSetlistBar));
+  on('ap-add-songs', () => { closeAllApPopovers(); if (typeof openAddSongsToSetlist === 'function') openAddSongsToSetlist(); });
   on('ap-albums-manage', () => { closeAllApPopovers(); openFolderModal(); });
   // View: search / filter / sort popovers
   on('ap-search', () => {
@@ -7638,6 +7668,66 @@ function openSetlistPicker(songIds) {
   document.getElementById('setlist-picker-cancel').onclick = () => modal.classList.remove('show');
 
   modal.classList.add('show');
+}
+
+// Browse ALL account songs and quick-add them to the setlist you're currently in.
+// (The reverse of openSetlistPicker: here the setlist is fixed and you pick songs.)
+function openAddSongsToSetlist() {
+  const sl = state.setlists.find(s => s.id === state.currentSetlistId);
+  if (!sl) { showToast(T('Bitte zuerst eine Setlist öffnen.'), 'error'); return; }
+  const modal = document.getElementById('add-songs-modal');
+  const listEl = document.getElementById('add-songs-list');
+  const searchEl = document.getElementById('add-songs-search');
+  const titleEl = document.getElementById('add-songs-title');
+  if (titleEl) titleEl.textContent = T('Songs hinzufügen') + (sl.name ? ' — ' + sl.name : '');
+  // A shared-album setlist may only hold that album's shared songs (so it still syncs
+  // to the other members). A private setlist can pull from ALL private songs.
+  const candidates = sl.shared
+    ? state.songs.filter(s => effectiveFolderId(s) === sl.folderId)
+    : state.songs.filter(s => !(typeof sharedSongIds !== 'undefined' && sharedSongIds.has(s.id)));
+  const folderName = (id) => {
+    if (!id || id === MAIN_FOLDER_ID) return T('Hauptbibliothek');
+    const f = state.folders.find(x => x.id === id);
+    return f ? (f.name || '') : '';
+  };
+  const render = () => {
+    const q = (searchEl.value || '').trim().toLowerCase();
+    const inSet = new Set(sl.songIds || []);
+    let rows = candidates.slice();
+    if (q) rows = rows.filter(s => (s.title || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q));
+    rows.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }));
+    if (!rows.length) {
+      listEl.innerHTML = `<p style="color:var(--text-2); padding:8px;">${escapeHtml(T('Keine Songs gefunden'))}</p>`;
+      return;
+    }
+    listEl.innerHTML = rows.map(s => {
+      const added = inSet.has(s.id);
+      const sub = [s.artist || '', folderName(effectiveFolderId(s))].filter(Boolean).join(' · ');
+      return `<div class="setlist-picker-item ${added ? 'contains-all' : ''}" data-id="${escapeHtml(s.id)}">
+          <div class="name">${escapeHtml(s.title || T('Ohne Titel'))}<div style="font-weight:400; font-size:12px; color:var(--text-2); margin-top:2px;">${escapeHtml(sub)}</div></div>
+          <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>`;
+    }).join('');
+    listEl.querySelectorAll('.setlist-picker-item').forEach(el => {
+      el.onclick = async () => {
+        const id = el.dataset.id;
+        sl.songIds = sl.songIds || [];
+        const idx = sl.songIds.indexOf(id);
+        if (idx >= 0) { sl.songIds.splice(idx, 1); el.classList.remove('contains-all'); }
+        else { sl.songIds.push(id); el.classList.add('contains-all'); }
+        sl.updatedAt = Date.now();
+        await setlistPut(sl);
+        if (typeof renderSongList === 'function') renderSongList();  // reflect in the setlist view behind the modal
+        if (typeof updateActionPanelState === 'function') updateActionPanelState();
+      };
+    });
+  };
+  searchEl.value = '';
+  searchEl.oninput = render;
+  render();
+  modal.classList.add('show');
+  document.getElementById('add-songs-close').onclick = () => modal.classList.remove('show');
+  setTimeout(() => { try { searchEl.focus(); } catch (e) {} }, 60);
 }
 
 // =====================================================
