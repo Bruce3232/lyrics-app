@@ -4350,8 +4350,25 @@
   <div class="modal">
     <h3 id="add-songs-title">Songs hinzufügen</h3>
     <p style="color:var(--text-1); margin-bottom:12px;">Tippe einen Song an, um ihn zur Setlist hinzuzufügen oder zu entfernen.</p>
+    <div id="add-songs-album-row" style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+      <label style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
+        <span style="font-size:12px; color:var(--text-2);">Aus Album</span>
+        <select class="field-input" id="add-songs-album"></select>
+      </label>
+      <label style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
+        <span style="font-size:12px; color:var(--text-2);">Sortieren</span>
+        <select class="field-input" id="add-songs-sort">
+          <option value="title">Titel A-Z</option>
+          <option value="artist">Künstler</option>
+        </select>
+      </label>
+    </div>
+    <label id="add-songs-artist-row" style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
+      <span style="font-size:12px; color:var(--text-2);">Künstler</span>
+      <select class="field-input" id="add-songs-artist"></select>
+    </label>
     <input class="field-input" id="add-songs-search" placeholder="Songs suchen..." style="width:100%; margin-bottom:12px;">
-    <div id="add-songs-list" style="display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; margin-bottom:16px;"></div>
+    <div id="add-songs-list" style="display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; margin-bottom:16px;"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="add-songs-close">Fertig</button>
     </div>
@@ -6161,6 +6178,9 @@ const I18N = {
     "Songs suchen...": "Search songs...",
     "Bitte zuerst eine Setlist öffnen.": "Please open a setlist first.",
     "Keine Songs gefunden": "No songs found",
+    "Aus Album": "From album",
+    "Titel A-Z": "Title A-Z",
+    "Alle Alben": "All albums",
     "Ohne Titel": "Untitled",
     "Bitte zuerst anmelden.": "Please sign in first.",
     "Benutzername geändert: @{x}": "Username changed: @{x}",
@@ -7672,6 +7692,8 @@ function openSetlistPicker(songIds) {
 
 // Browse ALL account songs and quick-add them to the setlist you're currently in.
 // (The reverse of openSetlistPicker: here the setlist is fixed and you pick songs.)
+// Lets you aim precisely: pick the source album, filter by artist, sort by title or
+// artist, and search — then tap songs to add/remove them.
 function openAddSongsToSetlist() {
   const sl = state.setlists.find(s => s.id === state.currentSetlistId);
   if (!sl) { showToast(T('Bitte zuerst eine Setlist öffnen.'), 'error'); return; }
@@ -7679,10 +7701,14 @@ function openAddSongsToSetlist() {
   const listEl = document.getElementById('add-songs-list');
   const searchEl = document.getElementById('add-songs-search');
   const titleEl = document.getElementById('add-songs-title');
+  const albumEl = document.getElementById('add-songs-album');
+  const albumRow = document.getElementById('add-songs-album-row');
+  const sortEl = document.getElementById('add-songs-sort');
+  const artistEl = document.getElementById('add-songs-artist');
   if (titleEl) titleEl.textContent = T('Songs hinzufügen') + (sl.name ? ' — ' + sl.name : '');
   // A shared-album setlist may only hold that album's shared songs (so it still syncs
   // to the other members). A private setlist can pull from ALL private songs.
-  const candidates = sl.shared
+  const basePool = sl.shared
     ? state.songs.filter(s => effectiveFolderId(s) === sl.folderId)
     : state.songs.filter(s => !(typeof sharedSongIds !== 'undefined' && sharedSongIds.has(s.id)));
   const folderName = (id) => {
@@ -7690,12 +7716,44 @@ function openAddSongsToSetlist() {
     const f = state.folders.find(x => x.id === id);
     return f ? (f.name || '') : '';
   };
+  // Album source selector: hidden for a shared setlist (source is fixed to its album).
+  if (sl.shared) {
+    if (albumRow) albumRow.style.display = 'none';
+  } else if (albumEl) {
+    if (albumRow) albumRow.style.display = '';
+    const albumIds = [...new Set(basePool.map(s => effectiveFolderId(s)))]
+      .sort((a, b) => folderName(a).localeCompare(folderName(b), 'de', { sensitivity: 'base' }));
+    albumEl.innerHTML = `<option value="__all__">${escapeHtml(T('Alle Alben'))}</option>` +
+      albumIds.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(folderName(id))}</option>`).join('');
+    albumEl.value = '__all__';
+  }
+  // Songs matching the current album source (before artist/search).
+  const poolForAlbum = () => {
+    const alb = (sl.shared || !albumEl) ? '__all__' : albumEl.value;
+    return (alb && alb !== '__all__') ? basePool.filter(s => effectiveFolderId(s) === alb) : basePool.slice();
+  };
+  // Artist filter is rebuilt from whatever album is chosen (so it lists that album's
+  // singers). It resets to "all" when the album changes or the dialog reopens, so a
+  // stale singer filter can't silently hide songs.
+  const rebuildArtistOptions = (reset) => {
+    if (!artistEl) return;
+    const artists = [...new Set(poolForAlbum().map(s => (s.artist || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base' }));
+    const cur = reset ? '__all__' : artistEl.value;
+    artistEl.innerHTML = `<option value="__all__">${escapeHtml(T('Alle Künstler'))}</option>` +
+      artists.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    artistEl.value = artists.includes(cur) ? cur : '__all__';
+  };
   const render = () => {
-    const q = (searchEl.value || '').trim().toLowerCase();
     const inSet = new Set(sl.songIds || []);
-    let rows = candidates.slice();
+    let rows = poolForAlbum();
+    const artist = artistEl ? artistEl.value : '__all__';
+    if (artist && artist !== '__all__') rows = rows.filter(s => (s.artist || '').trim() === artist);
+    const q = (searchEl.value || '').trim().toLowerCase();
     if (q) rows = rows.filter(s => (s.title || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q));
-    rows.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' }));
+    const byTitle = (a, b) => (a.title || '').localeCompare(b.title || '', 'de', { sensitivity: 'base' });
+    const byArtist = (a, b) => (a.artist || '').localeCompare(b.artist || '', 'de', { sensitivity: 'base' }) || byTitle(a, b);
+    rows.sort((sortEl && sortEl.value === 'artist') ? byArtist : byTitle);
     if (!rows.length) {
       listEl.innerHTML = `<p style="color:var(--text-2); padding:8px;">${escapeHtml(T('Keine Songs gefunden'))}</p>`;
       return;
@@ -7722,7 +7780,13 @@ function openAddSongsToSetlist() {
       };
     });
   };
+  // reset the controls each open, then wire changes
+  if (sortEl) sortEl.value = 'title';
   searchEl.value = '';
+  rebuildArtistOptions(true);
+  if (albumEl) albumEl.onchange = () => { rebuildArtistOptions(true); render(); };
+  if (sortEl) sortEl.onchange = render;
+  if (artistEl) artistEl.onchange = render;
   searchEl.oninput = render;
   render();
   modal.classList.add('show');
