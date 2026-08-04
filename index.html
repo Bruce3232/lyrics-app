@@ -3844,6 +3844,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
           <span class="ap-label">Songs hinzufügen</span>
         </button>
+        <!-- Shown only in a LIBRARY view (not a setlist): delete duplicate songs (same title+artist) in THIS library only -->
+        <button class="ap-btn" id="ap-dedupe" title="Duplikate in dieser Bibliothek löschen" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <span class="ap-label">Duplikate</span>
+        </button>
       </div>
       <div class="ap-group">
         <div class="ap-group-title">Ansicht</div>
@@ -6181,6 +6186,13 @@ const I18N = {
     "Aus Album": "From album",
     "Titel A-Z": "Title A-Z",
     "Alle Alben": "All albums",
+    "Duplikate": "Duplicates",
+    "Duplikate in dieser Bibliothek löschen": "Delete duplicates in this library",
+    "Keine Duplikate gefunden": "No duplicates found",
+    "Duplikate löschen?": "Delete duplicates?",
+    "In dieser Bibliothek wurden {n} doppelte Songs gefunden (gleicher Titel + Künstler). Sie werden gelöscht — ein Exemplar pro Song bleibt erhalten.": "Found {n} duplicate songs in this library (same title + artist). They'll be deleted — one copy of each is kept.",
+    "In diesem geteilten Album wurden {n} doppelte Songs gefunden. Sie werden für ALLE Mitglieder gelöscht — ein Exemplar pro Song bleibt erhalten.": "Found {n} duplicate songs in this shared album. They'll be deleted for ALL members — one copy of each is kept.",
+    "{n} Duplikate gelöscht": "{n} duplicates deleted",
     "Ohne Titel": "Untitled",
     "Bitte zuerst anmelden.": "Please sign in first.",
     "Benutzername geändert: @{x}": "Username changed: @{x}",
@@ -7526,6 +7538,8 @@ function updateActionPanelState() {
   const show = (id, cond) => { const el = document.getElementById(id); if (el) el.style.display = cond ? '' : 'none'; };
   // "Songs hinzufügen": browse all account songs → quick-add to the setlist you're in.
   show('ap-add-songs', inSetlist && !selecting);
+  // "Duplikate": only in a library view (not a setlist) — delete same-title+artist copies in THIS library.
+  show('ap-dedupe', !inSetlist && !selecting);
   // Selection group: until selection mode is on (via the "Auswählen" button or a
   // long-press) ONLY that button shows; then it's replaced by Cancel + the actions.
   show('ap-select-mode', !selecting);
@@ -7563,6 +7577,7 @@ function apRunSelection(runBtnId, needsOne) {
   on('ap-albums', () => toggleApPopover('ap-albums', 'pop-albums', renderAlbumsPopover));
   on('ap-setlists', () => toggleApPopover('ap-setlists', 'pop-setlists', renderSetlistBar));
   on('ap-add-songs', () => { closeAllApPopovers(); if (typeof openAddSongsToSetlist === 'function') openAddSongsToSetlist(); });
+  on('ap-dedupe', () => { closeAllApPopovers(); if (typeof dedupeCurrentLibrary === 'function') dedupeCurrentLibrary(); });
   on('ap-albums-manage', () => { closeAllApPopovers(); openFolderModal(); });
   // View: search / filter / sort popovers
   on('ap-search', () => {
@@ -7792,6 +7807,47 @@ function openAddSongsToSetlist() {
   modal.classList.add('show');
   document.getElementById('add-songs-close').onclick = () => modal.classList.remove('show');
   setTimeout(() => { try { searchEl.focus(); } catch (e) {} }, 60);
+}
+
+// Delete duplicate songs (same title + artist, case/space-insensitive) within the
+// CURRENT library ONLY — never touches any other album. Keeps the oldest copy of
+// each; cleans the deleted copies out of any setlists too.
+async function dedupeCurrentLibrary() {
+  if (state.currentSetlistId) return;   // only from a library view, not inside a setlist
+  const songs = songsInCurrentFolder();
+  const groups = new Map();
+  for (const s of songs) {
+    const key = songMatchKey(s);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+  const toDelete = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    // keep the OLDEST (the original), delete the newer copies
+    const sorted = group.slice().sort((a, b) =>
+      ((a.createdAt || 0) - (b.createdAt || 0)) ||
+      (((typeof a.position === 'number') ? a.position : 0) - ((typeof b.position === 'number') ? b.position : 0)));
+    for (let i = 1; i < sorted.length; i++) toDelete.push(sorted[i]);
+  }
+  if (!toDelete.length) { showToast(T('Keine Duplikate gefunden'), 'success'); return; }
+  const n = toDelete.length;
+  const anyShared = toDelete.some(s => (typeof sharedSongIds !== 'undefined' && sharedSongIds.has(s.id)));
+  const body = anyShared
+    ? T('In diesem geteilten Album wurden {n} doppelte Songs gefunden. Sie werden für ALLE Mitglieder gelöscht — ein Exemplar pro Song bleibt erhalten.').replace('{n}', String(n))
+    : T('In dieser Bibliothek wurden {n} doppelte Songs gefunden (gleicher Titel + Künstler). Sie werden gelöscht — ein Exemplar pro Song bleibt erhalten.').replace('{n}', String(n));
+  const ok = await confirmDialog(T('Duplikate löschen?'), body);
+  if (!ok) return;
+  const idSet = new Set(toDelete.map(s => s.id));
+  for (const s of toDelete) { try { await dbDelete(s.id); } catch (e) {} }
+  // clean the removed copies out of any setlists that referenced them
+  for (const sl of state.setlists) {
+    const before = (sl.songIds || []).length;
+    sl.songIds = (sl.songIds || []).filter(sid => !idSet.has(sid));
+    if (sl.songIds.length !== before) { sl.updatedAt = Date.now(); await setlistPut(sl); }
+  }
+  showToast(T('{n} Duplikate gelöscht').replace('{n}', String(n)), 'success');
+  await renderLibrary();
 }
 
 // =====================================================
