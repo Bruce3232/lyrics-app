@@ -6712,6 +6712,19 @@ function getFilteredSongs() {
     }
   } else {
     result = [...folderSongs];
+    // A song added to a setlist in THIS library must also show in "Alle Songs",
+    // even if the song itself lives in another album. Union in any setlist-referenced
+    // songs that aren't already here (non-destructive — the song keeps its home album).
+    const have = new Set(result.map(s => s.id));
+    let gmap = null;
+    for (const sl of setlistsInCurrentFolder()) {
+      for (const id of (sl.songIds || [])) {
+        if (have.has(id)) continue;
+        if (!gmap) gmap = new Map(state.songs.map(s => [s.id, s]));
+        const s = gmap.get(id);
+        if (s) { result.push(s); have.add(id); }
+      }
+    }
   }
 
   const q = filterState.search.trim().toLowerCase();
