@@ -5137,6 +5137,58 @@ function effectiveFolderId(item) {
   return (item && item.folderId) ? item.folderId : MAIN_FOLDER_ID;
 }
 
+// A SONG can belong to MULTIPLE albums: its primary home (folderId) plus any extra
+// album ids in folderIds[]. (Setlists still belong to exactly one folder — this is
+// for songs only.) Backward-compatible: songs without folderIds behave exactly as
+// before (single album). NOTE: only PRIVATE albums go in folderIds — shared-album
+// membership stays single via folderId so the shared-sync routing is unambiguous.
+function songFolderIds(s) {
+  const ids = [effectiveFolderId(s)];
+  if (s && Array.isArray(s.folderIds)) {
+    for (const id of s.folderIds) if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+function isSongInFolder(s, fid) {
+  return songFolderIds(s).includes(fid);
+}
+function folderNameById(id) {
+  if (!id || id === MAIN_FOLDER_ID) return T('Hauptbibliothek');
+  const f = (state.folders || []).find(x => x.id === id);
+  return f ? (f.name || '') : '';
+}
+// Real album names a song belongs to (excludes the "Hauptbibliothek" default bucket).
+function songAlbumNames(s) {
+  return songFolderIds(s)
+    .filter(id => id && id !== MAIN_FOLDER_ID)
+    .map(folderNameById)
+    .filter(Boolean);
+}
+// Add a private-album membership. An unfiled song (home = main, no extras) simply
+// gets this album as its home; a song that already has a real album home keeps it and
+// gains an extra membership.
+function addSongToAlbum(s, fid) {
+  if (!fid || fid === MAIN_FOLDER_ID || isSongInFolder(s, fid)) return;
+  const homeIsMain = effectiveFolderId(s) === MAIN_FOLDER_ID;
+  const noExtras = !Array.isArray(s.folderIds) || s.folderIds.length === 0;
+  if (homeIsMain && noExtras) {
+    s.folderId = fid;
+  } else {
+    s.folderIds = Array.isArray(s.folderIds) ? s.folderIds : [];
+    if (!s.folderIds.includes(fid)) s.folderIds.push(fid);
+  }
+}
+// Remove an album membership. If it was an extra, just drop it. If it was the home,
+// promote another membership to home, or fall back to the main library.
+function removeSongFromAlbum(s, fid) {
+  if (Array.isArray(s.folderIds)) s.folderIds = s.folderIds.filter(x => x !== fid);
+  if (effectiveFolderId(s) === fid) {
+    if (s.folderIds && s.folderIds.length) s.folderId = s.folderIds.shift();
+    else s.folderId = undefined;   // undefined => main library
+  }
+  if (Array.isArray(s.folderIds) && s.folderIds.length === 0) delete s.folderIds;
+}
+
 async function dbGet(id) {
   // Shared-album songs live in their own store.
   if (sharedSongIds.has(id) && typeof sharedStoreGet === 'function') return sharedStoreGet(id);
@@ -6201,6 +6253,7 @@ const I18N = {
     "Datei erstellt — bitte jetzt Importieren wählen.": "File created — now choose Import.",
     "Songs hinzufügen": "Add songs",
     "Songs zu dieser Setlist hinzufügen": "Add songs to this setlist",
+    "Songs zu diesem Album hinzufügen": "Add songs to this album",
     "Tippe einen Song an, um ihn zur Setlist hinzuzufügen oder zu entfernen.": "Tap a song to add or remove it from the setlist.",
     "Songs suchen...": "Search songs...",
     "Bitte zuerst eine Setlist öffnen.": "Please open a setlist first.",
@@ -6705,7 +6758,7 @@ async function loadSongs() {
 
 // Songs / setlists that belong to the currently-shown folder.
 function songsInCurrentFolder() {
-  return state.songs.filter(s => effectiveFolderId(s) === state.currentFolderId);
+  return state.songs.filter(s => isSongInFolder(s, state.currentFolderId));
 }
 function setlistsInCurrentFolder() {
   return state.setlists.filter(sl => effectiveFolderId(sl) === state.currentFolderId);
@@ -7571,8 +7624,14 @@ function updateActionPanelState() {
   setActive('sort-artist', filterState.sort === 'artist');
   setActive('sort-title', filterState.sort === 'title');
   const show = (id, cond) => { const el = document.getElementById(id); if (el) el.style.display = cond ? '' : 'none'; };
-  // "Songs hinzufügen": browse all account songs → quick-add to the setlist you're in.
-  show('ap-add-songs', inSetlist && !selecting);
+  // "Songs hinzufügen": in a setlist → add to the setlist; in a real ALBUM view → add
+  // to THIS album (multi-album membership). Hidden in the main library (can't "add to
+  // main") and inside a shared album (not supported).
+  const inSharedFolder = (typeof isSharedAlbumId === 'function') && isSharedAlbumId(state.currentFolderId);
+  const inRealAlbum = state.currentFolderId && state.currentFolderId !== MAIN_FOLDER_ID && !inSharedFolder;
+  show('ap-add-songs', !selecting && (inSetlist || inRealAlbum));
+  const addBtn = document.getElementById('ap-add-songs');
+  if (addBtn) addBtn.title = inSetlist ? T('Songs zu dieser Setlist hinzufügen') : T('Songs zu diesem Album hinzufügen');
   // "Duplikate": only in a library view (not a setlist) — delete same-title+artist copies in THIS library.
   show('ap-dedupe', !inSetlist && !selecting);
   // Selection group: until selection mode is on (via the "Auswählen" button or a
@@ -7611,7 +7670,7 @@ function apRunSelection(runBtnId, needsOne) {
   // Library: album + setlist popovers
   on('ap-albums', () => toggleApPopover('ap-albums', 'pop-albums', renderAlbumsPopover));
   on('ap-setlists', () => toggleApPopover('ap-setlists', 'pop-setlists', renderSetlistBar));
-  on('ap-add-songs', () => { closeAllApPopovers(); if (typeof openAddSongsToSetlist === 'function') openAddSongsToSetlist(); });
+  on('ap-add-songs', () => { closeAllApPopovers(); if (typeof openAddSongs === 'function') openAddSongs(); });
   on('ap-dedupe', () => { closeAllApPopovers(); if (typeof dedupeCurrentLibrary === 'function') dedupeCurrentLibrary(); });
   on('ap-albums-manage', () => { closeAllApPopovers(); openFolderModal(); });
   // View: search / filter / sort popovers
@@ -7744,9 +7803,12 @@ function openSetlistPicker(songIds) {
 // (The reverse of openSetlistPicker: here the setlist is fixed and you pick songs.)
 // Lets you aim precisely: pick the source album, filter by artist, sort by title or
 // artist, and search — then tap songs to add/remove them.
-function openAddSongsToSetlist() {
-  const sl = state.setlists.find(s => s.id === state.currentSetlistId);
-  if (!sl) { showToast(T('Bitte zuerst eine Setlist öffnen.'), 'error'); return; }
+function openAddSongs() {
+  const inSetlist = state.currentSetlistId !== null;
+  const sl = inSetlist ? state.setlists.find(s => s.id === state.currentSetlistId) : null;
+  if (inSetlist && !sl) { showToast(T('Bitte zuerst eine Setlist öffnen.'), 'error'); return; }
+  const targetFolderId = state.currentFolderId;
+  const targetName = inSetlist ? (sl.name || '') : folderNameById(targetFolderId);
   const modal = document.getElementById('add-songs-modal');
   const listEl = document.getElementById('add-songs-list');
   const searchEl = document.getElementById('add-songs-search');
@@ -7755,36 +7817,60 @@ function openAddSongsToSetlist() {
   const albumRow = document.getElementById('add-songs-album-row');
   const sortEl = document.getElementById('add-songs-sort');
   const artistEl = document.getElementById('add-songs-artist');
-  if (titleEl) titleEl.textContent = T('Songs hinzufügen') + (sl.name ? ' — ' + sl.name : '');
-  // A shared-album setlist may only hold that album's shared songs (so it still syncs
-  // to the other members). A private setlist can pull from ALL private songs.
-  const basePool = sl.shared
-    ? state.songs.filter(s => effectiveFolderId(s) === sl.folderId)
-    : state.songs.filter(s => !(typeof sharedSongIds !== 'undefined' && sharedSongIds.has(s.id)));
-  const folderName = (id) => {
-    if (!id || id === MAIN_FOLDER_ID) return T('Hauptbibliothek');
-    const f = state.folders.find(x => x.id === id);
-    return f ? (f.name || '') : '';
+  if (titleEl) titleEl.textContent = T('Songs hinzufügen') + (targetName ? ' — ' + targetName : '');
+  const privateOnly = (s) => !(typeof sharedSongIds !== 'undefined' && sharedSongIds.has(s.id));
+  // Candidate pool. A shared-album SETLIST may only hold that album's shared songs
+  // (so it still syncs to members). Everything else pulls from all PRIVATE songs.
+  const sharedSetlist = inSetlist && sl.shared;
+  const basePool = sharedSetlist
+    ? state.songs.filter(s => isSongInFolder(s, sl.folderId))
+    : state.songs.filter(privateOnly);
+  // Is a song already in the target (setlist songIds, or this album's membership)?
+  const isInTarget = inSetlist
+    ? (s) => (sl.songIds || []).includes(s.id)
+    : (s) => isSongInFolder(s, targetFolderId);
+  // Sub-line: artist + the ALBUMS the song is already used in (so you can see, before
+  // adding, what you already use elsewhere).
+  const subFor = (s) => {
+    const albums = songAlbumNames(s);
+    const albumsPart = albums.length ? (T('Alben') + ': ' + albums.join(', ')) : '';
+    return [s.artist || '', albumsPart].filter(Boolean).join('  ·  ');
   };
-  // Album source selector: hidden for a shared setlist (source is fixed to its album).
-  if (sl.shared) {
+  async function toggleSong(s, el) {
+    if (inSetlist) {
+      sl.songIds = sl.songIds || [];
+      const idx = sl.songIds.indexOf(s.id);
+      if (idx >= 0) sl.songIds.splice(idx, 1); else sl.songIds.push(s.id);
+      sl.updatedAt = Date.now();
+      await setlistPut(sl);
+    } else {
+      if (isSongInFolder(s, targetFolderId)) removeSongFromAlbum(s, targetFolderId);
+      else addSongToAlbum(s, targetFolderId);
+      s.updatedAt = Date.now();
+      await dbPut(s);
+    }
+    el.classList.toggle('contains-all', isInTarget(s));
+    const subEl = el.querySelector('.add-songs-sub');
+    if (subEl) subEl.textContent = subFor(s);   // album memberships may have changed
+    if (typeof renderSongList === 'function') renderSongList();
+    if (typeof updateActionPanelState === 'function') updateActionPanelState();
+  }
+  // Album SOURCE selector (browse from a specific album). Hidden only for a shared
+  // setlist (its source album is fixed).
+  if (sharedSetlist) {
     if (albumRow) albumRow.style.display = 'none';
   } else if (albumEl) {
     if (albumRow) albumRow.style.display = '';
-    const albumIds = [...new Set(basePool.map(s => effectiveFolderId(s)))]
-      .sort((a, b) => folderName(a).localeCompare(folderName(b), 'de', { sensitivity: 'base' }));
+    const albumIds = [...new Set(basePool.flatMap(s => songFolderIds(s)))]
+      .sort((a, b) => folderNameById(a).localeCompare(folderNameById(b), 'de', { sensitivity: 'base' }));
     albumEl.innerHTML = `<option value="__all__">${escapeHtml(T('Alle Alben'))}</option>` +
-      albumIds.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(folderName(id))}</option>`).join('');
+      albumIds.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(folderNameById(id))}</option>`).join('');
     albumEl.value = '__all__';
   }
-  // Songs matching the current album source (before artist/search).
   const poolForAlbum = () => {
-    const alb = (sl.shared || !albumEl) ? '__all__' : albumEl.value;
-    return (alb && alb !== '__all__') ? basePool.filter(s => effectiveFolderId(s) === alb) : basePool.slice();
+    const alb = (sharedSetlist || !albumEl) ? '__all__' : albumEl.value;
+    return (alb && alb !== '__all__') ? basePool.filter(s => isSongInFolder(s, alb)) : basePool.slice();
   };
-  // Artist filter is rebuilt from whatever album is chosen (so it lists that album's
-  // singers). It resets to "all" when the album changes or the dialog reopens, so a
-  // stale singer filter can't silently hide songs.
   const rebuildArtistOptions = (reset) => {
     if (!artistEl) return;
     const artists = [...new Set(poolForAlbum().map(s => (s.artist || '').trim()).filter(Boolean))]
@@ -7795,7 +7881,6 @@ function openAddSongsToSetlist() {
     artistEl.value = artists.includes(cur) ? cur : '__all__';
   };
   const render = () => {
-    const inSet = new Set(sl.songIds || []);
     let rows = poolForAlbum();
     const artist = artistEl ? artistEl.value : '__all__';
     if (artist && artist !== '__all__') rows = rows.filter(s => (s.artist || '').trim() === artist);
@@ -7809,25 +7894,14 @@ function openAddSongsToSetlist() {
       return;
     }
     listEl.innerHTML = rows.map(s => {
-      const added = inSet.has(s.id);
-      const sub = [s.artist || '', folderName(effectiveFolderId(s))].filter(Boolean).join(' · ');
+      const added = isInTarget(s);
       return `<div class="setlist-picker-item ${added ? 'contains-all' : ''}" data-id="${escapeHtml(s.id)}">
-          <div class="name">${escapeHtml(s.title || T('Ohne Titel'))}<div style="font-weight:400; font-size:12px; color:var(--text-2); margin-top:2px;">${escapeHtml(sub)}</div></div>
+          <div class="name">${escapeHtml(s.title || T('Ohne Titel'))}<div class="add-songs-sub" style="font-weight:400; font-size:12px; color:var(--text-2); margin-top:2px;">${escapeHtml(subFor(s))}</div></div>
           <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         </div>`;
     }).join('');
     listEl.querySelectorAll('.setlist-picker-item').forEach(el => {
-      el.onclick = async () => {
-        const id = el.dataset.id;
-        sl.songIds = sl.songIds || [];
-        const idx = sl.songIds.indexOf(id);
-        if (idx >= 0) { sl.songIds.splice(idx, 1); el.classList.remove('contains-all'); }
-        else { sl.songIds.push(id); el.classList.add('contains-all'); }
-        sl.updatedAt = Date.now();
-        await setlistPut(sl);
-        if (typeof renderSongList === 'function') renderSongList();  // reflect in the setlist view behind the modal
-        if (typeof updateActionPanelState === 'function') updateActionPanelState();
-      };
+      el.onclick = () => { const s = state.songs.find(x => x.id === el.dataset.id); if (s) toggleSong(s, el); };
     });
   };
   // reset the controls each open, then wire changes
@@ -7843,6 +7917,8 @@ function openAddSongsToSetlist() {
   document.getElementById('add-songs-close').onclick = () => modal.classList.remove('show');
   setTimeout(() => { try { searchEl.focus(); } catch (e) {} }, 60);
 }
+// Back-compat alias (older callers).
+function openAddSongsToSetlist() { return openAddSongs(); }
 
 // Delete duplicate songs (same title + artist, case/space-insensitive) within the
 // CURRENT library ONLY — never touches any other album. Keeps the oldest copy of
