@@ -956,6 +956,28 @@
     .song-row-actions { opacity: 1; }
   }
 
+  /* Tablet range incl. iPad (portrait AND landscape). The fixed 220px artist + 100px
+     meta columns squeezed the flexible title, so long song names got cut off with an
+     ellipsis. Give the TITLE priority here: hide the line-count meta, shrink the
+     artist column, and let the title WRAP onto a second line so it's always fully
+     readable. The artist stays visible (smaller, one line). */
+  @media (min-width: 701px) and (max-width: 1280px) {
+    .song-row {
+      grid-template-columns: 36px 1fr minmax(0, 150px) auto;
+      gap: 12px;
+    }
+    .song-row-meta { display: none; }
+    .song-row-title {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      line-height: 1.25;
+    }
+    .song-list.selecting .song-row {
+      grid-template-columns: 30px 1fr minmax(0, 150px);
+    }
+  }
+
   .empty-state {
     text-align: center;
     padding: 80px 20px;
