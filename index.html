@@ -837,6 +837,16 @@
   .setlist-picker-item.contains-all .check { display: flex; }
   .setlist-picker-item.contains-all { border-color: var(--accent); background: rgba(255,140,26,0.08); }
 
+  /* Compact Add-Songs modal */
+  .add-songs-modal { max-width: 560px; }
+  .add-songs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .add-songs-head h3 { margin: 0; font-size: 17px; }
+  .add-songs-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .add-songs-ctrl { flex: 1 1 46%; min-width: 130px; padding: 8px 10px; font-size: 13px; }
+  #add-songs-list { display: flex; flex-direction: column; gap: 5px; max-height: 46vh; overflow-y: auto; }
+  /* ⭐ "already used elsewhere" marker */
+  .ref-star { color: var(--accent); font-size: 0.95em; margin-right: 4px; line-height: 1; }
+
   /* Setlist manage entry */
   .setlist-manage-item {
     display: flex;
@@ -3954,6 +3964,8 @@
       <select class="filter-select" id="artist-filter">
         <option value="">Alle Künstler</option>
       </select>
+      <div class="ap-pop-title"><span data-no-i18n>⭐ </span>Markieren, was schon in Album/Setlist ist</div>
+      <select class="filter-select compare-ref-select" id="filter-compare-ref" title="Songs mit Stern markieren, die schon in diesem Album/dieser Setlist sind"></select>
     </div>
 
     <div class="ap-pop" id="pop-sort" role="dialog" aria-label="Sortieren">
@@ -4372,33 +4384,26 @@
   </div>
 </div>
 
-<!-- Add Songs To Current Setlist Modal (browse ALL account songs, quick add) -->
+<!-- Add Songs To Current Setlist/Album Modal (browse account songs, quick add) -->
 <div class="modal-backdrop" id="add-songs-modal">
-  <div class="modal">
-    <h3 id="add-songs-title">Songs hinzufügen</h3>
-    <p style="color:var(--text-1); margin-bottom:12px;">Tippe einen Song an, um ihn zur Setlist hinzuzufügen oder zu entfernen.</p>
-    <div id="add-songs-album-row" style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-      <label style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
-        <span style="font-size:12px; color:var(--text-2);">Aus Album</span>
-        <select class="field-input" id="add-songs-album"></select>
-      </label>
-      <label style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
-        <span style="font-size:12px; color:var(--text-2);">Sortieren</span>
-        <select class="field-input" id="add-songs-sort">
-          <option value="title">Titel A-Z</option>
-          <option value="artist">Künstler</option>
-        </select>
-      </label>
+  <div class="modal add-songs-modal">
+    <div class="add-songs-head">
+      <h3 id="add-songs-title">Songs hinzufügen</h3>
+      <button class="icon-btn" id="add-songs-close" title="Fertig">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
-    <label id="add-songs-artist-row" style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
-      <span style="font-size:12px; color:var(--text-2);">Künstler</span>
-      <select class="field-input" id="add-songs-artist"></select>
-    </label>
-    <input class="field-input" id="add-songs-search" placeholder="Songs suchen..." style="width:100%; margin-bottom:12px;">
-    <div id="add-songs-list" style="display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; margin-bottom:16px;"></div>
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="add-songs-close">Fertig</button>
+    <div class="add-songs-controls">
+      <select class="field-input add-songs-ctrl" id="add-songs-album" aria-label="Aus Album"></select>
+      <select class="field-input add-songs-ctrl" id="add-songs-artist" aria-label="Künstler"></select>
+      <select class="field-input add-songs-ctrl" id="add-songs-sort" aria-label="Sortieren">
+        <option value="title">Titel A-Z</option>
+        <option value="artist">Künstler</option>
+      </select>
+      <select class="field-input add-songs-ctrl compare-ref-select" id="add-songs-compare" aria-label="Markieren, was schon in einem Album/einer Setlist ist"></select>
     </div>
+    <input class="field-input" id="add-songs-search" placeholder="Songs suchen..." style="width:100%; margin-bottom:8px;">
+    <div id="add-songs-list"></div>
   </div>
 </div>
 
@@ -5188,6 +5193,75 @@ function removeSongFromAlbum(s, fid) {
   }
   if (Array.isArray(s.folderIds) && s.folderIds.length === 0) delete s.folderIds;
 }
+
+// ---- "Markieren mit" reference: pick an album OR setlist as a comparison; every
+// song that's already in it gets a ⭐ star EVERYWHERE (main song list + the add-songs
+// picker), so while building a new album/setlist you can instantly see which songs you
+// already use elsewhere and avoid duplicating them. Purely a marker — it filters
+// nothing out. ----
+let compareRef = null;   // { type:'album'|'setlist', id } or null
+let addSongsRerender = null;   // set while the add-songs modal is open, so changing the marker repaints it
+function isSongInRef(s) {
+  if (!compareRef) return false;
+  if (compareRef.type === 'album') return isSongInFolder(s, compareRef.id);
+  const sl = (state.setlists || []).find(x => x.id === compareRef.id);
+  return !!sl && (sl.songIds || []).includes(s.id);
+}
+function compareRefName() {
+  if (!compareRef) return '';
+  if (compareRef.type === 'album') return folderNameById(compareRef.id);
+  const sl = (state.setlists || []).find(x => x.id === compareRef.id);
+  return sl ? (sl.name || '') : '';
+}
+function compareRefKey() { return compareRef ? (compareRef.type + ':' + compareRef.id) : ''; }
+function parseCompareRefKey(v) {
+  if (!v) return null;
+  const idx = v.indexOf(':');
+  if (idx < 0) return null;
+  const type = v.slice(0, idx), id = v.slice(idx + 1);
+  return (type === 'album' || type === 'setlist') && id ? { type, id } : null;
+}
+function referenceSelectOptionsHtml() {
+  const cur = compareRefKey();
+  const opt = (val, label) => `<option value="${escapeHtml(val)}"${val === cur ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  let html = opt('', '⭐ ' + T('Markieren: keins'));
+  const albums = (state.folders || []).filter(f => f && f.id && f.id !== MAIN_FOLDER_ID);
+  if (albums.length) {
+    html += `<optgroup label="${escapeHtml(T('Alben'))}">`;
+    albums.forEach(f => { html += opt('album:' + f.id, f.name || ''); });
+    html += `</optgroup>`;
+  }
+  const sls = (state.setlists || []);
+  if (sls.length) {
+    html += `<optgroup label="${escapeHtml(T('Setlists'))}">`;
+    sls.forEach(sl => { html += opt('setlist:' + sl.id, sl.name || ''); });
+    html += `</optgroup>`;
+  }
+  return html;
+}
+function refStarHtml(s) {
+  if (!isSongInRef(s)) return '';
+  const t = T('Schon in {x}').replace('{x}', compareRefName());
+  return `<span class="ref-star" title="${escapeHtml(t)}" aria-label="${escapeHtml(t)}">★</span>`;
+}
+// Set the reference from a <select> value; keep every reference select in sync and
+// repaint the main list.
+function setCompareRef(v) {
+  compareRef = parseCompareRefKey(v);
+  document.querySelectorAll('.compare-ref-select').forEach(el => { if (el.value !== compareRefKey()) el.value = compareRefKey(); });
+  if (typeof renderSongList === 'function') renderSongList();
+  if (typeof updateActionPanelState === 'function') updateActionPanelState();
+  if (typeof addSongsRerender === 'function') addSongsRerender();
+}
+// (Re)fill every reference <select> with the current albums + setlists.
+function renderCompareRefSelects() {
+  document.querySelectorAll('.compare-ref-select').forEach(el => { el.innerHTML = referenceSelectOptionsHtml(); el.value = compareRefKey(); });
+}
+// One delegated handler drives all reference selects (filter popover + add-songs modal).
+document.addEventListener('change', (e) => {
+  const el = e.target && e.target.closest && e.target.closest('.compare-ref-select');
+  if (el) setCompareRef(el.value);
+});
 
 async function dbGet(id) {
   // Shared-album songs live in their own store.
@@ -6254,6 +6328,11 @@ const I18N = {
     "Songs hinzufügen": "Add songs",
     "Songs zu dieser Setlist hinzufügen": "Add songs to this setlist",
     "Songs zu diesem Album hinzufügen": "Add songs to this album",
+    "Markieren: keins": "Marker: none",
+    "Schon in {x}": "Already in {x}",
+    "Markieren, was schon in Album/Setlist ist": "Mark what's already in an album/setlist",
+    "Markieren, was schon in einem Album/einer Setlist ist": "Mark what's already in an album/setlist",
+    "Songs mit Stern markieren, die schon in diesem Album/dieser Setlist sind": "Star songs that are already in this album/setlist",
     "Tippe einen Song an, um ihn zur Setlist hinzuzufügen oder zu entfernen.": "Tap a song to add or remove it from the setlist.",
     "Songs suchen...": "Search songs...",
     "Bitte zuerst eine Setlist öffnen.": "Please open a setlist first.",
@@ -7346,7 +7425,7 @@ function renderSongList() {
       <div class="song-row ${isSelected ? 'selected' : ''}" data-id="${s.id}">
         ${leadCell}
         ${reorderCell}
-        <div class="song-row-title">${titleHtml}${versionBadge}</div>
+        <div class="song-row-title">${refStarHtml(s)}${titleHtml}${versionBadge}</div>
         ${artistHtml}
         <div class="song-row-meta" title="${lineCount} Zeilen, ${ver.scrollSpeed || 30} px/s${versionCount > 1 ? ', ' + versionCount + ' Versionen' : ''}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -7614,7 +7693,7 @@ function updateActionPanelState() {
   // Reflect which controls are "on" so active filters/sort show at a glance.
   setActive('ap-sort', listEditMode || filterState.sort !== 'custom');
   setActive('ap-search', !!filterState.search.trim());
-  setActive('ap-filter', !!(filterState.artist || filterState.letter));
+  setActive('ap-filter', !!(filterState.artist || filterState.letter || compareRef));
   // Don't mark the Setlists button "active/selected" while in a setlist — the
   // sub-label under it already shows the current setlist; keeping it filled looked
   // like a stuck pressed state.
@@ -7679,7 +7758,7 @@ function apRunSelection(runBtnId, needsOne) {
     const pop = document.getElementById('pop-search'), inp = document.getElementById('search-input');
     if (inp && pop && pop.classList.contains('show')) { inp.focus(); try { inp.select(); } catch (e) {} }
   });
-  on('ap-filter', () => toggleApPopover('ap-filter', 'pop-filter', () => { renderAlphaBar(); renderArtistFilter(); }));
+  on('ap-filter', () => toggleApPopover('ap-filter', 'pop-filter', () => { renderAlphaBar(); renderArtistFilter(); renderCompareRefSelects(); }));
   on('ap-sort', () => toggleApPopover('ap-sort', 'pop-sort'));
   // Sort popover items
   on('sort-edit', () => {
@@ -7814,7 +7893,6 @@ function openAddSongs() {
   const searchEl = document.getElementById('add-songs-search');
   const titleEl = document.getElementById('add-songs-title');
   const albumEl = document.getElementById('add-songs-album');
-  const albumRow = document.getElementById('add-songs-album-row');
   const sortEl = document.getElementById('add-songs-sort');
   const artistEl = document.getElementById('add-songs-artist');
   if (titleEl) titleEl.textContent = T('Songs hinzufügen') + (targetName ? ' — ' + targetName : '');
@@ -7858,9 +7936,9 @@ function openAddSongs() {
   // Album SOURCE selector (browse from a specific album). Hidden only for a shared
   // setlist (its source album is fixed).
   if (sharedSetlist) {
-    if (albumRow) albumRow.style.display = 'none';
+    if (albumEl) albumEl.style.display = 'none';
   } else if (albumEl) {
-    if (albumRow) albumRow.style.display = '';
+    albumEl.style.display = '';
     const albumIds = [...new Set(basePool.flatMap(s => songFolderIds(s)))]
       .sort((a, b) => folderNameById(a).localeCompare(folderNameById(b), 'de', { sensitivity: 'base' }));
     albumEl.innerHTML = `<option value="__all__">${escapeHtml(T('Alle Alben'))}</option>` +
@@ -7896,7 +7974,7 @@ function openAddSongs() {
     listEl.innerHTML = rows.map(s => {
       const added = isInTarget(s);
       return `<div class="setlist-picker-item ${added ? 'contains-all' : ''}" data-id="${escapeHtml(s.id)}">
-          <div class="name">${escapeHtml(s.title || T('Ohne Titel'))}<div class="add-songs-sub" style="font-weight:400; font-size:12px; color:var(--text-2); margin-top:2px;">${escapeHtml(subFor(s))}</div></div>
+          <div class="name">${refStarHtml(s)}${escapeHtml(s.title || T('Ohne Titel'))}<div class="add-songs-sub" style="font-weight:400; font-size:12px; color:var(--text-2); margin-top:2px;">${escapeHtml(subFor(s))}</div></div>
           <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         </div>`;
     }).join('');
@@ -7908,13 +7986,15 @@ function openAddSongs() {
   if (sortEl) sortEl.value = 'title';
   searchEl.value = '';
   rebuildArtistOptions(true);
+  renderCompareRefSelects();   // fill the ⭐ "Markieren mit" select (albums + setlists)
   if (albumEl) albumEl.onchange = () => { rebuildArtistOptions(true); render(); };
   if (sortEl) sortEl.onchange = render;
   if (artistEl) artistEl.onchange = render;
   searchEl.oninput = render;
+  addSongsRerender = render;    // so changing the ⭐ marker repaints this list (via setCompareRef)
   render();
   modal.classList.add('show');
-  document.getElementById('add-songs-close').onclick = () => modal.classList.remove('show');
+  document.getElementById('add-songs-close').onclick = () => { modal.classList.remove('show'); addSongsRerender = null; };
   setTimeout(() => { try { searchEl.focus(); } catch (e) {} }, 60);
 }
 // Back-compat alias (older callers).
