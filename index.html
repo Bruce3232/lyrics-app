@@ -847,6 +847,31 @@
   /* ⭐ "already used elsewhere" marker */
   .ref-star { color: var(--accent); font-size: 0.95em; margin-right: 4px; line-height: 1; }
 
+  /* Reference marker tree (albums → setlists) */
+  .ref-tree { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .rt-clear-row { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+  .rt-clear { background: none; border: 1px solid var(--border); color: var(--text-1); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .rt-clear:disabled { opacity: 0.4; cursor: default; }
+  .rt-clear:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+  .rt-row { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 8px; }
+  .rt-row:hover { background: var(--surface-strong); }
+  .rt-expand { background: none; border: none; color: var(--text-2); cursor: pointer; padding: 2px; display: flex; align-items: center; border-radius: 6px; transition: transform 0.15s var(--ease); }
+  .rt-album.rt-open > .rt-row > .rt-expand { transform: rotate(90deg); }
+  .rt-expand svg { width: 16px; height: 16px; }
+  .rt-expand-spacer { width: 20px; display: inline-block; flex-shrink: 0; }
+  .rt-check { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; min-width: 0; }
+  .rt-check input { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+  .rt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .rt-count { font-size: 11px; color: var(--text-2); font-family: var(--font-mono); flex-shrink: 0; }
+  .rt-setlists { padding: 0 0 4px 30px; display: flex; flex-direction: column; gap: 2px; }
+  .rt-sub { padding: 5px 6px; border-radius: 6px; }
+  .rt-sub:hover { background: var(--surface-strong); }
+  .rt-sub .rt-name { font-size: 13px; color: var(--text-1); }
+  /* Add-songs modal collapsible mark panel + toggle */
+  .add-songs-mark-toggle { cursor: pointer; text-align: left; }
+  .add-songs-mark-toggle.active { border-color: var(--accent); color: var(--accent); }
+  .add-songs-mark { border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; background: var(--surface); }
+
   /* Setlist manage entry */
   .setlist-manage-item {
     display: flex;
@@ -3896,6 +3921,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="7 4 4 8 7 12" fill="none" opacity="0"/></svg>
           <span class="ap-label">Sortieren</span>
         </button>
+        <button class="ap-btn" id="ap-mark" title="Markieren: schon in Album/Setlist" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="ap-label">Markieren</span>
+        </button>
       </div>
       <div class="ap-group">
         <div class="ap-group-title">Auswahl<span id="ap-sel-count" data-no-i18n></span></div>
@@ -3964,8 +3993,6 @@
       <select class="filter-select" id="artist-filter">
         <option value="">Alle Künstler</option>
       </select>
-      <div class="ap-pop-title"><span data-no-i18n>⭐ </span>Markieren, was schon in Album/Setlist ist</div>
-      <select class="filter-select compare-ref-select" id="filter-compare-ref" title="Songs mit Stern markieren, die schon in diesem Album/dieser Setlist sind"></select>
     </div>
 
     <div class="ap-pop" id="pop-sort" role="dialog" aria-label="Sortieren">
@@ -3986,6 +4013,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/><polyline points="3 16 6 19 9 16"/><line x1="6" y1="5" x2="6" y2="19"/></svg>
         Nach Alphabet
       </button>
+    </div>
+
+    <div class="ap-pop" id="pop-mark" role="dialog" aria-label="Markieren">
+      <div class="ap-pop-title">Songs markieren, die schon drin sind</div>
+      <div class="ref-tree" id="mark-tree"></div>
     </div>
 
     <div class="ap-pop" id="pop-albums" role="dialog" aria-label="Alben">
@@ -4400,7 +4432,10 @@
         <option value="title">Titel A-Z</option>
         <option value="artist">Künstler</option>
       </select>
-      <select class="field-input add-songs-ctrl compare-ref-select" id="add-songs-compare" aria-label="Markieren, was schon in einem Album/einer Setlist ist"></select>
+      <button type="button" class="field-input add-songs-ctrl add-songs-mark-toggle" id="add-songs-mark-toggle" aria-expanded="false" title="Songs mit Stern markieren, die schon in einem Album/einer Setlist sind">⭐ Markieren</button>
+    </div>
+    <div class="add-songs-mark" id="add-songs-mark" hidden>
+      <div class="ref-tree" id="add-songs-mark-tree"></div>
     </div>
     <input class="field-input" id="add-songs-search" placeholder="Songs suchen..." style="width:100%; margin-bottom:8px;">
     <div id="add-songs-list"></div>
@@ -5194,26 +5229,15 @@ function removeSongFromAlbum(s, fid) {
   if (Array.isArray(s.folderIds) && s.folderIds.length === 0) delete s.folderIds;
 }
 
-// ---- "Markieren mit" reference: pick an album OR setlist as a comparison; every
-// song that's already in it gets a ⭐ star EVERYWHERE (main song list + the add-songs
-// picker), so while building a new album/setlist you can instantly see which songs you
-// already use elsewhere and avoid duplicating them. Purely a marker — it filters
-// nothing out. ----
-let compareRef = null;   // { type:'album'|'setlist', id } or null
-let addSongsRerender = null;   // set while the add-songs modal is open, so changing the marker repaints it
-function isSongInRef(s) {
-  if (!compareRef) return false;
-  if (compareRef.type === 'album') return isSongInFolder(s, compareRef.id);
-  const sl = (state.setlists || []).find(x => x.id === compareRef.id);
-  return !!sl && (sl.songIds || []).includes(s.id);
-}
-function compareRefName() {
-  if (!compareRef) return '';
-  if (compareRef.type === 'album') return folderNameById(compareRef.id);
-  const sl = (state.setlists || []).find(x => x.id === compareRef.id);
-  return sl ? (sl.name || '') : '';
-}
-function compareRefKey() { return compareRef ? (compareRef.type + ':' + compareRef.id) : ''; }
+// ---- "Markieren mit" reference (MULTI-select): tick any albums and/or setlists;
+// every song that's in ANY of them gets a ⭐ star EVERYWHERE (main song list + the
+// add-songs picker), so while building a new album you instantly see which songs you
+// already use elsewhere and avoid duplicating them. Purely a marker — filters nothing.
+// The picker is a collapsible tree: each album can be ticked whole, or expanded to
+// tick individual setlists inside it. ----
+let compareRefs = new Set();     // "album:<id>" / "setlist:<id>" keys — song starred if in ANY
+let refTreeExpanded = new Set(); // album folder ids currently expanded in the tree
+let addSongsRerender = null;     // set while the add-songs modal is open, so a marker change repaints it
 function parseCompareRefKey(v) {
   if (!v) return null;
   const idx = v.indexOf(':');
@@ -5221,47 +5245,69 @@ function parseCompareRefKey(v) {
   const type = v.slice(0, idx), id = v.slice(idx + 1);
   return (type === 'album' || type === 'setlist') && id ? { type, id } : null;
 }
-function referenceSelectOptionsHtml() {
-  const cur = compareRefKey();
-  const opt = (val, label) => `<option value="${escapeHtml(val)}"${val === cur ? ' selected' : ''}>${escapeHtml(label)}</option>`;
-  let html = opt('', '⭐ ' + T('Markieren: keins'));
-  const albums = (state.folders || []).filter(f => f && f.id && f.id !== MAIN_FOLDER_ID);
-  if (albums.length) {
-    html += `<optgroup label="${escapeHtml(T('Alben'))}">`;
-    albums.forEach(f => { html += opt('album:' + f.id, f.name || ''); });
-    html += `</optgroup>`;
+function isSongInRef(s) {
+  if (!compareRefs.size) return false;
+  for (const key of compareRefs) {
+    const ref = parseCompareRefKey(key);
+    if (!ref) continue;
+    if (ref.type === 'album') { if (isSongInFolder(s, ref.id)) return true; }
+    else { const sl = (state.setlists || []).find(x => x.id === ref.id); if (sl && (sl.songIds || []).includes(s.id)) return true; }
   }
-  const sls = (state.setlists || []);
-  if (sls.length) {
-    html += `<optgroup label="${escapeHtml(T('Setlists'))}">`;
-    sls.forEach(sl => { html += opt('setlist:' + sl.id, sl.name || ''); });
-    html += `</optgroup>`;
-  }
-  return html;
+  return false;
 }
 function refStarHtml(s) {
   if (!isSongInRef(s)) return '';
-  const t = T('Schon in {x}').replace('{x}', compareRefName());
+  const t = T('Schon markiert');
   return `<span class="ref-star" title="${escapeHtml(t)}" aria-label="${escapeHtml(t)}">★</span>`;
 }
-// Set the reference from a <select> value; keep every reference select in sync and
-// repaint the main list.
-function setCompareRef(v) {
-  compareRef = parseCompareRefKey(v);
-  document.querySelectorAll('.compare-ref-select').forEach(el => { if (el.value !== compareRefKey()) el.value = compareRefKey(); });
+function toggleCompareRefKey(key, on) { if (on) compareRefs.add(key); else compareRefs.delete(key); refsChanged(); }
+function clearCompareRefs() { compareRefs.clear(); refsChanged(); }
+function refsChanged() {
   if (typeof renderSongList === 'function') renderSongList();
   if (typeof updateActionPanelState === 'function') updateActionPanelState();
+  refreshRefTrees();
+  document.querySelectorAll('.add-songs-mark-toggle').forEach(b => b.classList.toggle('active', compareRefs.size > 0));
   if (typeof addSongsRerender === 'function') addSongsRerender();
 }
-// (Re)fill every reference <select> with the current albums + setlists.
-function renderCompareRefSelects() {
-  document.querySelectorAll('.compare-ref-select').forEach(el => { el.innerHTML = referenceSelectOptionsHtml(); el.value = compareRefKey(); });
+// Setlists that live in a given folder (album). Main-library setlists belong to MAIN.
+function setlistsInFolder(folderId) {
+  return (state.setlists || []).filter(sl => effectiveFolderId(sl) === folderId);
 }
-// One delegated handler drives all reference selects (filter popover + add-songs modal).
-document.addEventListener('change', (e) => {
-  const el = e.target && e.target.closest && e.target.closest('.compare-ref-select');
-  if (el) setCompareRef(el.value);
-});
+// Render the collapsible album → setlist reference tree into a container element.
+function renderRefTree(container) {
+  if (!container) return;
+  const folders = [{ id: MAIN_FOLDER_ID, name: T('Hauptbibliothek') },
+    ...(state.folders || []).filter(f => f && f.id && f.id !== MAIN_FOLDER_ID)];
+  let html = `<div class="rt-clear-row"><button type="button" class="rt-clear"${compareRefs.size ? '' : ' disabled'}>${escapeHtml(T('Markierung löschen'))}${compareRefs.size ? ' (' + compareRefs.size + ')' : ''}</button></div>`;
+  html += folders.map(f => {
+    const sls = setlistsInFolder(f.id);
+    const albKey = 'album:' + f.id;
+    const expanded = refTreeExpanded.has(f.id);
+    const chevron = sls.length
+      ? `<button type="button" class="rt-expand" data-album="${escapeHtml(f.id)}" aria-expanded="${expanded}" title="${escapeHtml(T('Setlists anzeigen'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>`
+      : `<span class="rt-expand-spacer"></span>`;
+    let node = `<div class="rt-album${expanded ? ' rt-open' : ''}"><div class="rt-row">${chevron}` +
+      `<label class="rt-check"><input type="checkbox" data-key="${escapeHtml(albKey)}"${compareRefs.has(albKey) ? ' checked' : ''}><span class="rt-name">${escapeHtml(f.name || '')}</span></label>` +
+      (sls.length ? `<span class="rt-count">${sls.length}</span>` : '') + `</div>`;
+    if (expanded && sls.length) {
+      node += `<div class="rt-setlists">` + sls.map(sl => {
+        const k = 'setlist:' + sl.id;
+        return `<label class="rt-check rt-sub"><input type="checkbox" data-key="${escapeHtml(k)}"${compareRefs.has(k) ? ' checked' : ''}><span class="rt-name">${escapeHtml(sl.name || '')}</span></label>`;
+      }).join('') + `</div>`;
+    }
+    return node + `</div>`;
+  }).join('');
+  container.innerHTML = html;
+  container.querySelectorAll('.rt-expand').forEach(btn => btn.onclick = () => {
+    const id = btn.dataset.album;
+    if (refTreeExpanded.has(id)) refTreeExpanded.delete(id); else refTreeExpanded.add(id);
+    renderRefTree(container);
+  });
+  container.querySelectorAll('input[type="checkbox"][data-key]').forEach(cb => cb.onchange = () => toggleCompareRefKey(cb.dataset.key, cb.checked));
+  const clearBtn = container.querySelector('.rt-clear');
+  if (clearBtn) clearBtn.onclick = () => clearCompareRefs();
+}
+function refreshRefTrees() { document.querySelectorAll('.ref-tree').forEach(el => renderRefTree(el)); }
 
 async function dbGet(id) {
   // Shared-album songs live in their own store.
@@ -6330,6 +6376,14 @@ const I18N = {
     "Songs zu diesem Album hinzufügen": "Add songs to this album",
     "Markieren: keins": "Marker: none",
     "Schon in {x}": "Already in {x}",
+    "Markieren": "Mark",
+    "⭐ Markieren": "⭐ Mark",
+    "Markieren: schon in Album/Setlist": "Mark: already in album/setlist",
+    "Songs markieren, die schon drin sind": "Mark songs already used",
+    "Markierung löschen": "Clear markers",
+    "Setlists anzeigen": "Show setlists",
+    "Schon markiert": "Already marked",
+    "Songs mit Stern markieren, die schon in einem Album/einer Setlist sind": "Star songs already in an album/setlist",
     "Markieren, was schon in Album/Setlist ist": "Mark what's already in an album/setlist",
     "Markieren, was schon in einem Album/einer Setlist ist": "Mark what's already in an album/setlist",
     "Songs mit Stern markieren, die schon in diesem Album/dieser Setlist sind": "Star songs that are already in this album/setlist",
@@ -7693,7 +7747,8 @@ function updateActionPanelState() {
   // Reflect which controls are "on" so active filters/sort show at a glance.
   setActive('ap-sort', listEditMode || filterState.sort !== 'custom');
   setActive('ap-search', !!filterState.search.trim());
-  setActive('ap-filter', !!(filterState.artist || filterState.letter || compareRef));
+  setActive('ap-filter', !!(filterState.artist || filterState.letter));
+  setActive('ap-mark', compareRefs.size > 0);
   // Don't mark the Setlists button "active/selected" while in a setlist — the
   // sub-label under it already shows the current setlist; keeping it filled looked
   // like a stuck pressed state.
@@ -7758,7 +7813,8 @@ function apRunSelection(runBtnId, needsOne) {
     const pop = document.getElementById('pop-search'), inp = document.getElementById('search-input');
     if (inp && pop && pop.classList.contains('show')) { inp.focus(); try { inp.select(); } catch (e) {} }
   });
-  on('ap-filter', () => toggleApPopover('ap-filter', 'pop-filter', () => { renderAlphaBar(); renderArtistFilter(); renderCompareRefSelects(); }));
+  on('ap-filter', () => toggleApPopover('ap-filter', 'pop-filter', () => { renderAlphaBar(); renderArtistFilter(); }));
+  on('ap-mark', () => toggleApPopover('ap-mark', 'pop-mark', () => renderRefTree(document.getElementById('mark-tree'))));
   on('ap-sort', () => toggleApPopover('ap-sort', 'pop-sort'));
   // Sort popover items
   on('sort-edit', () => {
@@ -7986,12 +8042,24 @@ function openAddSongs() {
   if (sortEl) sortEl.value = 'title';
   searchEl.value = '';
   rebuildArtistOptions(true);
-  renderCompareRefSelects();   // fill the ⭐ "Markieren mit" select (albums + setlists)
+  // ⭐ collapsible mark panel (the album→setlist tree) inside the modal
+  const markToggle = document.getElementById('add-songs-mark-toggle');
+  const markPanel = document.getElementById('add-songs-mark');
+  const markTree = document.getElementById('add-songs-mark-tree');
+  if (markPanel) markPanel.hidden = !compareRefs.size;   // auto-open if a marker is already set
+  if (markToggle) { markToggle.classList.toggle('active', compareRefs.size > 0); markToggle.setAttribute('aria-expanded', markPanel && !markPanel.hidden ? 'true' : 'false'); }
+  if (markTree && markPanel && !markPanel.hidden) renderRefTree(markTree);
+  if (markToggle) markToggle.onclick = () => {
+    if (!markPanel) return;
+    markPanel.hidden = !markPanel.hidden;
+    markToggle.setAttribute('aria-expanded', markPanel.hidden ? 'false' : 'true');
+    if (!markPanel.hidden) renderRefTree(markTree);
+  };
   if (albumEl) albumEl.onchange = () => { rebuildArtistOptions(true); render(); };
   if (sortEl) sortEl.onchange = render;
   if (artistEl) artistEl.onchange = render;
   searchEl.oninput = render;
-  addSongsRerender = render;    // so changing the ⭐ marker repaints this list (via setCompareRef)
+  addSongsRerender = render;    // so changing the ⭐ marker repaints this list (via refsChanged)
   render();
   modal.classList.add('show');
   document.getElementById('add-songs-close').onclick = () => { modal.classList.remove('show'); addSongsRerender = null; };
