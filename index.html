@@ -5531,8 +5531,11 @@ function isParenNote(t) { return PAREN_NOTE.test(t); }
 // recognised as a chord line even though the parenthesis touches the chord. A short
 // paren note like "(hold)"/"(2x)" has a non-chord core, so it still falls through to
 // isParenNote and is treated as a neutral annotation.
-const CHORD_WRAP_PRE = /^[([{|]+/;
-const CHORD_WRAP_POST = /[)\]}|]+$/;
+// Decoration/annotation symbols that may cling directly to a chord: brackets, pipe,
+// and the star/tilde markers (e.g. "G#*", "*Am", "C~"). NOT the chord-essential ones
+// (#, b, +, -, / are part of chord spellings) — those must never be stripped.
+const CHORD_WRAP_PRE = /^[([{|*~]+/;
+const CHORD_WRAP_POST = /[)\]}|*~]+$/;
 function splitWrappedChord(t) {
   const pre = (t.match(CHORD_WRAP_PRE) || [''])[0];
   const post = (t.match(CHORD_WRAP_POST) || [''])[0];
