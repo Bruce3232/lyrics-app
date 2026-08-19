@@ -871,6 +871,13 @@
   .add-songs-mark-toggle { cursor: pointer; text-align: left; }
   .add-songs-mark-toggle.active { border-color: var(--accent); color: var(--accent); }
   .add-songs-mark { border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; background: var(--surface); }
+  /* Add-songs picker: select-then-add row states */
+  .setlist-picker-item.sel-add { border-color: var(--accent); background: rgba(255,140,26,0.08); }
+  .setlist-picker-item.sel-add .check { display: flex; }
+  .setlist-picker-item.already-in { opacity: 0.5; cursor: default; }
+  .setlist-picker-item.already-in:hover { background: var(--surface); border-color: var(--border); }
+  .rt-in-badge { font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; white-space: nowrap; flex-shrink: 0; }
+  .add-songs-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
 
   /* Setlist manage entry */
   .setlist-manage-item {
@@ -4439,6 +4446,9 @@
     </div>
     <input class="field-input" id="add-songs-search" placeholder="Songs suchen..." style="width:100%; margin-bottom:8px;">
     <div id="add-songs-list"></div>
+    <div class="add-songs-foot">
+      <button class="btn btn-primary" id="add-songs-add" disabled>Hinzufügen</button>
+    </div>
   </div>
 </div>
 
@@ -5245,15 +5255,25 @@ function parseCompareRefKey(v) {
   const type = v.slice(0, idx), id = v.slice(idx + 1);
   return (type === 'album' || type === 'setlist') && id ? { type, id } : null;
 }
-function isSongInRef(s) {
-  if (!compareRefs.size) return false;
-  for (const key of compareRefs) {
-    const ref = parseCompareRefKey(key);
-    if (!ref) continue;
-    if (ref.type === 'album') { if (isSongInFolder(s, ref.id)) return true; }
-    else { const sl = (state.setlists || []).find(x => x.id === ref.id); if (sl && (sl.songIds || []).includes(s.id)) return true; }
+let markedKeys = new Set();   // songMatchKey (title+artist) of every song in a marked album/setlist
+function rebuildMarkedKeys() {
+  markedKeys = new Set();
+  if (!compareRefs.size) return;
+  const refs = [...compareRefs].map(parseCompareRefKey).filter(Boolean);
+  for (const s of (state.songs || [])) {
+    for (const ref of refs) {
+      let hit = false;
+      if (ref.type === 'album') hit = isSongInFolder(s, ref.id);
+      else { const sl = (state.setlists || []).find(x => x.id === ref.id); hit = !!(sl && (sl.songIds || []).includes(s.id)); }
+      if (hit) { markedKeys.add(songMatchKey(s)); break; }
+    }
   }
-  return false;
+}
+// A song is "marked" if ANY song with the SAME title+artist is in a marked album or
+// setlist — so the SAME song is recognised across albums even when it's a separate
+// copy with a different internal id.
+function isSongInRef(s) {
+  return markedKeys.size > 0 && markedKeys.has(songMatchKey(s));
 }
 function refStarHtml(s) {
   if (!isSongInRef(s)) return '';
@@ -5263,6 +5283,7 @@ function refStarHtml(s) {
 function toggleCompareRefKey(key, on) { if (on) compareRefs.add(key); else compareRefs.delete(key); refsChanged(); }
 function clearCompareRefs() { compareRefs.clear(); refsChanged(); }
 function refsChanged() {
+  rebuildMarkedKeys();
   if (typeof renderSongList === 'function') renderSongList();
   if (typeof updateActionPanelState === 'function') updateActionPanelState();
   refreshRefTrees();
@@ -6384,6 +6405,8 @@ const I18N = {
     "Setlists anzeigen": "Show setlists",
     "Schon markiert": "Already marked",
     "Songs mit Stern markieren, die schon in einem Album/einer Setlist sind": "Star songs already in an album/setlist",
+    "drin": "in",
+    "{n} hinzugefügt": "{n} added",
     "Markieren, was schon in Album/Setlist ist": "Mark what's already in an album/setlist",
     "Markieren, was schon in einem Album/einer Setlist ist": "Mark what's already in an album/setlist",
     "Songs mit Stern markieren, die schon in diesem Album/dieser Setlist sind": "Star songs that are already in this album/setlist",
@@ -7970,24 +7993,40 @@ function openAddSongs() {
     const albumsPart = albums.length ? (T('Alben') + ': ' + albums.join(', ')) : '';
     return [s.artist || '', albumsPart].filter(Boolean).join('  ·  ');
   };
-  async function toggleSong(s, el) {
-    if (inSetlist) {
-      sl.songIds = sl.songIds || [];
-      const idx = sl.songIds.indexOf(s.id);
-      if (idx >= 0) sl.songIds.splice(idx, 1); else sl.songIds.push(s.id);
-      sl.updatedAt = Date.now();
-      await setlistPut(sl);
-    } else {
-      if (isSongInFolder(s, targetFolderId)) removeSongFromAlbum(s, targetFolderId);
-      else addSongToAlbum(s, targetFolderId);
-      s.updatedAt = Date.now();
-      await dbPut(s);
+  // SELECT-then-add: tapping a row only SELECTS it; the "Hinzufügen (N)" button
+  // commits. Adding to an album is multi-membership (the song stays in its other
+  // albums); adding to a setlist just references it. Nothing is ever moved away.
+  const selectedToAdd = new Set();
+  const addBtn = document.getElementById('add-songs-add');
+  function updateAddBtn() {
+    if (!addBtn) return;
+    const n = selectedToAdd.size;
+    addBtn.disabled = n === 0;
+    addBtn.textContent = n ? (T('Hinzufügen') + ' (' + n + ')') : T('Hinzufügen');
+  }
+  function toggleSelect(s, el) {
+    if (isInTarget(s)) return;   // already in the target → not selectable (add-only picker)
+    if (selectedToAdd.has(s.id)) { selectedToAdd.delete(s.id); el.classList.remove('sel-add'); }
+    else { selectedToAdd.add(s.id); el.classList.add('sel-add'); }
+    updateAddBtn();
+  }
+  async function commitAdd() {
+    if (!selectedToAdd.size) return;
+    const ids = [...selectedToAdd];
+    for (const id of ids) {
+      const s = state.songs.find(x => x.id === id);
+      if (!s) continue;
+      if (inSetlist) { sl.songIds = sl.songIds || []; if (!sl.songIds.includes(id)) sl.songIds.push(id); }
+      else { addSongToAlbum(s, targetFolderId); s.updatedAt = Date.now(); await dbPut(s); }
     }
-    el.classList.toggle('contains-all', isInTarget(s));
-    const subEl = el.querySelector('.add-songs-sub');
-    if (subEl) subEl.textContent = subFor(s);   // album memberships may have changed
+    if (inSetlist) { sl.updatedAt = Date.now(); await setlistPut(sl); }
+    selectedToAdd.clear();
+    rebuildMarkedKeys();
     if (typeof renderSongList === 'function') renderSongList();
     if (typeof updateActionPanelState === 'function') updateActionPanelState();
+    render();   // refresh picker: the added songs now show as "drin"
+    updateAddBtn();
+    showToast(T('{n} hinzugefügt').replace('{n}', String(ids.length)), 'success');
   }
   // Album SOURCE selector (browse from a specific album). Hidden only for a shared
   // setlist (its source album is fixed).
@@ -8029,14 +8068,20 @@ function openAddSongs() {
     }
     listEl.innerHTML = rows.map(s => {
       const added = isInTarget(s);
-      return `<div class="setlist-picker-item ${added ? 'contains-all' : ''}" data-id="${escapeHtml(s.id)}">
+      const sel = selectedToAdd.has(s.id);
+      const cls = added ? 'already-in' : (sel ? 'sel-add' : '');
+      const right = added
+        ? `<span class="rt-in-badge">${escapeHtml(T('drin'))}</span>`
+        : `<div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>`;
+      return `<div class="setlist-picker-item ${cls}" data-id="${escapeHtml(s.id)}">
           <div class="name">${refStarHtml(s)}${escapeHtml(s.title || T('Ohne Titel'))}<div class="add-songs-sub" style="font-weight:400; font-size:12px; color:var(--text-2); margin-top:2px;">${escapeHtml(subFor(s))}</div></div>
-          <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          ${right}
         </div>`;
     }).join('');
     listEl.querySelectorAll('.setlist-picker-item').forEach(el => {
-      el.onclick = () => { const s = state.songs.find(x => x.id === el.dataset.id); if (s) toggleSong(s, el); };
+      el.onclick = () => { const s = state.songs.find(x => x.id === el.dataset.id); if (s) toggleSelect(s, el); };
     });
+    updateAddBtn();
   };
   // reset the controls each open, then wire changes
   if (sortEl) sortEl.value = 'title';
@@ -8059,7 +8104,9 @@ function openAddSongs() {
   if (sortEl) sortEl.onchange = render;
   if (artistEl) artistEl.onchange = render;
   searchEl.oninput = render;
+  if (addBtn) addBtn.onclick = () => commitAdd();
   addSongsRerender = render;    // so changing the ⭐ marker repaints this list (via refsChanged)
+  rebuildMarkedKeys();          // fresh ⭐ marks for the picker
   render();
   modal.classList.add('show');
   document.getElementById('add-songs-close').onclick = () => { modal.classList.remove('show'); addSongsRerender = null; };
