@@ -878,6 +878,8 @@
   .setlist-picker-item.already-in:hover { background: var(--surface); border-color: var(--border); }
   .rt-in-badge { font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; white-space: nowrap; flex-shrink: 0; }
   .add-songs-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+  /* Reset button: appears only when a view modifier is active — tint it so it's noticeable */
+  .ap-reset-btn svg { color: var(--accent); }
 
   /* Setlist manage entry */
   .setlist-manage-item {
@@ -3932,6 +3934,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           <span class="ap-label">Markieren</span>
         </button>
+        <!-- One-tap back to normal (clears search / filter / sort / marker). Shown only when something is active. -->
+        <button class="ap-btn ap-reset-btn" id="ap-reset" title="Alles zurücksetzen (Suche, Filter, Sortierung, Markierung)" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
+          <span class="ap-label">Zurücksetzen</span>
+        </button>
       </div>
       <div class="ap-group">
         <div class="ap-group-title">Auswahl<span id="ap-sel-count" data-no-i18n></span></div>
@@ -6407,6 +6414,8 @@ const I18N = {
     "Songs mit Stern markieren, die schon in einem Album/einer Setlist sind": "Star songs already in an album/setlist",
     "drin": "in",
     "{n} hinzugefügt": "{n} added",
+    "Ansicht zurückgesetzt": "View reset",
+    "Alles zurücksetzen (Suche, Filter, Sortierung, Markierung)": "Reset everything (search, filter, sort, marker)",
     "Markieren, was schon in Album/Setlist ist": "Mark what's already in an album/setlist",
     "Markieren, was schon in einem Album/einer Setlist ist": "Mark what's already in an album/setlist",
     "Songs mit Stern markieren, die schon in diesem Album/dieser Setlist sind": "Star songs that are already in this album/setlist",
@@ -7761,6 +7770,32 @@ function applySortMode(mode) {
   updateActionPanelState();
 }
 
+// True when the view has ANY non-default modifier on (so the "reset" button shows).
+function viewIsModified() {
+  return !!(filterState.search || filterState.artist || filterState.letter ||
+    filterState.sort !== 'custom' || listEditMode || compareRefs.size);
+}
+// One tap → back to normal: clears search, filter (letter/artist), sort (own order),
+// list-edit, and the ⭐ markers. Does NOT change which album/setlist you're viewing.
+function resetView() {
+  filterState.search = '';
+  filterState.artist = '';
+  filterState.letter = '';
+  if (filterState.sort !== 'custom') { filterState.sort = 'custom'; setSortMode('custom'); }
+  listEditMode = false;
+  compareRefs.clear();
+  refTreeExpanded.clear();
+  rebuildMarkedKeys();
+  const si = document.getElementById('search-input'); if (si) si.value = '';
+  if (typeof renderAlphaBar === 'function') renderAlphaBar();
+  if (typeof renderArtistFilter === 'function') renderArtistFilter();
+  if (typeof closeAllApPopovers === 'function') closeAllApPopovers();
+  renderSongList();
+  updateActionPanelState();
+  refreshRefTrees();
+  showToast(T('Ansicht zurückgesetzt'), 'success');
+}
+
 function updateActionPanelState() {
   const panel = document.getElementById('action-panel'); if (!panel) return;
   const selecting = selection.active;
@@ -7772,6 +7807,7 @@ function updateActionPanelState() {
   setActive('ap-search', !!filterState.search.trim());
   setActive('ap-filter', !!(filterState.artist || filterState.letter));
   setActive('ap-mark', compareRefs.size > 0);
+  { const rb = document.getElementById('ap-reset'); if (rb) rb.style.display = viewIsModified() ? '' : 'none'; }
   // Don't mark the Setlists button "active/selected" while in a setlist — the
   // sub-label under it already shows the current setlist; keeping it filled looked
   // like a stuck pressed state.
@@ -7838,6 +7874,7 @@ function apRunSelection(runBtnId, needsOne) {
   });
   on('ap-filter', () => toggleApPopover('ap-filter', 'pop-filter', () => { renderAlphaBar(); renderArtistFilter(); }));
   on('ap-mark', () => toggleApPopover('ap-mark', 'pop-mark', () => renderRefTree(document.getElementById('mark-tree'))));
+  on('ap-reset', () => { closeAllApPopovers(); resetView(); });
   on('ap-sort', () => toggleApPopover('ap-sort', 'pop-sort'));
   // Sort popover items
   on('sort-edit', () => {
