@@ -1546,6 +1546,9 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     border-bottom: none;
+    /* User-adjustable control transparency (Steuerung → Transparenz). 1 = solid.
+       .hidden / focus mode override this to fully hide. */
+    opacity: var(--perf-ctrl-opacity, 1);
     transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
   }
   /* Top-bar icon buttons sit directly on the lyrics: transparent with a
@@ -1854,6 +1857,8 @@
     -webkit-backdrop-filter: none;
     border-top: none;
     z-index: 10;
+    /* User-adjustable control transparency (Steuerung → Transparenz). */
+    opacity: var(--perf-ctrl-opacity, 1);
     transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
     display: flex;
     flex-direction: column;
@@ -4233,6 +4238,10 @@
             </div>
           </div>
           <div class="perf-settings-group">
+            <div class="perf-settings-label">Transparenz <span id="perf-ctrl-opacity-value" data-no-i18n>100%</span></div>
+            <input type="range" class="range-slider" id="perf-ctrl-opacity-slider" min="10" max="100" step="5" value="100" title="Wie durchsichtig die Bedienelemente sind">
+          </div>
+          <div class="perf-settings-group">
             <button class="perf-edit-layout-btn" id="perf-clear-pins">Pin-Akkorde entfernen</button>
           </div>
           <div class="perf-settings-group">
@@ -6417,6 +6426,8 @@ const I18N = {
     "Songs mit Stern markieren, die schon in einem Album/einer Setlist sind": "Star songs already in an album/setlist",
     "drin": "in",
     "{n} hinzugefügt": "{n} added",
+    "Transparenz": "Transparency",
+    "Wie durchsichtig die Bedienelemente sind": "How see-through the controls are",
     "Ansicht zurückgesetzt": "View reset",
     "Alles zurücksetzen (Suche, Filter, Sortierung, Markierung)": "Reset everything (search, filter, sort, marker)",
     "Markieren, was schon in Album/Setlist ist": "Mark what's already in an album/setlist",
@@ -10708,6 +10719,22 @@ function applyAutoHide(on) {
 }
 applyAutoHide(getPerfAutoHide());
 
+// Control transparency: how see-through the performance top-bar + side controls are.
+// 10%–100%, per device. Applied via the --perf-ctrl-opacity CSS var on #performance-view.
+const PERF_CTRL_OPACITY_KEY = 'lyrics-perf-ctrl-opacity';
+function getCtrlOpacity() {
+  try { const v = parseInt(localStorage.getItem(PERF_CTRL_OPACITY_KEY), 10); return (v >= 10 && v <= 100) ? v : 100; } catch (e) { return 100; }
+}
+function applyCtrlOpacity(pct, persist) {
+  pct = Math.max(10, Math.min(100, Math.round(pct || 100)));
+  const pv = document.getElementById('performance-view');
+  if (pv) pv.style.setProperty('--perf-ctrl-opacity', (pct / 100).toString());
+  const lbl = document.getElementById('perf-ctrl-opacity-value'); if (lbl) lbl.textContent = pct + '%';
+  const sl = document.getElementById('perf-ctrl-opacity-slider'); if (sl && +sl.value !== pct) sl.value = pct;
+  if (persist) { try { localStorage.setItem(PERF_CTRL_OPACITY_KEY, String(pct)); } catch (e) {} }
+}
+applyCtrlOpacity(getCtrlOpacity(), false);
+
 (function setupPerfSettings() {
   const btn = document.getElementById('perf-settings-btn');
   const pop = document.getElementById('perf-settings-pop');
@@ -10768,6 +10795,12 @@ applyAutoHide(getPerfAutoHide());
     const ed = e.target.closest('#perf-edit-layout-btn');
     if (ed) { pop.classList.remove('show'); enterLayoutEdit(); return; }
   });
+  const opSlider = document.getElementById('perf-ctrl-opacity-slider');
+  if (opSlider) {
+    opSlider.value = getCtrlOpacity();
+    applyCtrlOpacity(getCtrlOpacity(), false);
+    opSlider.addEventListener('input', () => applyCtrlOpacity(+opSlider.value, true));
+  }
 })();
 
 // =====================================================
